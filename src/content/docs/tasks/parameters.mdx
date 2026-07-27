@@ -1,0 +1,171 @@
+---
+title: Define parameters & units
+description: Declare the quantities FEWS measures and computes — parameter groups, types, and units — and the naming that keeps a large configuration sane.
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside, Card } from '@astrojs/starlight/components';
+
+Parameters are the **what** of your data model — discharge, water level,
+precipitation, temperature. Where [locations](/tasks/locations/) answer *where*,
+parameters answer *what quantity*. Like locations, they're foundational nouns:
+declared once, then referenced by id from every [import](/tasks/import-timeseries/),
+[ID map](/tasks/id-mapping/), filter, and model.
+
+<Aside type="note" title="Parameters are half of a series' identity">
+A stored [time series](/concepts/glossary/#time-series) is identified by (among
+other things) its location **and** its parameter. Get the parameter id wrong and
+the series is, as far as FEWS is concerned, a different thing entirely.
+</Aside>
+
+## Anatomy: groups vs parameters
+
+The `Parameters` file has a two-level structure that trips people up at first:
+
+- A **`parameterGroup`** carries the shared properties — the *type*, *unit*, and
+  *resolution* that a family of quantities has in common.
+- A **`parameter`** inside it is a concrete id you actually reference elsewhere.
+
+<div class="diagram">
+
+```text
+parameters
+└─ parameterGroups
+   └─ parameterGroup id="Q"        ← shared: parameterType, unit, resolution
+      ├─ parameterType: instantaneous
+      ├─ unit: m3/s
+      └─ parameter id="Q.obs"      ← a concrete id you reference in configs
+         parameter id="Q.sim"      ← another, sharing the group's unit/type
+```
+
+</div>
+
+So a group like `Q` (discharge, m³/s, instantaneous) can hold `Q.obs` (observed),
+`Q.sim` (simulated), and `Q.fc` (forecast) — three ids that share one unit and
+type, defined once.
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Parameters 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<parameters xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <parameterGroups>
+    <parameterGroup id="Q">
+      <parameterType>instantaneous</parameterType>
+      <unit>m3/s</unit>
+      <valueResolution>0.001</valueResolution>
+      <usesDatum>false</usesDatum>
+      <parameter id="Q.obs">
+        <shortName>Q.obs</shortName>
+        <description>Observed discharge</description>
+      </parameter>
+    </parameterGroup>
+  </parameterGroups>
+</parameters>
+```
+
+## The fields that matter
+
+### `parameterType` — how values relate to time
+
+One of three values, and choosing wrong quietly corrupts any aggregation:
+
+| Type | Meaning | Example |
+| --- | --- | --- |
+| `instantaneous` | A snapshot at a point in time. | Water level, discharge *now*. |
+| `accumulative` | A total accumulated over the interval. | Rainfall depth per hour. |
+| `mean` | An average over the interval. | Mean daily temperature. |
+
+Aggregating an `accumulative` parameter *sums*; aggregating an `instantaneous`
+one *samples or averages*. Label rainfall as `instantaneous` and hourly-to-daily
+totals come out badly wrong.
+
+### `unit` and `displayUnit`
+
+`unit` is the unit values are **stored** in; `displayUnit` (optional) is what
+users **see**. FEWS converts between them, so you can store SI and display local
+units without touching the data. When an [import](/tasks/import-timeseries/)
+source uses a different unit again, a `unitConversionsId` on the import bridges
+that gap on the way in.
+
+### `valueResolution` and `usesDatum`
+
+`valueResolution` is the smallest meaningful step (e.g. `0.001`), used for storage
+and display rounding. `usesDatum` marks parameters measured against a vertical
+datum (like water level referenced to a gauge zero), enabling datum-aware
+handling.
+
+## Common patterns
+
+- **One group, several parameters.** Put `Q.obs`, `Q.sim`, and `Q.fc` in the `Q`
+  group so they share unit and type — the normal way to represent observed vs
+  simulated vs forecast of the same quantity.
+- **A consistent naming scheme.** A convention like `<Quantity>.<role>`
+  (`H.obs`, `P.fc`) keeps large configs navigable and makes
+  [ID maps](/tasks/id-mapping/) predictable. Pick one early.
+- **Bulk-define from CSV.** For many parameters, `parametersCsvFile` loads them
+  from a table instead of hand-writing each — the same data-not-XML approach as
+  file-based [location sets](/tasks/locations/).
+- **Separate display units per region.** Store in `m3/s`, display in `ft3/s` via
+  `displayUnit`, with no change to stored data or models.
+
+## Key fields at a glance
+
+The full list is in [`parameters.xsd`](https://fews.wldelft.nl/schemas/version1.0/parameters.xsd).
+
+**`parameterGroup`** (shared properties)
+
+| Field | Meaning |
+| --- | --- |
+| `id` (attribute) | Group id. |
+| `parameterType` | `instantaneous` \| `accumulative` \| `mean`. |
+| `unit` | Storage unit (required). |
+| `displayUnit` | Optional unit shown to users. |
+| `valueResolution` | Smallest meaningful value step. |
+| `usesDatum` | Whether values are relative to a vertical datum. |
+
+**`parameter`** (a concrete id)
+
+| Field | Meaning |
+| --- | --- |
+| `id` (attribute) | The **internal parameter id** referenced everywhere. |
+| `shortName` | Compact label (required). |
+| `description` | Human-readable description. |
+
+## Gotchas
+
+- **Wrong `parameterType` corrupts aggregation.** Rainfall totals marked
+  `instantaneous` (or levels marked `accumulative`) aggregate incorrectly. This
+  is silent — the numbers are just wrong.
+- **Unit mismatch on import.** If the source's unit differs from the stored
+  `unit`, you need a `unitConversionsId` on the import; otherwise values are
+  stored as-is with the wrong magnitude.
+- **Group id vs parameter id.** Other files reference the **parameter** id
+  (`Q.obs`), not the group id (`Q`). Mixing them up fails to resolve.
+- **Referencing an undeclared parameter.** An import/filter naming a
+  `parameterId` not defined here won't resolve — declare it first.
+- **A higher-versioned file wins.** Check for a sibling like `Parameters 1.01
+  default.xml`. See [how FEWS finds a file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Load the config** and confirm no parameter-resolution errors in the log.
+2. **Check a series' units and magnitude** in a [chart](/tasks/filters-displays/):
+   right ballpark means unit and type are right; off by a constant factor points
+   at a missing unit conversion.
+3. **Sanity-check an aggregation.** Aggregate an accumulative parameter (e.g.
+   hourly→daily rainfall) and confirm it sums rather than averages.
+
+</Steps>
+
+## See also
+
+<Card title="Related pieces" icon="right-arrow">
+- [Define locations & location sets](/tasks/locations/) — the other foundational noun
+- [Import time series](/tasks/import-timeseries/) and [ID mapping](/tasks/id-mapping/) — where parameter ids are used
+- Concept: [How data flows through FEWS](/concepts/data-flow/) and the [glossary](/concepts/glossary/#parameter)
+- Schema: [`parameters.xsd`](https://fews.wldelft.nl/schemas/version1.0/parameters.xsd)
+</Card>
