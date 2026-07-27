@@ -1,0 +1,93 @@
+---
+title: Locations file
+description: Reference for the Locations config file — declare the places FEWS tracks. Field reference auto-generated from the schema.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/locations.json';
+
+This page follows the [reference format](/reference/how-to-read/): a quick
+summary, a copy-paste example, the patterns you'll actually use, then the
+**complete field reference generated straight from the schema** — so it can't
+drift from the real grammar.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Declares the **locations** — gauges, reservoirs, catchments, grid points — that
+every time series is attached to. The "where" of your [data
+model](/concepts/data-flow/).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<locations>`
+
+**Depends on**
+: Nothing — locations are foundational nouns. Other files (parameters, imports,
+filters) refer *to* location IDs declared here.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Locations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<locations xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <geoDatum>WGS 1984</geoDatum>
+  <location id="RiverGauge_01" name="River Gauge at Town Bridge">
+    <shortName>TownBr</shortName>
+    <x>4.895</x>
+    <y>52.370</y>
+    <z>2.0</z>
+  </location>
+</locations>
+```
+
+`geoDatum` is required and fixes what `x`/`y` mean; each `location` needs a unique
+`id` and `x`/`y`. Everything else is optional.
+
+## Common patterns
+
+- **Group locations under a parent** with `parentLocationId` — children are
+  auto-selected with the parent in the Explorer. Good for "a station and its
+  sub-sensors."
+- **Time-limit a location** with `visibilityPeriod` so decommissioned sites drop
+  out of the UI after a date instead of being deleted.
+- **Build big location lists from data**, not by hand — for hundreds of gauges,
+  define them in a CSV or shapefile and load them via a
+  [location set](/tasks/locations/) rather than writing each `<location>`.
+
+<Aside type="tip">
+For large systems you rarely maintain a giant `Locations` file directly — you
+keep the attributes in a CSV/shapefile and let a **location set** read them. The
+`<location>` grammar below is still what each row resolves to.
+</Aside>
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **Duplicate `id`s** silently break references — IDs must be unique across the
+  file. FEWS keys locations by `id`.
+- **Missing `geoDatum`** or coordinates in the wrong datum put your locations in
+  the wrong place on the map. `geoDatum` is not optional.
+- **A higher-versioned sibling wins.** If edits aren't taking effect, look for
+  `Locations 1.01 default.xml` next to your file — see [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+- **Referencing an undeclared id** elsewhere (an import or filter pointing at a
+  `locationId` not defined here) fails to resolve. Declare the location first.
+
+## See also
+
+- Task guide: [Define locations & location sets](/tasks/locations/)
+- Concept: [The configuration directory](/concepts/config-directory/)
+- Schema: [`locations.xsd`]({data.schemaUrl})

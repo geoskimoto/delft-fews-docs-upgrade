@@ -1,0 +1,24 @@
+{
+  "name": "improved-fews-config-docs",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A clearer, task-oriented configuration guide for Delft-FEWS.",
+  "scripts": {
+    "gen:schema": "node scripts/gen-schema.mjs",
+    "predev": "npm run gen:schema",
+    "dev": "astro dev",
+    "start": "astro dev",
+    "prebuild": "npm run gen:schema",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.34.0",
+    "astro": "^5.6.1",
+    "sharp": "^0.34.1"
+  },
+  "devDependencies": {
+    "fast-xml-parser": "^5.10.1"
+  }
+}

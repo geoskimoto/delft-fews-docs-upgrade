@@ -1,0 +1,17 @@
+# build output
+dist/
+# generated types
+.astro/
+# schema field data — regenerated from schemas/ on predev/prebuild
+src/data/schema/
+# local editor / assistant config
+.claude/
+# dependencies
+node_modules/
+# logs
+npm-debug.log*
+# environment
+.env
+.env.production
+# macOS
+.DS_Store

@@ -1,0 +1,137 @@
+---
+/**
+ * Renders a schema-derived field reference: the root complex type followed by
+ * every complex type reachable from it, each as its own table. Complex fields
+ * link to the table for their type (in-page anchor).
+ *
+ * Data comes from scripts/schema-to-fields.mjs (see src/data/schema/*.json).
+ */
+interface Field {
+  name: string;
+  type: string;
+  required: boolean;
+  repeatable: boolean;
+  doc?: string;
+  kind: 'scalar' | 'enum' | 'complex';
+  enumValues?: string[];
+  typeRef?: string;
+}
+interface Attribute {
+  name: string;
+  type?: string;
+  use?: string;
+  fixed?: string;
+  default?: string;
+  doc?: string;
+}
+interface TypeNode { doc?: string; attributes: Attribute[]; fields: Field[]; }
+interface SchemaData {
+  element: string;
+  rootType: string;
+  schemaFile: string;
+  schemaUrl: string;
+  doc?: string;
+  types: Record<string, TypeNode>;
+}
+
+const { data } = Astro.props as { data: SchemaData };
+
+const cardinality = (f: Field) => {
+  const base = f.required ? 'required' : 'optional';
+  return f.repeatable ? `${base} · repeats` : base;
+};
+// Root type first, then the rest in discovery order.
+const typeEntries = Object.entries(data.types);
+---
+
+<div class="field-reference">
+  <p class="fr-source">
+    Auto-generated from <a href={data.schemaUrl} rel="external">{data.schemaFile}</a>.
+    Descriptions are the schema's own annotations.
+  </p>
+
+  {typeEntries.map(([typeName, node], i) => (
+    <section id={typeName} class="fr-type">
+      <h3 class="fr-type-title">
+        {i === 0 ? (
+          <>Element <code>&lt;{data.element}&gt;</code></>
+        ) : (
+          <><code>{typeName}</code></>
+        )}
+      </h3>
+      {node.doc && <p class="fr-type-doc">{node.doc}</p>}
+
+      {node.attributes.length > 0 && (
+        <>
+          <p class="fr-subhead">Attributes</p>
+          <table>
+            <thead><tr><th>Attribute</th><th>Use</th><th>Notes</th></tr></thead>
+            <tbody>
+              {node.attributes.map((a) => (
+                <tr>
+                  <td><code>{a.name}</code></td>
+                  <td>{a.use === 'required' ? 'required' : 'optional'}</td>
+                  <td>
+                    {a.fixed && <span>fixed: <code>{a.fixed}</code>. </span>}
+                    {a.default && <span>default: <code>{a.default}</code>. </span>}
+                    {a.doc}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {node.fields.length > 0 && (
+        <>
+          {node.attributes.length > 0 && <p class="fr-subhead">Elements</p>}
+          <table>
+            <thead><tr><th>Element</th><th>Type</th><th>Cardinality</th><th>Description</th></tr></thead>
+            <tbody>
+              {node.fields.map((f) => (
+                <tr>
+                  <td><code>{f.name}</code></td>
+                  <td>
+                    {f.kind === 'complex' && f.typeRef ? (
+                      <a href={`#${f.typeRef}`}><code>{f.type}</code></a>
+                    ) : (
+                      <code>{f.type}</code>
+                    )}
+                  </td>
+                  <td class={f.required ? 'fr-req' : 'fr-opt'}>{cardinality(f)}</td>
+                  <td>
+                    {f.doc}
+                    {f.kind === 'enum' && f.enumValues && (
+                      <div class="fr-enum">
+                        One of: {f.enumValues.map((v, j) => (
+                          <>{j > 0 && ', '}<code>{v}</code></>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  ))}
+</div>
+
+<style>
+  .field-reference { margin-top: 1rem; }
+  .fr-source { font-size: 0.85rem; color: var(--sl-color-gray-3); }
+  .fr-type { margin: 2rem 0; scroll-margin-top: 6rem; }
+  .fr-type-title { margin-bottom: 0.25rem; }
+  .fr-type-doc { color: var(--sl-color-gray-2); margin-top: 0; }
+  .fr-subhead {
+    font-weight: 600; margin: 1rem 0 0.25rem; text-transform: uppercase;
+    font-size: 0.72rem; letter-spacing: 0.05em; color: var(--sl-color-gray-3);
+  }
+  .field-reference table { font-size: 0.9rem; }
+  .fr-req { color: var(--sl-color-text-accent); font-weight: 600; white-space: nowrap; }
+  .fr-opt { color: var(--sl-color-gray-3); white-space: nowrap; }
+  .fr-enum { margin-top: 0.35rem; font-size: 0.85rem; }
+</style>

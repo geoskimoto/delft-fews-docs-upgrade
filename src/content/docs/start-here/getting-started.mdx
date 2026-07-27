@@ -1,0 +1,328 @@
+---
+title: Getting started — build a minimal configuration
+description: A hands-on walkthrough that builds the smallest useful Delft-FEWS configuration from scratch, then layers pieces in one at a time.
+sidebar:
+  order: 2
+---
+
+import { Steps, FileTree, Aside, Card } from '@astrojs/starlight/components';
+
+This tutorial builds a small, complete configuration from nothing: a single
+gauge whose observed discharge is imported from a CSV file, made browsable in the
+FEWS Explorer, and run from a workflow. It's the FEWS equivalent of
+"hello, world" — deliberately tiny, but every piece is real and each one maps to
+a hop in [the data-flow model](/concepts/data-flow/).
+
+<Aside type="tip" title="Read the concepts first">
+This tutorial assumes the mental model from [Core
+Concepts](/concepts/overview/) — especially [how data flows through
+FEWS](/concepts/data-flow/) and [the configuration
+directory](/concepts/config-directory/). Fifteen minutes there will save you an
+hour here.
+</Aside>
+
+## What we're going to build
+
+One observed time series, all the way through the pipeline:
+
+<div class="diagram">
+
+```text
+  observations.csv        IdMap            Import module         Filter
+  (external names)  ──▶  (rename to  ──▶  (writes internal  ──▶  (makes it
+                          FEWS names)      time series)           browsable)
+     GAUGE-A                                RiverGauge_01          "Observed
+     discharge                              Q.obs                   Discharge"
+        └──────────── hop ② ────────────┘   └─ hop ③ ─┘        └─ hop ⑤ ─┘
+```
+
+</div>
+
+By the end you'll have this on disk:
+
+<FileTree>
+- MyRegion/
+  - Config/
+    - RegionConfigFiles/
+      - Locations 1.00 default.xml
+      - Parameters 1.00 default.xml
+      - Filters 1.00 default.xml
+    - IdMapFiles/
+      - IdImportObservations 1.00 default.xml
+    - ModuleConfigFiles/
+      - ImportObservations 1.00 default.xml
+    - WorkflowFiles/
+      - ImportObserved 1.00 default.xml
+  - Import/
+    - observations.csv
+</FileTree>
+
+<Aside type="note" title="About the file names">
+FEWS reads config by folder and by a `Name VERSION flag.xml` convention, and it
+uses the **highest version** it finds. The base name (e.g. `Locations`) is the id
+other files refer to; the ` 1.00 default` part is versioning. See [how FEWS finds
+a file](/concepts/config-directory/#how-fews-finds-a-file). Below, code-block
+titles show the full file name; config *references* use the base name only.
+</Aside>
+
+## Build it step by step
+
+<Steps>
+
+1. ### Create the region skeleton
+
+   Make the folders. You don't need every folder FEWS supports — only the ones
+   this tutorial writes into.
+
+   ```bash
+   mkdir -p MyRegion/Config/RegionConfigFiles
+   mkdir -p MyRegion/Config/IdMapFiles
+   mkdir -p MyRegion/Config/ModuleConfigFiles
+   mkdir -p MyRegion/Config/WorkflowFiles
+   mkdir -p MyRegion/Import
+   ```
+
+   This is the [configuration directory](/concepts/config-directory/) in
+   miniature: the `RegionConfigFiles` "what exists" layer, the
+   `ModuleConfigFiles` + `WorkflowFiles` "what to do" layer, and an `Import`
+   folder for incoming data.
+
+2. ### Declare a location — *the "where"*
+
+   FEWS can't store a value until it knows the place it belongs to. Declare one
+   gauge. `geoDatum` is required; it tells FEWS what the `x`/`y` coordinates
+   mean.
+
+   ```xml title="Config/RegionConfigFiles/Locations 1.00 default.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <locations xmlns="http://www.wldelft.nl/fews" version="1.1">
+     <geoDatum>WGS 1984</geoDatum>
+     <location id="RiverGauge_01" name="River Gauge at Town Bridge">
+       <shortName>TownBr</shortName>
+       <x>4.895</x>
+       <y>52.370</y>
+       <z>2.0</z>
+     </location>
+   </locations>
+   ```
+
+   `RiverGauge_01` is the **internal** location id — the name FEWS uses
+   everywhere from here on. Full element list: [`locations.xsd`][loc-xsd].
+
+3. ### Declare a parameter — *the "what"*
+
+   Now the quantity. Parameters live in **groups** that carry the shared
+   properties (type, unit, resolution); individual parameters sit inside.
+
+   ```xml title="Config/RegionConfigFiles/Parameters 1.00 default.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <parameters xmlns="http://www.wldelft.nl/fews" version="1.0">
+     <parameterGroups>
+       <parameterGroup id="Q">
+         <parameterType>instantaneous</parameterType>
+         <unit>m3/s</unit>
+         <valueResolution>0.001</valueResolution>
+         <usesDatum>false</usesDatum>
+         <parameter id="Q.obs">
+           <shortName>Q.obs</shortName>
+           <description>Observed discharge</description>
+         </parameter>
+       </parameterGroup>
+     </parameterGroups>
+   </parameters>
+   ```
+
+   `Q.obs` is the **internal** parameter id. `instantaneous` means each value is a
+   snapshot in time (not a total over the interval — that would be
+   `accumulative`). Full element list: [`parameters.xsd`][par-xsd].
+
+4. ### Add the input data — *the "outside world"*
+
+   Here's the raw data as an external system might hand it to you. Note it uses
+   **its own** names — `GAUGE-A`, `discharge` — not FEWS's.
+
+   ```text title="Import/observations.csv"
+   location,parameter,datetime,value
+   GAUGE-A,discharge,2026-07-27 00:00:00,12.4
+   GAUGE-A,discharge,2026-07-27 01:00:00,12.9
+   GAUGE-A,discharge,2026-07-27 02:00:00,13.6
+   ```
+
+   <Aside type="caution" title="CSV layout is import-type specific">
+   The exact elements that describe a CSV's columns depend on the import type you
+   choose (`generalCsv` and friends), and they vary across FEWS versions. This
+   tutorial keeps the parsing details minimal and focuses on the flow; when you
+   wire up a real CSV, confirm the column-mapping elements against
+   [`timeSeriesImportRun.xsd`][imp-xsd] for your version.
+   </Aside>
+
+5. ### Map the external names to FEWS names — *hop ②*
+
+   This is the translation table. It says: when you see `GAUGE-A` / `discharge`
+   in the incoming file, that **is** `RiverGauge_01` / `Q.obs` internally.
+
+   ```xml title="Config/IdMapFiles/IdImportObservations 1.00 default.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <idMap xmlns="http://www.wldelft.nl/fews" version="1.1">
+     <map internalLocation="RiverGauge_01" internalParameter="Q.obs"
+          externalLocation="GAUGE-A"        externalParameter="discharge"/>
+   </idMap>
+   ```
+
+   <Aside type="danger" title="This is the #1 source of “my data disappeared”">
+   Only series that **match a `map` entry** get imported — everything else is
+   silently dropped. A typo here (`GAUGE_A` vs `GAUGE-A`, `Discharge` vs
+   `discharge`) is the most common reason imported data never shows up. See [ID
+   mapping](/tasks/id-mapping/).
+   </Aside>
+
+6. ### Import the data — *hops ①→③*
+
+   The import module ties it together: read files from `../Import`, apply the
+   ID map, and write the result as an **internal** time series. The
+   `timeSeriesSet` describes the internal series to create — so it uses the
+   **internal** ids (`Q.obs`, `RiverGauge_01`).
+
+   ```xml title="Config/ModuleConfigFiles/ImportObservations 1.00 default.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <timeSeriesImportRun xmlns="http://www.wldelft.nl/fews" version="1.1">
+     <import>
+       <general>
+         <importType>generalCsv</importType>
+         <folder>$IMPORT_FOLDER$/../Import</folder>
+         <fileNamePatternFilter>*.csv</fileNamePatternFilter>
+         <idMapId>IdImportObservations</idMapId>
+         <importTimeZone>
+           <timeZoneName>GMT</timeZoneName>
+         </importTimeZone>
+       </general>
+       <timeSeriesSet>
+         <moduleInstanceId>ImportObservations</moduleInstanceId>
+         <valueType>scalar</valueType>
+         <parameterId>Q.obs</parameterId>
+         <locationId>RiverGauge_01</locationId>
+         <timeSeriesType>external historical</timeSeriesType>
+         <timeStep unit="hour" multiplier="1"/>
+         <readWriteMode>add originals</readWriteMode>
+       </timeSeriesSet>
+     </import>
+   </timeSeriesImportRun>
+   ```
+
+   <Aside type="note" title="Why the module instance id matters">
+   The file is named `ImportObservations …`, so its **module instance id** is
+   `ImportObservations`. That id becomes part of the stored series'
+   [header](/concepts/glossary/#time-series-header). Remember it — the next step
+   has to ask for the data by the *same* id, or it won't find it.
+   </Aside>
+
+   `idMapId` points at the map from the previous step (base name, no version).
+   `external historical` is the [time series
+   type](/concepts/glossary/#simulated--forecast-time-series) for observed data
+   that arrived from outside.
+
+7. ### Make it visible — *hop ⑤*
+
+   Data is now in the store, but nobody can see it yet. A **filter** adds an
+   entry to the browsable tree in the FEWS Explorer; clicking it shows the series
+   on the default chart. The `timeSeriesSet` here is a *query* — it must match the
+   header the import wrote, especially `moduleInstanceId`.
+
+   ```xml title="Config/RegionConfigFiles/Filters 1.00 default.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <filters xmlns="http://www.wldelft.nl/fews" version="1.1">
+     <filter id="observations" name="Observed Discharge">
+       <timeSeriesSet>
+         <moduleInstanceId>ImportObservations</moduleInstanceId>
+         <valueType>scalar</valueType>
+         <parameterId>Q.obs</parameterId>
+         <locationId>RiverGauge_01</locationId>
+         <timeSeriesType>external historical</timeSeriesType>
+         <timeStep unit="hour" multiplier="1"/>
+       </timeSeriesSet>
+     </filter>
+   </filters>
+   ```
+
+   <Aside type="tip" title="Write here, read there — they must match">
+   Compare this `timeSeriesSet` with the import's: `moduleInstanceId`,
+   `parameterId`, `locationId`, `timeSeriesType`, and `timeStep` are identical.
+   That's not a coincidence — the filter finds data by reconstructing the same
+   [header](/concepts/glossary/#time-series-header) the import stored under.
+   Change one field on one side and the data vanishes from the display.
+   </Aside>
+
+8. ### Run it from a workflow
+
+   A **workflow** is the ordered recipe of what to run. Right now it has one
+   step: the import. Later you'd add transformation and model activities after it.
+
+   ```xml title="Config/WorkflowFiles/ImportObserved 1.00 default.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <workflow xmlns="http://www.wldelft.nl/fews" version="1.1">
+     <activity>
+       <runIndependent>true</runIndependent>
+       <moduleInstanceId>ImportObservations</moduleInstanceId>
+     </activity>
+   </workflow>
+   ```
+
+   `runIndependent` `true` means the workflow keeps going even if this activity
+   fails — useful once there are several activities. To add a second step, you'd
+   just add another `<activity>` with its own `moduleInstanceId`, in order.
+
+   <Aside type="note" title="One more registration step in a real system">
+   For FEWS to *offer* this workflow in the UI, it's typically also listed in a
+   `WorkflowDescriptors` file, and it runs via a scheduled or manual **task**.
+   Those belong to operating the system rather than to configuration, so they're
+   out of scope here — but that's the missing link between "the file exists" and
+   "the button appears."
+   </Aside>
+
+</Steps>
+
+## What you just built
+
+Trace it back against [the five hops](/concepts/data-flow/#the-five-hops-and-who-governs-each):
+
+| Hop | In this tutorial |
+| --- | --- |
+| ① Import | `ImportObservations` reads `observations.csv` |
+| ② ID map | `IdImportObservations` renames `GAUGE-A/discharge` → `RiverGauge_01/Q.obs` |
+| ③ Store | The series is written with a header: *loc `RiverGauge_01`, param `Q.obs`, module `ImportObservations`, hourly, external historical* |
+| ⑤ Display | The `Observed Discharge` filter surfaces it in the Explorer |
+
+Hop ④ (processing/models) is the natural next thing to add — an activity in the
+workflow that reads `Q.obs` and writes a derived or simulated series.
+
+## When it doesn't work — the usual suspects
+
+Almost every first-config problem is one of these:
+
+- **Data imports but doesn't display.** The filter's `timeSeriesSet` doesn't
+  match the import's header — usually a different `moduleInstanceId` or
+  `timeStep`. Line the two up field by field.
+- **Nothing imports at all.** An `idMap` mismatch — an external name in the CSV
+  doesn't exactly match a `map` entry (case and punctuation count).
+- **A change has no effect.** A higher-versioned copy of the file is winning.
+  Check for a sibling like `Locations 1.01 default.xml`. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+- **An id can't be resolved.** You referenced a `locationId` or `parameterId`
+  that isn't declared in `RegionConfigFiles`. Declare the noun first.
+
+## Where to go next
+
+<Card title="Layer in the next piece" icon="rocket">
+Add a [transformation](/tasks/transformations/) that derives a new series from
+`Q.obs`, then add it as a second activity in the workflow. Or wire up a real
+model with the [General Adapter](/tasks/general-adapter/). Each new capability is
+just another module + another activity — the shape you already know.
+</Card>
+
+The [task guides](/tasks/locations/) go deep on each file type you touched here,
+and every [reference page](/reference/how-to-read/) links back to the underlying
+schema.
+
+[loc-xsd]: https://fews.wldelft.nl/schemas/version1.0/locations.xsd
+[par-xsd]: https://fews.wldelft.nl/schemas/version1.0/parameters.xsd
+[imp-xsd]: https://fews.wldelft.nl/schemas/version1.0/timeSeriesImportRun.xsd

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="locations" type="fews:LocationsComplexType"/>
+	<!--    -->
+	<complexType name="LocationsComplexType">
+		<sequence>
+			<element name="timeZone" type="fews:timeZoneStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional time zone for dates and times defined in this configuration file. If no time zone is defined, then dates and times are in GMT.</documentation>
+				</annotation>
+			</element>
+			<element name="geoDatum" type="fews:geoDatumStringType"/>
+			<element name="location" type="fews:LocationComplexType" maxOccurs="unbounded">
+				<key name="location">
+					<selector xpath="."/>
+					<field xpath="@id"/>
+				</key>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!--    -->
+	<complexType name="LocationComplexType">
+		<annotation>
+			<documentation>points which a times series can exists.
+                     The point is represented by X, Y and Z coordinates. Each location element of a time
+            series location file corresponds to a time series data file and consist of four elements.</documentation>
+		</annotation>
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name of location (tool tip) or description</documentation>
+				</annotation>
+			</element>
+			<element name="shortName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Short name of location for chart legend</documentation>
+				</annotation>
+			</element>
+			<element name="label" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Label to be displayed on the map in  FewsExplorer.  Besides the global properties you can use the following tags  %ID%, %NAME%, et cetera (similar to toolTip)</documentation>
+				</annotation>
+			</element>
+			<element name="toolTip" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Tooltip to be displayed in the FewsExplorer.
+                        You can use use \n or CDATA or HTML when you need multiple lines.
+                        Besides the global properties you can use the following tags
+                        %ID%, %NAME%, %DESCRIPTION%, %LAST_VALUE%, %LAST_VALUE_TIME%,
+                        %FORECAST_START_TIME%, %MAXIMUM_VALUE%, %MAXIMUM_VALUE_TIME%
+                        The tooltip supports html including images and hyperlinks.
+                        The url in the hyper link can be an internet url, an executable file, a document file, or a folder.
+                        Use the CDATA xml tag to include html in a xml file.
+                        By default the following tool tip is used.
+
+                        ID: %ID%\n
+                        Name: %NAME%\n
+                        Desc: " + "%DESCRIPTION%\n
+                        Last value [%LAST_VALUE%] Time [%LAST_VALUE_TIME%]\n
+                        Forecast Start Time [%FORECAST_START_TIME%]\n
+                        Maximum [%MAXIMUM_VALUE%] Time [%MAXIMUM_VALUE_TIME%]
+
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="parentLocationId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>When a location has a parent id it is an invisible child location.
+                        All the children of a location are automatically selected in the fews explorer</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityPeriod" type="fews:LocationVisibilityPeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional period for which this location is visible in the user interface. The start and the end of the period are inclusive. If not defined, then this location is visible for all times.</documentation>
+				</annotation>
+			</element>
+			<element name="x" type="double">
+				<annotation>
+					<documentation>X coordinate of the point (Easting)</documentation>
+				</annotation>
+			</element>
+			<element name="y" type="double">
+				<annotation>
+					<documentation>Y coordinate of the point (Northing)</documentation>
+				</annotation>
+			</element>
+			<element name="z" type="double" minOccurs="0">
+				<annotation>
+					<documentation>Z coordinate of the point (altitude)</documentation>
+				</annotation>
+			</element>
+			<element name="bedLevel" type="double" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.02 </documentation>
+				</annotation>
+			</element>
+			<element name="layerSigmaCoordinate" type="fews:sigmaCoordinateDouble" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. When this location represents a sigma layer</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0" maxOccurs="unbounded">
+				<any namespace="http://www.wldelft.nl/fews/relatedLocationId" processContents="skip">
+					<annotation>
+						<documentation>Relation that can be used in time series sets. When a location relation is specified in a
+						time series set the time series set locations
+						are mapped to the related locations and these related locations are used to read/write the time series.
+						Put the id of the relation after the colon (:) and the related location id inside the element
+						eg. relatedLocationId:UPSTREAM>H-2004
+					</documentation>
+					</annotation>
+				</any>
+			</sequence>
+            <group ref="fews:AttributeChoice" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="LocationVisibilityPeriodComplexType">
+		<sequence>
+			<element name="startDateTime" type="fews:DateTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The start date time of the period for which this location is visible in the user interface. Start date time is inclusive. If start date time not defined, then visible for all times before end date time.</documentation>
+				</annotation>
+			</element>
+			<element name="endDateTime" type="fews:DateTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The end date time of the period for which this location is visible in the user interface. End date time is inclusive. If end date time not defined, then visible for all times after start date time.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="sigmaCoordinateDouble">
+		<restriction base="double">
+			<minInclusive value="-1"/>
+			<maxInclusive value="1"/>
+		</restriction>
+	</simpleType>
+</schema>

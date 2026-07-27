@@ -1,0 +1,15 @@
+/* Light-touch theming on top of Starlight's defaults. */
+:root {
+  --sl-content-width: 50rem;
+}
+
+/* Give ASCII data-flow diagrams a calmer, centered presentation. */
+.diagram pre {
+  line-height: 1.35;
+  font-size: 0.85rem;
+}
+
+/* Subtle emphasis for the "at a glance" summary boxes used on reference pages. */
+.field-list dt {
+  font-weight: 600;
+}

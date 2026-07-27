@@ -1,0 +1,48 @@
+---
+title: Configuring Delft-FEWS
+description: A clearer, task-oriented guide to configuring Delft-FEWS — the streamflow forecasting and time series management system.
+template: splash
+hero:
+  tagline: The official reference is thorough but assumes you already know how FEWS thinks. This guide starts from the mental model, then shows you how to configure things — task by task.
+  actions:
+    - text: Start with the concepts
+      link: /concepts/overview/
+      icon: right-arrow
+      variant: primary
+    - text: Why this guide exists
+      link: /start-here/introduction/
+      icon: open-book
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Find your way in
+
+<CardGrid stagger>
+  <Card title="Understand the model first" icon="puzzle">
+    Delft-FEWS makes a lot more sense once you can picture how data moves
+    through it. [Start with the data-flow model](/concepts/data-flow/) — it's
+    the single most useful thing to internalize.
+  </Card>
+  <Card title="Learn the directory layout" icon="open-book">
+    A FEWS configuration is a tree of XML files in named folders. [See how the
+    Config directory is organized](/concepts/config-directory/) and which files
+    do what.
+  </Card>
+  <Card title="Follow the lifecycle" icon="seti:clock">
+    Import → transform → forecast → display → export. [Walk the forecasting
+    lifecycle](/concepts/lifecycle/) to see where each config file fits.
+  </Card>
+  <Card title="Do a specific task" icon="setting">
+    Once the concepts click, the [task guides](/tasks/locations/) show you how
+    to configure one thing at a time — with copy-paste examples.
+  </Card>
+</CardGrid>
+
+:::note[Scope]
+This first release focuses on **how to configure a system**. The **Core
+Concepts** section is complete; the **Task** and **Reference** sections are
+being written and follow the same format. This is an independent guide, not an
+official Deltares product.
+:::

@@ -1,0 +1,556 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by Chris Mare (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="parameters" type="fews:ParametersComplexType">
+		<annotation>
+			<documentation>Root element SINCE 2010.01</documentation>
+		</annotation>
+	</element>
+	<element name="parameterGroups" type="fews:ParameterGroupsComplexType">
+		<annotation>
+			<documentation>Old root element for backward compatibility, parameters root element used instead SINCE 2010.01</documentation>
+		</annotation>
+	</element>
+	<complexType name="ParameterGroupsComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<group ref="fews:UnitConversionSequence"/>
+			<element name="defaultSpectrumDomainParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Obsolete. For a spectrum use as scalar time series set with a domain parameters</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:SpecialParametersSequence"/>
+			<element name="parameterGroup" type="fews:ParameterGroupComplexType" maxOccurs="unbounded">
+				<key name="parameterGroup">
+					<selector xpath="."/>
+					<field xpath="@id"/>
+				</key>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" fixed="1.0"/>
+	</complexType>
+	<group name="SpecialParametersSequence">
+		<sequence>
+			<element name="ratingCurveStageParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>This parameter is used to resolve the internal stage unit and display stage unit and the name (label) that is used for the rating curve stage axis/column in the user interface</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveDischargeParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>This parameter is used to resolve the internal discharge unit and display discharge unit and the name (label) that is used for the rating curve discharge axis/column in the user interface</documentation>
+				</annotation>
+			</element>
+			<element name="chainageParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2016.01 This parameter is used to resolve the internal chainage unit and display chainage unit and the name (label) that is used for the chainage axis in user interface</documentation>
+				</annotation>
+			</element>
+			<element name="tideNumberParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2022.02. The parameter of a time series (set) is replaced (behind the screens) with this parameter to find the tide number</documentation>
+				</annotation>
+			</element>
+		</sequence>
+</group>
+	<group name="UnitConversionSequence">
+		<sequence>
+			<element name="displayUnitConversionsId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The unit conversions id to convert from the (internal) units to the display units.
+						This id should be available in the
+						UnitConversionsDescriptors. Only required when a user unit is specified for a parameter group
+					</documentation>
+				</annotation>
+			</element>
+			<element name="configUnitConversionsId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The unit conversions id to convert from the units specified in config files to the
+						internal units for this parameter.
+						This id should be available in the UnitConversionsDescriptors. Only required when a user unit is
+						specified for a thresholdValuesSet, validationRuleSet or ratingCurve
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="ParameterGroupComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<choice>
+				<element name="enumerationId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2015.01. Reference to one of the enumerations defined above</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="parameterType" type="fews:parameterTypeEnum"/>
+					<element name="dimension" type="fews:DimensionComplexType" minOccurs="0">
+						<annotation>
+							<documentation>The dimension of the parameter used to indicate what quantity the values for this parameter represent. For example: time, mass, velocity, acceleration, discharge etc.</documentation>
+						</annotation>
+					</element>
+					<element name="unit" type="fews:unitStringType">
+						<annotation>
+							<documentation>The unit of the values internally stored in the data store. By specifying a display unit you can use another unit seen by the user</documentation>
+						</annotation>
+					</element>
+					<element name="displayUnit" type="fews:unitStringType" minOccurs="0">
+						<annotation>
+							<documentation>Specify when the unit seen by the user is not the same as the unit of the values internally stored in the data store. Also specify displayUnitConversionsId above as first element in this config file. In this unit conversions the conversion from (internal) unit to display unit should be available
+							</documentation>
+						</annotation>
+					</element>
+					<element name="valueResolution" type="fews:valueResolution" minOccurs="0">
+						<annotation>
+							<documentation>Default accuracy (smallest increment between two values) of the calculated or measured values for all parameters in this group. Value resolution can also be specified for a single parameter (since stable build 2011.01). By default the resolution is dynamic and the values are stored as a 32 bit floating point with 6 significant digits. Floating points don't compress very well and are slow to decode. It is far more efficient to store a value as an integer with a scale factor (= value resolution). When an 8, 16 or 24 bit integer is not big enough to achieve the value resolution the default 32 bit floating point is used as a fallback. E.g. when the accuracy of a water level is half a centimeter, specify 0.005. When the accuracy of a discharge is 10 m3/s, specify 10.</documentation>
+						</annotation>
+					</element>
+					<element name="valueResolutionUnit" type="fews:unitStringType" minOccurs="0">
+						<annotation>
+							<documentation>Should be the same as the system unit or the display unit</documentation>
+						</annotation>
+					</element>
+					<element name="usesDatum" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Indicates if the parameters in the group are to be converted when toggling between local and global datum. Value is either true or false. If the value is
+								true, the elevation defined in the location is added to the time series in the database on conversion.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="parameter" type="fews:ParameterComplexType" maxOccurs="unbounded">
+				<key name="parameter">
+					<selector xpath="."/>
+					<field xpath="@id"/>
+				</key>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="DimensionComplexType">
+		<annotation>
+			<documentation>
+				name="length" length="1"
+				name="mass" mass="1"
+				name="time" time="1"
+				name="temperature" temperature="1"
+				name="electricCurrent" electricCurrent="1"
+				name="amountOfSubstance" amountOfSubstance="1"
+				name="luminousIntensity" luminousIntensity="1"
+				name="velocity" length="1" time="-1"
+				name="frequency" time="-1"
+				name="acceleration" length="1" time="-2"
+				name="discharge" length="3" time="-1"
+				name="momentum" mass="1" length="1" time="-1"
+				name="force" mass="1" length="1" time="-2"
+				name="pressure" mass="1" length="-1" time="-2"
+				name="mass flux" mass="1" length="-2" time="-1"
+				name="volumetric flux" length="1" time="-1"
+				name="energy flux" mass="1" time="-3"
+				name="surface tension" mass="1" time="-2"
+				name="energy" mass="1" length="2" time="-2"
+				name="power" mass="1" length="2" time="-3"
+				name="mass density" mass="1" length="-3"
+				name="viscosity" mass="1" length="-1" time="-1"
+				name="area" length="2"
+				name="volume" length="3"
+				name="entropy" mass="1" length="2" time="-2" temperature="-1"
+				name="electric charge" electricCurrent="1" time="1"
+				name="electric field" mass="1" length="1" time="-3" electricCurrent="-1"
+				name="magnetic field" mass="1" time="-2" electricCurrent="-1"
+				name="dimensionless"
+			</documentation>
+		</annotation>
+		<attribute name="name" type="string" use="required"/>
+		<attribute name="length" type="integer" default="0"/>
+		<attribute name="mass" type="integer" default="0"/>
+		<attribute name="time" type="integer" default="0"/>
+		<attribute name="temperature" type="integer" default="0"/>
+		<attribute name="electricCurrent" type="integer" default="0"/>
+		<attribute name="amountOfSubstance" type="integer" default="0"/>
+		<attribute name="luminousIntensity" type="integer" default="0"/>
+	</complexType>
+	<simpleType name="valueResolution">
+		<annotation>
+			<documentation>E.g. when the value resolution is 0.1 the values are stored in the database with at least one
+                decimal.  Specifying a resolution makes it possible for the datastore to store the values as integers and to
+                achieve high compression rates</documentation>
+		</annotation>
+		<restriction base="double">
+			<minInclusive value="1e-45"/>
+			<maxInclusive value="1e+38"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ParameterComplexType">
+		<sequence>
+			<element name="shortName" type="string"/>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Long (descriptive) name of parameter (tool tip) or description</documentation>
+				</annotation>
+			</element>
+			<element name="allowedValuesAttributeId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. Obtains allowed values from the specified location attribute</documentation>
+				</annotation>
+			</element>
+			<element name="simulatedHistoricalParameterId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Only required when different parameters are used for the forecast and historical period.
+						The simulated historical update run, current at the moment the forecast is created, will be used
+						for data before the start of the forecast. It is also required to configure the
+						simulatedHistoricalModuleInstance for the forecast module instances
+						When configured this parameter can only be used for simulated forecast time series.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="valueResolution" type="fews:valueResolution" minOccurs="0">
+				<annotation>
+					<documentation>Since stable build 2011.01. Accuracy (smallest increment between two values) of the calculated or measured values. Value resolution can also be specified at once for all parameters in the parameter group. By default the resolution is dynamic and the values are stored as a 32 bit floating point with 6 significant digits. Floating points don't compress very well and are slow to decode. It is far more efficient to store a value as an integer with a scale factor (= value resolution). When an 8, 16 or 24 bit integer is not big enough to achieve the value resolution the default 32 bit floating point is used as a fallback. E.g. when the accuracy of a water level is half a centimeter, specify 0.005. When the accuracy of a discharge is 10 m3/s, specify 10.</documentation>
+				</annotation>
+			</element>
+			<element name="valueResolutionUnit" type="fews:unitStringType" minOccurs="0">
+				<annotation>
+					<documentation>Should be the same as the system unit or the display unit</documentation>
+				</annotation>
+			</element>
+			<element name="allowMissing" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Option to indicate if a time series of this parameter type is allowed to contain missing values when being used by a model or a transformation. When omitted this value will default to 'true'. If this is used for a transformation, then it is also required to set the option checkMissing in the inputVariable of the transformation to true.</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="standardName" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>Standard name defined by the netcdf CF convention. This is currently only used for export to netcdf files. The standard name has to be valid according to the list of standard names, version 57, see https://cfconventions.org/Data/cf-standard-names/57/build/cf-standard-name-table.html</documentation>
+					</annotation>
+				</element>
+				<element name="standardNameModifier" type="fews:standardNameModifierTypeEnum" minOccurs="0">
+					<annotation>
+						<documentation>Standard name modifier defined by the netcdf CF convention. This is currently only used for export to netcdf files. See https://cfconventions.org/cf-conventions/v1.6.0/cf-conventions.html</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="cellMethod" type="fews:cellMethodEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional cell method (for time dimension) as defined in the netcdf CF convention. This is currently only used for export to netcdf files. See https://cfconventions.org/cf-conventions/v1.6.0/cf-conventions.html#cell-methods</documentation>
+				</annotation>
+			</element>
+			<element name="verticalPositiveDirection" type="fews:verticalPositiveDirectionEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2016.02. Optional geospatial_vertical_positive attribute as defined in the netcdf DataDiscoveryAttConvention convention. This is currently only used for export to netcdf files when this parameter is used as domain parameter in a time series set. This attribute indicates which direction is positive (a value of "up" means that z increases up, like units of height, while a value of "down" means that z increases downward, like units of pressure or depth). The use of these further geospatial attributes is suggested. http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:AttributeChoice" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<simpleType name="parameterTypeEnum">
+		<restriction base="string">
+			<enumeration value="instantaneous"/>
+			<enumeration value="accumulative"/>
+			<enumeration value="mean"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="standardNameModifierTypeEnum">
+		<restriction base="string">
+			<enumeration value="detection_minimum"/>
+			<enumeration value="number_of_observations"/>
+			<enumeration value="standard_error"/>
+			<enumeration value="status_flag"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="cellMethodEnumStringType">
+		<restriction base="string">
+			<enumeration value="point"/>
+			<enumeration value="sum"/>
+			<enumeration value="maximum"/>
+			<enumeration value="median"/>
+			<enumeration value="mid_range"/>
+			<enumeration value="minimum"/>
+			<enumeration value="mean"/>
+			<enumeration value="mode"/>
+			<enumeration value="standard_deviation"/>
+			<enumeration value="variance"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="verticalPositiveDirectionEnumStringType">
+		<restriction base="string">
+			<enumeration value="up"/>
+			<enumeration value="down"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="unitStringType">
+		<union memberTypes="fews:unitEnumStringType string"/>
+	</simpleType>
+	<complexType name="ParameterNodeComplexType">
+		<sequence>
+			<element name="name" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Short name of parameter</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Long descriptive name of parameter node (tooltip) Description or description</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="parameterId" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Reference to parameter</documentation>
+					</annotation>
+				</element>
+				<element name="parameterNode" type="fews:ParameterNodeComplexType" minOccurs="0"/>
+				<element name="constraints" type="fews:ConstraintsComplexType">
+					<annotation>
+						<documentation>SINCE 2014.02 build 59865. Add all parameters that fulfill the constraints to this node</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="ParametersCsvFileComplexType">
+		<sequence>
+			<element name="file" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. name of a csv file in the map layer files or a full absolute path to the csv file (*.csv).</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. Character set of the text in the csv file. Specify only when the csv file contains non western characters.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ParametersResourceSequence"/>
+			<element name="attributeFile" type="fews:parameterAttributeFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Links an extra csv file to the current shape file to import extra attributes. Optionally allows defining different values for different periods and multiple values
+						(tables) per attribute
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="ParametersResourceSequence">
+		<sequence>
+			<element name="id" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. e.g. "%ID%", put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="name" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="shortName" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="simulatedHistoricalParameterId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="group" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. All parameters that share the same group can share the same chart axis, they should all share the same unit. put the actual column name
+						between %%</documentation>
+				</annotation>
+			</element>
+			<element name="groupName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Group name is used for the axis caption. By default the group (id) used. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="enumerationId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Reference to one of the enumerations defined above. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="allowedValuesAttributeId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. Reference to a location attribute to restrict the allowed input values.</documentation>
+				</annotation>
+			</element>
+			<element name="parameterType" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="unit" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="displayUnit" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="valueResolution" type="fews:floatStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="valueResolutionUnit" type="fews:unitStringType" minOccurs="0">
+				<annotation>
+					<documentation>Should be the same as the system unit or the display unit</documentation>
+				</annotation>
+			</element>
+			<element name="usesDatum" type="fews:booleanStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02. Put the actual column name between %%.  Indicates if the parameter is to be converted when toggling between local and global datum. Value is either
+						true or false. If the value is true, the elevation defined in the location is added to the time series in the database on conversion.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="allowMissing" type="fews:booleanStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156.  put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="standardName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="standardNameModifier" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="cellMethod" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10156. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="verticalPositiveDirection" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Put the actual column name between %%. Optional geospatial_vertical_positive attribute as defined in the netcdf DataDiscoveryAttConvention convention. This is currently only used for export to netcdf files when this parameter is used as domain parameter in a time series set. This attribute indicates which direction is positive (a value of "up" means that z increases up, like units of height, while a value of "down" means that z increases downward, like units of pressure or depth). The use of these further geospatial attributes is suggested. http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/metadata/DataDiscoveryAttConvention.html</documentation>
+				</annotation>
+			</element>
+			<element name="timeZoneOffset" type="fews:timeZoneOffsetStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01. Optional timeZoneOffset for the dateTime attributes. This offset is always relative to GMT. For example "+02:00" means GMT+02:00. If no offset specified, then time zone GMT is used by default.</documentation>
+				</annotation>
+			</element>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01. Optional pattern for the dateTime attributes. Default is yyyyMMdd, this is the internal format a dbf file is using when the column is of type 'D'.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:AttributesSequence" minOccurs="0"/>
+		</sequence>
+	</group>
+	<complexType name="ParametersComplexType">
+		<sequence>
+			<group ref="fews:PersistentIdsCsvFilesGroup" minOccurs="0"/>
+			<group ref="fews:UnitConversionSequence"/>
+			<group ref="fews:SpecialParametersSequence"/>
+			<element name="enumerations" type="fews:TimeSeriesValueEnumerationsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. Enumerations that can be used instead of parameter unit</documentation>
+				</annotation>
+			</element>
+			<element name="parametersCsvFile" type="fews:ParametersCsvFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02</documentation>
+				</annotation>
+			</element>
+			<element name="parameterGroups" type="fews:ParameterGroupsComplexType" minOccurs="0"/>
+			<element name="parameterRootNode" type="fews:ParameterNodeComplexType" minOccurs="0"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" fixed="1.0"/>
+	</complexType>
+	<complexType name="TimeSeriesValueEnumerationsComplexType">
+		<sequence maxOccurs="unbounded">
+			<element name="enumeration" type="fews:TimeSeriesValueEnumerationComplexType">
+				<annotation>
+					<documentation>Since 2015.01. Single enumeration that can be assigned to  parameters  by specifying its id </documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesValueEnumerationComplexType">
+		<sequence>
+			<element name="value" type="fews:EnumerationValueComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.01. Literal enumeration text</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2015.01. Enumeration Id. Parameter can have a reference to this Id instead of a unit </documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="EnumerationValueComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. Description for this enum value</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="code" type="integer" use="required">
+			<annotation>
+				<documentation>Since 2015.01. Integer code used to store this enum value as number in time series</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="label" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>Since 2015.01. Label used to represent the numerical code as text in dialogs and reports. The value can be made location/parameter/qualifier dependent by using attribute references					(e.g. @ENUM1@). The enum value is filtered out when the attribute value is not available for the parameter, location, qualifier for the time series</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="parameterAttributeFileComplexType">
+		<sequence>
+			<element name="description" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Description
+					</documentation>
+				</annotation>
+			</element>
+			<element name="csvFile" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>name of csv file in the map layer files or a full absolute path to the csv file.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Character set of the text in the csv file. Specify only when the dbf file contains
+						non western characters.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="parameterId" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>ids of the parameter in the csv file. e.g. "H_%ID%", put the actual column
+						name between %%.
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:AttributesSequence" minOccurs="0"/>
+		</sequence>
+	</complexType>
+</schema>

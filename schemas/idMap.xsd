@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="idMap" type="fews:IdMapComplexType"/>
+	<!--    -->
+	<complexType name="IdMapComplexType">
+		<sequence>
+			<group ref="fews:FullIdMapSequence" minOccurs="0"/>
+			<group ref="fews:CompactIdMapSequence" minOccurs="0"/>
+			<group ref="fews:ThresholdIdMapSequence" minOccurs="0"/>
+			<element name="enableOneToOneMapping" type="fews:emptyElement" minOccurs="0">
+				<annotation>
+					<documentation>
+						When one to one mapping is enabled the internal ids are used as external ids when not mapped explicitly. When this option is not enabled the id map also acts as a filter when at least one location is mapped explicitly (using for example &lt;location&gt;). In that case, everything that is not mapped is not imported or exported. When not one location is mapped explicitly, enableOneToOneMapping is enabled by default but is good practice to explicitly configure the xml element.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableCaseInsensitivity" type="fews:emptyElement" minOccurs="0">
+				<annotation>
+					<documentation>
+						When case insensitivity is enabled the mapping of external to internal ID's will be case insensitive during imports.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreExternalQualifiersWhenMappingToInternal" type="fews:emptyElement" minOccurs="0">
+				<annotation>
+					<documentation>When ignoreExternalQualifiersWhenMappingToInternal is enabled, external qualifiers er ignored when mapping external ids to internal ids.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!--    -->
+	<group name="CompactIdMapSequence">
+		<sequence>
+			<element name="moduleInstance" type="fews:ModuleInstanceIdMapComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2020.01. Maps one internal id module instance to one external module instance id.
+					</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="parameter" type="fews:ParameterIdMapComplexType">
+					<annotation>
+						<documentation>Maps one internal id parameter to one external parameter id.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="parameterIdFunction" type="fews:ParameterIdFunctionMapComplexType">
+					<annotation>
+						<documentation>
+							Used when the external parameter id can be based on parameter text attributes. eg
+							@EXTERNAL_ID@. Mapping is added for all parameters that can provide the specified attribute
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="qualifierIdFunction" type="fews:QualifierIdFunctionMapComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SINCE 2014.02. FEWS-10153. Used when the external qualifier id can be based on qualifier text attributes. eg @EXTERNAL_ID@. Mapping is added for all qualifiers that can provide the specified attribute</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="location" type="fews:LocationIdMapComplexType">
+					<annotation>
+						<documentation>Maps one internal id location to one external location id.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="locationIdPattern" type="fews:LocationIdPatternMapComplexType">
+					<annotation>
+						<documentation>Maps all locations in a location set for all parameters at once by using the *
+							wild card
+							e.g internalId=H_* externalId=*, this removes
+							all H_ prefixes from the location id during export or adds the H_ prefix during import.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="locationIdFunction" type="fews:LocationIdFunctionMapComplexType">
+					<annotation>
+						<documentation>
+							Used when the external location id can be based on location text attributes. eg @EXTERNAL_ID@
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<group name="FullIdMapSequence">
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="map" type="fews:ParameterLocationIdMapComplexType"/>
+				<element name="function" type="fews:ParameterLocationIdFunctionMapComplexType">
+					<annotation>
+						<documentation>Uses attributes to map between external and internal ids.
+							externalLocationIdFunction=H_@PARENT_ID@001
+							externalParameterIdFunction=@SOBEK_PAR@
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<!--    -->
+	<group name="ThresholdIdMapSequence">
+		<sequence>
+			<element name="threshold" type="fews:ThresholdIdMapComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2016.02 Map threshold ids to different names for export. First implemented for netcdf scalar export.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="ThresholdIdMapComplexType">
+		<attribute name="internal" type="fews:idStringType" use="required"/>
+		<attribute name="external" type="fews:nonEmptyStringType" use="required"/>
+	</complexType>
+	<!--    -->
+	<complexType name="ModuleInstanceIdMapComplexType">
+		<attribute name="internal" type="fews:idStringType" use="required"/>
+		<attribute name="external" type="fews:nonEmptyStringType" use="required"/>
+	</complexType>
+
+	<complexType name="ParameterIdMapComplexType">
+		<attribute name="internal" type="fews:idStringType" use="required"/>
+		<attribute name="internalEnsemble" type="fews:idStringType" use="optional"/>
+		<attribute name="internalEnsembleMemberIndex" type="nonNegativeInteger" use="optional"/>
+		<attribute name="internalEnsembleMemberId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>Can be used instead of the internalEnsembleMemberIndex when the id is not an integer.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4 </documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier1" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap qualifier1 and qualifier2 without effect</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier2" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier3" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier4" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="external" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="externalQualifier" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Use this attribute when you have only one single fews qualifier 
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalEnsemble" type="fews:nonEmptyStringType" use="optional"/>
+		<attribute name="externalEnsembleMemberIndex" type="int" use="optional"/>
+		<attribute name="externalEnsembleMemberId" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Can be used instead of the externalEnsembleMemberIndex when the id is not an integer. Only works when non integer member ids are supported by the file format.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--    -->
+	<complexType name="LocationIdMapComplexType">
+		<attribute name="internal" type="fews:idStringType" use="required"/>
+		<attribute name="internalQualifier" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier1" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier2" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier3" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier4" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="external" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="externalQualifier" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Use this attribute when you have only one single fews qualifier
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--    -->
+	<complexType name="LocationIdFunctionMapComplexType">
+		<attribute name="internalLocationSet" type="fews:idStringType" use="required"/>
+		<attribute name="internalQualifier" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier1" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier2" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier3" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier4" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationFunction" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>e.g. @EXTERNAL_ID@
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationFunctionLookupAttributeId" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Since 2019.02. Required when the attribute referenced by the externalLocationFunction contains multiple values for a single location. When the lookup text is the nth value in the lookup attribute the nth initial value will be used.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationFunctionLookupText" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Since 2019.02. Required when the attribute referenced by the externalLocationFunction contains multiple values for a single location. When the look-up value is the nth value in the lookup attribute the nth initial value will be used.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Use this attribute when you have only one single fews qualifier
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--    -->
+	<complexType name="ParameterIdFunctionMapComplexType">
+		<attribute name="internalQualifier" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier1" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier2" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier3" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier4" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalParameterFunction" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>e.g. @EXTERNAL_ID@
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Use this attribute when you have only one single fews qualifier
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="QualifierIdFunctionMapComplexType">
+		<attribute name="externalQualifierFunction" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-10153. e.g. @EXTERNAL_ID@</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--    -->
+	<complexType name="LocationIdPatternMapComplexType">
+		<attribute name="internalLocationSet" type="fews:idStringType" use="required"/>
+		<attribute name="internalLocationPattern" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="internalQualifier" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier1" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier2" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier3" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier4" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationPattern" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="externalQualifier" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Use this attribute when you have only one single fews qualifier
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--    -->
+	<complexType name="ParameterLocationIdMapComplexType">
+		<attribute name="internalModuleInstance" type="fews:idStringType" use="optional"/>
+		<attribute name="internalLocation" type="fews:idStringType" use="required"/>
+		<attribute name="internalParameter" type="fews:idStringType" use="required"/>
+		<attribute name="internalQualifier" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier1" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier2" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier3" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier4" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalEnsemble" type="fews:idStringType" use="optional"/>
+		<attribute name="internalEnsembleMemberIndex" type="nonNegativeInteger" use="optional"/>
+		<attribute name="internalEnsembleMemberId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>Can be used instead of the internalEnsembleMemberIndex when the id is not an integer.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalModuleInstance" type="fews:nonEmptyStringType" use="optional"/>
+		<attribute name="externalLocation" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="externalParameter" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="externalParameterQualifier" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>OBSOLETE, use externalQualifier instead</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>External qualifier, when you have multiple qualifiers use externalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifier4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalEnsemble" type="fews:nonEmptyStringType" use="optional"/>
+		<attribute name="externalEnsembleMemberIndex" type="nonNegativeInteger" use="optional"/>
+		<attribute name="externalEnsembleMemberId" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Can be used instead of the externalEnsembleMemberIndex when the id is not an integer. Only works when non integer member ids are supported by the file format.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--    -->
+	<complexType name="ParameterLocationIdFunctionMapComplexType">
+		<attribute name="internalLocationSet" type="fews:idStringType" use="required"/>
+		<attribute name="internalParameter" type="fews:idStringType" use="optional"/>
+		<attribute name="internalQualifier" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier1" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier2" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier3" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifier4" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalEnsemble" type="fews:idStringType" use="optional"/>
+		<attribute name="internalEnsembleMemberIndex" type="nonNegativeInteger" use="optional"/>
+		<attribute name="internalEnsembleMemberId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>Can be used instead of the externalEnsembleMemberIndex when the id is not an integer.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalParameterFunction" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Should reference a location attribute not a parameter attribute</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifierFunction" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>FEWS qualifier, when you have multiple qualifiers use internalQualifier1..4
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifierFunction1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifierFunction2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifierFunction3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalQualifierFunction4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the FEWS qualifiers, the order of the qualifiers is insignificant, you can swap
+					qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="internalEnsembleFunction" type="fews:nonEmptyStringType" use="optional"/>
+		<attribute name="internalEnsembleMemberIndexFunction" type="fews:nonEmptyStringType" use="optional"/>
+		<attribute name="internalEnsembleMemberIdFunction" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Can be used instead of the externalEnsembleMemberIndex when the id is not an integer.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationFunction" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="externalLocationFunctionLookupAttributeId" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Since 2019.02. Required when the attribute referenced by the externalLocationFunction contains multiple values for a single location. When the lookup text is the nth value in the lookup attribute the nth initial value will be used.
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalLocationFunctionLookupText" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Since 2019.02. Required when the attribute referenced by the externalLocationFunction contains multiple values for a single location. When the look-up value is the nth value in the lookup attribute the nth initial value will be used.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalParameterFunction" type="fews:nonEmptyStringType" use="required"/>
+		<attribute name="externalQualifierFunction" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Use this attribute when you have only one single external qualifier
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction1" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction2" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction3" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalQualifierFunction4" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>One of the external qualifiers, the order of the qualifiers is insignificant, you can
+					swap qualifier1 and qualifier2 without effect
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="externalEnsembleFunction" type="fews:nonEmptyStringType" use="optional"/>
+		<attribute name="externalEnsembleMemberIndexFunction" type="fews:nonEmptyStringType" use="optional"/>
+		<attribute name="externalEnsembleMemberIdFunction" type="fews:nonEmptyStringType" use="optional">
+			<annotation>
+				<documentation>Can be used instead of the externalEnsembleMemberIndexFunction when the id is not an integer. Only works when non integer member ids are supported by the file format.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>
