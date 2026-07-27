@@ -1,0 +1,219 @@
+---
+title: Define locations & location sets
+description: Declare the places FEWS tracks, then group them into sets — explicit lists, files, or dynamic attribute-based selections — so one rule can cover many locations.
+sidebar:
+  order: 1
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Locations are the **where** of your data model — the gauges, reservoirs,
+catchments, and grid points that every [time series](/concepts/glossary/#time-series)
+attaches to. They're foundational: you declare them once, and everything else
+([imports](/tasks/import-timeseries/), [ID maps](/tasks/id-mapping/), filters,
+models) refers to them by id.
+
+This guide has two halves: declaring **individual locations**, then grouping them
+into **location sets** so a single config line can apply to a hundred places at
+once.
+
+<Aside type="note" title="Two files, two jobs">
+Individual locations live in a **`Locations`** file; groupings live in a
+**`LocationSets`** file. Both are in `Config/RegionConfigFiles/`. You'll almost
+always have both.
+</Aside>
+
+## Part 1 — Declaring locations
+
+The `Locations` file is a required `geoDatum` followed by one `location` per
+place. Each `location` needs a unique `id` and `x`/`y`; everything else is
+optional.
+
+```xml title="Config/RegionConfigFiles/Locations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<locations xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <geoDatum>WGS 1984</geoDatum>
+  <location id="RiverGauge_01" name="River Gauge at Town Bridge">
+    <shortName>TownBr</shortName>
+    <x>4.895</x>
+    <y>52.370</y>
+    <z>2.0</z>
+  </location>
+</locations>
+```
+
+The fields you'll reach for most:
+
+| Field | Role |
+| --- | --- |
+| `id` (attribute) | The **internal id** every other file references. Must be unique. |
+| `name` (attribute) | Human-readable name shown in the UI. |
+| `shortName` | Compact label for chart legends. |
+| `x`, `y`, `z` | Coordinates, interpreted in the file's `geoDatum`. `x`/`y` required. |
+| `parentLocationId` | Makes this an (invisible) child of another location; children are auto-selected with the parent. |
+| `visibilityPeriod` | Time-limit when the location appears in the UI — good for decommissioned sites. |
+
+<Aside type="tip">
+The full, always-current field list is on the generated [Locations file
+reference](/reference/locations/) — it's produced straight from `locations.xsd`,
+so it won't drift.
+</Aside>
+
+## Part 2 — Grouping with location sets
+
+A **location set** is a named group you can refer to instead of listing
+locations one by one. Its power is reuse: an [import](/tasks/import-timeseries/),
+a filter, and a model can all target `AllDischargeGauges`, and adding a gauge to
+that set updates all three at once.
+
+A `locationSet` has an `id` and defines its members one of several ways. Here are
+the four you'll actually use:
+
+<Tabs>
+<TabItem label="Explicit list">
+
+List member ids directly. Simple and obvious for small, stable groups:
+
+```xml title="Config/RegionConfigFiles/LocationSets 1.00 default.xml"
+<locationSets xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <locationSet id="AllDischargeGauges">
+    <locationId>RiverGauge_01</locationId>
+    <locationId>RiverGauge_02</locationId>
+  </locationSet>
+</locationSets>
+```
+
+</TabItem>
+<TabItem label="Compose from sets">
+
+Build a set out of other sets with `locationSetId` — combine and reuse without
+re-listing:
+
+```xml
+<locationSet id="AllGauges">
+  <locationSetId>DischargeGauges</locationSetId>
+  <locationSetId>LevelGauges</locationSetId>
+</locationSet>
+```
+
+</TabItem>
+<TabItem label="From a file">
+
+For hundreds of locations, don't hand-write them — point the set at a CSV,
+shapefile, GeoJSON, GeoPackage, or database table. The file supplies the members
+(and can carry [attributes](#location-attributes)):
+
+```xml
+<locationSet id="AllGauges">
+  <csvFile>
+    <file>gauges.csv</file>
+    <geoDatum>WGS 1984</geoDatum>
+  </csvFile>
+</locationSet>
+```
+
+The equivalent elements for other sources are `esriShapeFile`, `geoJsonFile`,
+`geoPackageFile`, and `table`.
+
+</TabItem>
+<TabItem label="Dynamic by constraint">
+
+Select members by rule instead of by name. `constraints` supports id- and
+attribute-based tests plus boolean logic, so the set updates itself as locations
+change:
+
+```xml
+<locationSet id="RiverGaugesInBasinX">
+  <locationId>*</locationId>
+  <constraints>
+    <allValid>
+      <idStartsWith>
+        <startsWith>RiverGauge_</startsWith>
+      </idStartsWith>
+      <attributeTextEquals>
+        <id>BASIN</id>
+        <equals>X</equals>
+      </attributeTextEquals>
+    </allValid>
+  </constraints>
+</locationSet>
+```
+
+Selectors include `idStartsWith` / `idEndsWith` / `idContains`,
+`attributeExists`, `attributeTextEquals` / `attributeTextContains`, and the
+combinators `not` / `anyValid` / `allValid`.
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+Rule of thumb: **explicit lists** for small fixed groups, **files** for large
+inventories, **constraints** when membership should follow a rule (a basin, a
+station type) rather than a hand-maintained list.
+</Aside>
+
+## Location attributes
+
+Constraints and displays often key off **attributes** — arbitrary properties like
+`BASIN`, `RIVER`, or `OWNER` attached to a location. In this schema, attributes
+come in through a location **set**, not inline on `<location>`: the columns of a
+`csvFile`, the fields of an `esriShapeFile`, or a dedicated `attributeFile`
+attached to the set. Once attributes exist, `attributeTextEquals` and friends can
+select on them, which is what makes dynamic sets useful.
+
+<Aside type="caution">
+Attribute-based constraints only work if the attribute is actually defined for
+those locations. A constraint referencing `BASIN` selects nothing if no location
+set supplies a `BASIN` attribute — and, like most FEWS mismatches, it fails
+quietly rather than erroring.
+</Aside>
+
+## Common patterns
+
+- **Small system:** a hand-written `Locations` file plus explicit-list sets.
+  Clear and low-ceremony.
+- **Large system:** keep locations *and* their attributes in a CSV or shapefile,
+  load them via a file-based set, and define working sets by **constraint**. You
+  maintain data, not XML.
+- **Layered sets:** compose broad sets from narrow ones (`AllGauges` =
+  `DischargeGauges` + `LevelGauges`) so each location is listed once.
+
+## Gotchas
+
+- **Duplicate location ids** break references silently — ids must be unique across
+  the `Locations` file. (A set can opt into `skipDuplicateIds` when *merging*
+  sources, but source data should still be clean.)
+- **Referencing an undefined set.** An import or filter naming a `locationSetId`
+  that isn't defined won't resolve. Define the set first.
+- **`geoDatum` and coordinate datum must agree.** Coordinates are interpreted in
+  the declared datum; the wrong datum puts locations in the wrong place.
+- **Empty sets.** A set that resolves to zero locations is usually a mistake
+  (bad constraint or missing source). `allowEmptyLocationSets` exists to permit
+  it deliberately — don't set it just to silence the symptom.
+- **A higher-versioned file wins.** Check for a sibling like `Locations 1.01
+  default.xml` if edits aren't taking. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Open the FEWS Explorer** and confirm your locations appear on the map in the
+   right places (datum check).
+2. **Use the set somewhere** — point a [filter](/tasks/filters-displays/) or an
+   [import](/tasks/import-timeseries/) at your `locationSetId` and confirm it
+   resolves to the locations you expect.
+3. **For constraint-based sets,** temporarily list the set in a filter and eyeball
+   the members. If it's empty or wrong, check the attribute/id the constraint
+   tests actually exists on those locations.
+
+</Steps>
+
+## See also
+
+<Card title="Related pieces" icon="right-arrow">
+- Reference: [Locations file](/reference/locations/) — full field list from the schema
+- [Import time series](/tasks/import-timeseries/) and [ID mapping](/tasks/id-mapping/) — where location ids and sets get used
+- Concept: [The configuration directory](/concepts/config-directory/) and [data flow](/concepts/data-flow/)
+- Schemas: [`locations.xsd`](https://fews.wldelft.nl/schemas/version1.0/locations.xsd) · [`locationSets.xsd`](https://fews.wldelft.nl/schemas/version1.0/locationSets.xsd)
+</Card>
