@@ -1,0 +1,291 @@
+---
+title: Import time series
+description: Bring external data into the FEWS internal representation — reader selection, the import module anatomy, a CSV walkthrough, and the mistakes that make data silently disappear.
+sidebar:
+  order: 3
+---
+
+import { Steps, Aside, Card, FileTree } from '@astrojs/starlight/components';
+
+Importing is how outside data becomes usable FEWS data. An import module reads an
+external file, service, or database ([hop ①](/concepts/data-flow/)), renames it
+to your internal vocabulary ([hop ②](/tasks/id-mapping/)), and stores it as a
+fully-identified [time series](/concepts/glossary/#time-series) ([hop
+③](/concepts/data-flow/)). This guide covers the config file that drives all of
+that: `timeSeriesImportRun`.
+
+<Aside type="note" title="Prerequisites">
+An import writes data *about* locations and parameters, so those must already
+exist. Before you import, declare your [locations](/tasks/locations/) and
+[parameters](/tasks/parameters/), and prepare the [ID map](/tasks/id-mapping/)
+that translates the source's names into yours.
+</Aside>
+
+## Anatomy of an import file
+
+Every import file has the same skeleton: a `general` block that says *where the
+data is and how to read it*, followed by one or more `timeSeriesSet` blocks that
+say *what internal series to create*.
+
+<div class="diagram">
+
+```text
+timeSeriesImportRun
+└─ import
+   ├─ general          ← the source + the reader + the mappings
+   │    ├─ importType / importTypeStandard   (which reader)
+   │    ├─ folder, fileNamePatternFilter      (where the files are)
+   │    ├─ idMapId                            (external → internal names)
+   │    ├─ unitConversionsId / flagConversionsId   (optional)
+   │    └─ importTimeZone                     (how to read timestamps)
+   └─ timeSeriesSet(s)  ← the INTERNAL series to write (uses internal ids)
+        moduleInstanceId · parameterId · locationId/locationSetId
+        · timeSeriesType · timeStep
+```
+
+</div>
+
+The mental split is the whole game: **`general` speaks the outside world's
+language; `timeSeriesSet` speaks yours.** The `idMap` is the bridge between them.
+
+## Choosing a reader
+
+`general` starts by choosing *how* to read the source. There are three mutually
+exclusive ways — pick exactly one:
+
+| Element | Use when | Example value |
+| --- | --- | --- |
+| `importTypeStandard` | The source is one of FEWS's ~139 built-in formats. | `BUFR`, `AsciiGrid`, `Aquarius…` |
+| `importType` | You're using a general/named reader the import module supports but that isn't in the standard enum (this is where the general tabular/CSV readers live). | `generalCsv` |
+| `parserClassName` (+ `binDir`) | You have a custom Java parser. | `com.example.MyParser` |
+
+<Aside type="tip">
+Reach for `importTypeStandard` first — if your data comes from a known instrument
+or agency format, there's very likely a built-in reader, and it saves you
+describing the layout by hand. Use `importType` (e.g. `generalCsv`) for generic
+tabular exports.
+</Aside>
+
+## Walkthrough: import a CSV of observations
+
+We'll import hourly discharge for one gauge. This is the same scenario as the
+[getting-started tutorial](/start-here/getting-started/), taken deeper.
+
+Say the source hands you this, using **its own** names:
+
+```text title="$IMPORT_FOLDER$/discharge/gauge-a.csv"
+location,parameter,datetime,value
+GAUGE-A,discharge,2026-07-27 00:00:00,12.4
+GAUGE-A,discharge,2026-07-27 01:00:00,12.9
+```
+
+<Steps>
+
+1. ### Point at the source and pick the reader
+
+   ```xml
+   <general>
+     <importType>generalCsv</importType>
+     <folder>$IMPORT_FOLDER$/discharge</folder>
+     <fileNamePatternFilter>*.csv</fileNamePatternFilter>
+   ```
+
+   `folder` is where FEWS looks for files; `$IMPORT_FOLDER$` is a **global
+   property** (defined in `global.properties`) so the path isn't hard-coded per
+   machine. `fileNamePatternFilter` narrows which files in that folder to read.
+
+2. ### Tell FEWS how to read the timestamps
+
+   ```xml
+     <importTimeZone>
+       <timeZoneName>GMT</timeZoneName>
+     </importTimeZone>
+   ```
+
+   Timestamps in the file carry no time zone of their own — you must declare the
+   zone the data is *in*. Use `<timeZoneName>` (e.g. `GMT`) or an explicit
+   `<timeZoneOffset>` like `+01:00`. Getting this wrong shifts every value in time.
+
+3. ### Wire the ID map (and any conversions)
+
+   ```xml
+     <idMapId>IdImportObservations</idMapId>
+     <!-- optional: <unitConversionsId>ImportUnits</unitConversionsId> -->
+     <!-- optional: <flagConversionsId>ImportFlags</flagConversionsId> -->
+   </general>
+   ```
+
+   `idMapId` names the [ID map](/tasks/id-mapping/) that turns `GAUGE-A` /
+   `discharge` into `RiverGauge_01` / `Q.obs`. Add `unitConversionsId` if the
+   source's units differ from your parameter's, and `flagConversionsId` if it
+   carries its own quality flags.
+
+4. ### Describe the internal series to create
+
+   ```xml
+   <timeSeriesSet>
+     <moduleInstanceId>ImportObservations</moduleInstanceId>
+     <valueType>scalar</valueType>
+     <parameterId>Q.obs</parameterId>
+     <locationId>RiverGauge_01</locationId>
+     <timeSeriesType>external historical</timeSeriesType>
+     <timeStep unit="hour" multiplier="1"/>
+   </timeSeriesSet>
+   ```
+
+   This uses **internal** ids — the names the ID map maps *to*. `timeSeriesType`
+   is `external historical` because this is observed data that arrived from
+   outside. The `moduleInstanceId` becomes part of the stored series'
+   [header](/concepts/glossary/#time-series-header) — remember it, because your
+   [filter or display](/tasks/filters-displays/) must ask for the data under the
+   *same* id.
+
+</Steps>
+
+Put together, the complete file:
+
+```xml title="Config/ModuleConfigFiles/ImportObservations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<timeSeriesImportRun xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <import>
+    <general>
+      <importType>generalCsv</importType>
+      <folder>$IMPORT_FOLDER$/discharge</folder>
+      <fileNamePatternFilter>*.csv</fileNamePatternFilter>
+      <idMapId>IdImportObservations</idMapId>
+      <importTimeZone>
+        <timeZoneName>GMT</timeZoneName>
+      </importTimeZone>
+    </general>
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationId>RiverGauge_01</locationId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+    </timeSeriesSet>
+  </import>
+</timeSeriesImportRun>
+```
+
+<Aside type="caution" title="CSV column layout is reader-specific">
+The exact elements that describe *which column is which* (a `<table>` block for
+tabular readers) depend on the reader and your FEWS version, so they're not shown
+above. When your columns don't match the reader's defaults, define them per
+[`timeSeriesImportRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/timeSeriesImportRun.xsd).
+The structure and flow here are the stable part; the column mapping is the
+version-sensitive detail.
+</Aside>
+
+## Import many locations at once
+
+You rarely write one `timeSeriesSet` per gauge. Swap `locationId` for a
+`locationSetId` and a single set imports the whole group — every location in the
+set, mapped through the same ID map:
+
+```xml
+<timeSeriesSet>
+  <moduleInstanceId>ImportObservations</moduleInstanceId>
+  <valueType>scalar</valueType>
+  <parameterId>Q.obs</parameterId>
+  <locationSetId>AllDischargeGauges</locationSetId>
+  <timeSeriesType>external historical</timeSeriesType>
+  <timeStep unit="hour" multiplier="1"/>
+</timeSeriesSet>
+```
+
+This is the normal shape of a real import: a handful of `timeSeriesSet`s, each
+covering a [location set](/tasks/locations/) for one parameter.
+
+## Common patterns
+
+- **Different units in the source.** Add `unitConversionsId`; FEWS converts to
+  your parameter's unit on the way in. Same idea for quality flags via
+  `flagConversionsId`.
+- **Missing-value markers.** Sources often use `-999` or `NaN` for gaps. List
+  them with `missingValue` (numeric) or `missingValueText` (string) so they're
+  stored as missing, not as real readings.
+- **Importing forecasts, not observations.** Set `timeSeriesType` to
+  `external forecasting`. Everything else is the same pipeline — see [the
+  lifecycle](/concepts/lifecycle/#observed-vs-forecast-the-same-pipeline-twice).
+- **What happens to files after import.** By default files are left in place;
+  use `backupFolder` / `failedFolder` to move processed and rejected files aside,
+  or `deleteImportedFiles` to remove them. This keeps the import folder from
+  growing without bound.
+- **Turn mapping failures into hard errors while developing.** See the gotchas
+  below — `failOnUnmappableTimeSeries` is your friend early on.
+
+## Key fields at a glance
+
+The most-used fields; the full element list will live on the (generated)
+`timeSeriesImportRun` [reference page](/reference/how-to-read/).
+
+**`general`**
+
+| Field | Meaning |
+| --- | --- |
+| `importType` / `importTypeStandard` / `parserClassName` | Which reader (pick one). |
+| `folder`, `fileNamePatternFilter` | Where the files are and which to read. |
+| `idMapId` | The external→internal [ID map](/tasks/id-mapping/). |
+| `unitConversionsId`, `flagConversionsId` | Optional unit / flag conversion. |
+| `importTimeZone` | The zone the source timestamps are in. |
+| `missingValue`, `missingValueText` | Markers to treat as missing. |
+| `failOnUnmappableTimeSeries`, `logWarningsForUnmappableTimeSeries` | How loudly to complain about data the ID map didn't cover. |
+
+**`timeSeriesSet`** (the internal series to write)
+
+| Field | Meaning |
+| --- | --- |
+| `moduleInstanceId` | Stamped into the series header; must match on the read side. |
+| `valueType` | `scalar`, `grid`, `longitudinalprofile`, … (usually `scalar`). |
+| `parameterId` | Internal parameter id (post-mapping). |
+| `locationId` / `locationSetId` | Internal location, or a whole set. |
+| `timeSeriesType` | `external historical` (obs) or `external forecasting`. |
+| `timeStep` | e.g. `unit="hour" multiplier="1"`, or `unit="nonequidistant"`. |
+
+## Gotchas
+
+- **Nothing imports → the ID map didn't match.** Only series matching an
+  [ID map](/tasks/id-mapping/) entry are stored; the rest are dropped. A single
+  casing or punctuation difference (`GAUGE_A` vs `GAUGE-A`) is the most common
+  cause. While building, set `failOnUnmappableTimeSeries` to `true` so unmapped
+  data is a loud error instead of a silent skip.
+- **Imports but doesn't display → header mismatch.** The
+  [filter/display](/tasks/filters-displays/) `timeSeriesSet` must reconstruct the
+  same header the import wrote — same `moduleInstanceId`, `parameterId`,
+  `locationId`, `timeSeriesType`, and `timeStep`. Line them up field by field.
+- **`readWriteMode` does nothing here.** Per the schema, it's used only by the
+  Time Series Display; the import module ignores it. Don't add it to an import
+  expecting it to control write behavior.
+- **Every value is time-shifted → wrong `importTimeZone`.** The source timestamps
+  are interpreted in the zone you declare; declare the wrong one and the whole
+  series slides.
+- **A change has no effect → a higher-versioned file wins.** Check for a sibling
+  like `ImportObservations 1.01 default.xml`. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Run the import** (via a [workflow](/tasks/workflows/), as in the tutorial) and
+   read the log. Unmapped series show up as warnings here — or as errors if you
+   set `failOnUnmappableTimeSeries`.
+2. **Browse the data.** Add a [filter](/tasks/filters-displays/) whose
+   `timeSeriesSet` matches the header you wrote, and confirm the series appears on
+   the chart with the values and timestamps you expect.
+3. **Sanity-check time and units.** If the shape looks right but the timing or
+   magnitude is off, suspect `importTimeZone` or a missing `unitConversionsId`.
+
+</Steps>
+
+## See also
+
+<Card title="The pieces this guide leans on" icon="right-arrow">
+- [ID mapping](/tasks/id-mapping/) — the translation table imports depend on
+- [Define locations](/tasks/locations/) and [parameters](/tasks/parameters/) — the nouns you import into
+- [Filters & display groups](/tasks/filters-displays/) — how to see imported data
+- Concept: [How data flows through FEWS](/concepts/data-flow/)
+- Schema: [`timeSeriesImportRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/timeSeriesImportRun.xsd)
+</Card>

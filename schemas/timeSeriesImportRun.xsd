@@ -1,0 +1,1404 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="timeSeriesImportRun">
+		<complexType>
+			<sequence>
+				<element name="import" type="fews:TimeSeriesImportRunComplexType" maxOccurs="unbounded"/>
+			</sequence>
+		</complexType>
+	</element>
+	<complexType name="TimeSeriesImportRunComplexType">
+		<sequence>
+			<element name="general" type="fews:TimeSeriesImportGeneralComplexType">
+				<annotation>
+					<documentation>groups a number of general import properties</documentation>
+				</annotation>
+			</element>
+			<element name="tolerance" type="fews:TimeStampToleranceComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definition of the tolerance for importing time values to cardinal time steps in the
+                        series to be imported to. Tolerance is defined per location/parameter or per parameter combination. Multiple entries may
+                        exist</documentation>
+				</annotation>
+			</element>
+			<element name="delay" type="fews:DelayComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Defines a delay to apply during import of time series. A positive value will cause a delay of the timestamps before the data is imported. </documentation>
+				</annotation>
+			</element>
+			<element name="startTimeShift" type="fews:TimeSeriesImportStartTimeShiftComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Define the shift of the ExternalForecastStartTime according to the time of the first value in the import array.</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Available since Delft-FEWS version 2010.02. These properties are passed to the time series parser that is used for this import. Some (external third party) parsers need these additional properties. See documentation of the (external third party) parser you are using.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Only the specified time series are imported others are skipped. When no sets are specified, all time series that can be mapped with the id map are imported.</documentation>
+					</annotation>
+				</element>
+				<element name="temporary" type="boolean">
+					<annotation>
+						<documentation>Since 2013.01. FEWS-7379. The time series are imported as temporary. When true it is not necessary to add the locations/parameters to the locations.xml and parameters.xml</documentation>
+					</annotation>
+				</element>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2014.01.</documentation>
+					</annotation>
+				</element>
+				<element name="locationSetId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2014.01.</documentation>
+					</annotation>
+				</element>
+				<element name="annotationLocationSetId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2021.01</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="externUnit" minOccurs="0" maxOccurs="unbounded">
+				<complexType>
+					<attribute name="parameterId" type="fews:idStringType" use="required"/>
+					<attribute name="unit" type="string" use="required"/>
+					<attribute name="cumulativeSum" type="boolean" default="false">
+						<annotation>
+							<documentation>This is a boolean flag indicating if the value is an accumulation. This is the case in some forecast grids where the precipitation in each cell increases through the forecast.
+								The import module will then calculate the real value of the time step by looking at the difference with the previous time step.Only available for forecast time series</documentation>
+						</annotation>
+					</attribute>
+					<attribute name="cumulativeMean" type="boolean" default="false">
+						<annotation>
+							<documentation>This is a boolean flag indicating if the value is an accumulated mean. The import module will then calculate the real value of the time step by looking at the difference with the previous time step. Only available for forecast time series</documentation>
+						</annotation>
+					</attribute>
+					<attribute name="cumulativeSumIgnoreFirstTimeStep" type="boolean" default="false">
+						<annotation>
+							<documentation>This is a boolean flag indicating that for deaccumulation the first time step is to be ignored, see JIRA FEWS-33762.</documentation>
+						</annotation>
+					</attribute>
+				</complexType>
+			</element>
+			<element name="gribRecordTimeIgnore" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated.  Use gribTimeSeriesReader  configuration</documentation>
+				</annotation>
+				<complexType>
+					<attribute name="locationId" type="fews:idStringType" use="required"/>
+					<attribute name="parameterId" type="fews:idStringType" use="required"/>
+					<attribute name="ignore" type="boolean" use="required"/>
+				</complexType>
+			</element>
+			<element name="interpolateSerie" minOccurs="0" maxOccurs="unbounded">
+				<complexType>
+					<attribute name="parameterId" type="fews:idStringType" use="required"/>
+					<attribute name="interpolate" type="boolean" use="required"/>
+				</complexType>
+			</element>
+			<element name="minimumAgeForImport" type="fews:TimeSpanComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesImportGeneralComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<choice>
+				<annotation>
+					<documentation>Choice between standard import types (specified by enumeration) or another import types.</documentation>
+				</annotation>
+				<element name="importTypeStandard" type="fews:importTypeEnumStringType">
+					<annotation>
+						<documentation>This type specifies which reader should be used to read the file. The type must be one from the enumeration</documentation>
+					</annotation>
+				</element>
+				<element name="importType" type="string">
+					<annotation>
+						<documentation>This type specifies which reader should be used to read the file. It may be any string as long as this type is supported by the TimeSeriesImport module </documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="parserClassName" type="string">
+						<annotation>
+							<documentation>Fully qualifying name of a Java class that implements a time series parser
+								interface.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="binDir" type="string" minOccurs="0">
+						<annotation>
+							<documentation>Directory with jar files and optionally native DLLls. When not specified the
+								bin dir and class loader of FEWS is used.
+								When specified the java class is executed in a private class loader, it will not use any
+								jar in the FEWS bin dir. Only one class loader is created per binDir
+								, adapters should still not use static variables
+							</documentation>
+						</annotation>
+					</element>
+					<element name="moduleDataSetName" type="string" minOccurs="0">
+						<annotation>
+							<documentation>Name of dataset file containing the binaries located in the 'binDir'. Use this to update 'binDir' through configuration changes.
+                            </documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<choice>
+				<!--folder-->
+				<sequence>
+					<element name="folder" type="fews:directoryStringType">
+						<annotation>
+							<documentation>Folder in which import files are located, deep scan, sub folder are also imported</documentation>
+						</annotation>
+					</element>
+					<element name="fileNameDateTimeFilter" type="fews:FileNameDateTimeFilterComplexType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Since 2017.01. Filter out files and sub dirs that are not part of the list. List of date times is created by specifying a loop.</documentation>
+						</annotation>
+					</element>
+					<element name="fileNamePatternFilter" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>e.g *.xml to skip non xml files. Only the * and ? wild cards are recognized.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="fileNameEnsembleMemberIndexPattern" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>Use  ?  to indicate the position of the ensemble member index in the filename. For example  cosmo_???.dat  Litteral parts that contain unrelated characters can be also replaced with any other character. For example xxxxxx???.dat This is useful if the filename keeps changing  , for example because  the of presence of a date in the filename					</documentation>
+						</annotation>
+					</element>
+					<element name="fileNameObservationDateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>
+								'IMAGE_'yyyyMMdd_HHmmss'.jpg'
+								This will overrule the observation time stored in the file, some grid formats don't contain the
+								time at all, so for these files the pattern is required
+								Put the literal parts of the pattern between '
+							</documentation>
+						</annotation>
+					</element>
+					<choice minOccurs="0">
+						<element name="fileNameForecastCreationDateTimePattern" type="fews:nonEmptyStringType">
+							<annotation>
+								<documentation>
+									'IMAGE_'yyyyMMdd_HHmmss'.jpg'
+									This will overrule the forecast time stored in the file, some grid formats don't contain the
+									forecast time at all, so for these files the pattern is required.
+									Put the literal parts of the pattern between '. When the file name also contains non forecast date times
+									put this parts between ' and use ? wildcard
+									All forecast with the same forecast time belong to the same forecast.
+									When filename starts with the pattern do not use quotes in at the start: yyyyMMdd'_bla.nc'
+								</documentation>
+							</annotation>
+						</element>
+						<element name="fileNamePrefixForecastCreationDateTimePattern" type="fews:nonEmptyStringType">
+							<annotation>
+								<documentation>instead of fileNameForecastCreationDateTimePattern to use the start of the file name</documentation>
+							</annotation>
+						</element>
+						<element name="fileNamePostfixForecastCreationDateTimePattern" type="fews:nonEmptyStringType">
+							<annotation>
+								<documentation>instead of fileNameForecastCreationDateTimePattern to use the end of the file name</documentation>
+							</annotation>
+						</element>
+						<element name="fileNameForecastCreationDateTimePatternFromZip" type="fews:nonEmptyStringType">
+							<annotation>
+								<documentation>
+									'hd_'yyyyMMdd_HHmmss'.zip'
+									This will overrule the forecast time stored in the file name, and uses the timestamp given in the .zip folder name.
+									Put the literal parts of the pattern between '. When the .zip file name also contains non forecast date times
+									put this parts between ' and use ? wildcard
+									All forecast with the same forecast time belong to the same forecast.
+								</documentation>
+							</annotation>
+						</element>
+					</choice>
+					<element name="fileNameLocationIdPattern" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>
+								Regular Expression. When a match of the pattern in the filename is found, this will overrule
+								the location Id for the time series being imported. 
+								A simple pattern is (without quotations) '(.*)' which matches the whole filename.
+								An other simple pattern is  .{2}(.*).{4} that removes the first 2 and last 4 character of the filename to get the id
+								More complicated expressions can be found at http://en.wikipedia.org/wiki/Regular_expression
+							</documentation>
+						</annotation>
+					</element>
+					<element name="fileNameParameterIdPattern" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>
+								Regular Expression. When a match of the pattern in the filename is found, this will overrule
+								the parameter Id for the time series being imported. 
+								A simple pattern is (without quotations) '(.*)' which matches the whole filename
+								An other simple pattern is  .{2}(.*).{4} that removes the first 2 and last 4 character of the filename to get the id
+								More complicated expressions can be found at http://en.wikipedia.org/wiki/Regular_expression
+							</documentation>
+						</annotation>
+					</element>
+					<element name="maxAllowedFolderSizeMB" type="positiveInteger" minOccurs="0">
+						<annotation>
+							<documentation>When the total size of all the files in the specified directory is larger
+                                than the specified number
+                                of MBs an error will be logged and the import of files from this directory will be
+                                skipped
+                            </documentation>
+						</annotation>
+					</element>
+					<element name="failedFolder" type="fews:directoryStringType" minOccurs="0">
+						<annotation>
+							<documentation>Files that could not be imported due to an error are copied to this folder.</documentation>
+						</annotation>
+					</element>
+					<element name="backupFolder" type="fews:directoryStringType" minOccurs="0">
+						<annotation>
+							<documentation>Successfully imported files are moved to this folder.</documentation>
+						</annotation>
+					</element>
+					<element name="suspendedFolder" type="fews:directoryStringType" minOccurs="0">
+						<annotation>
+							<documentation>Files from a suspended import are moved to this folder.</documentation>
+						</annotation>
+					</element>
+					<element name="importTriggeringFile" type="fews:fileStringType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Since 2020.01 Full path to the files that trigger the import.  If configured, import will start when all configured files are found. The files are deleted at the end of the import run.</documentation>
+						</annotation>
+					</element>
+					<element name="groupImportPattern" type="fews:GroupImportPatternComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2024.01 File name pattern defining a complete forecast. When as many files as configured match the pattern, they can be imported. If waiting time has passed without all files, the existing files are moved to the failed folder.</documentation>
+						</annotation>
+					</element>
+					<element name="deleteImportedFiles" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Boolean to specify whether or not to delete files after import. This is useful when files are needed for multiple imports.</documentation>
+						</annotation>
+					</element>
+					<group ref="fews:FtpOptionsGroup" minOccurs="0">
+						<annotation>
+							<documentation>FTP options</documentation>
+						</annotation>
+					</group>
+				</sequence>
+				<!--jdbc-->
+				<sequence>
+					<element name="jdbcDriverClass" type="string">
+						<annotation>
+							<documentation>e.g. com.microsoft.jdbc.sqlserver.SQLServerDriver
+                                or com.mysql.jdbc.Driver
+                            </documentation>
+						</annotation>
+					</element>
+					<element name="jdbcBinDir" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>Directory with driver jar files and optionally native dlls/sos. When not specified the bin dir and class loader of FEWS is used. When specified the jdbc drive class is loaded from the bin dir, it will not use any jar in the FEWS bin dir. </documentation>
+						</annotation>
+					</element>
+					<element name="jdbcConnectionString" type="string">
+						<annotation>
+							<documentation>Connection string to external database.
+                                Test the connection string in db visualiser before using</documentation>
+						</annotation>
+					</element>
+					<element name="jdbcConnectionTimeOutMillis" type="fews:positiveIntegerStringType" minOccurs="0">
+						<annotation>
+							<documentation>When specified the connection to the database is first tested before asking the jdbc driver to connect.
+                                Some jdbc drivers are using a very long time out.
+                            </documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<!--server-->
+				<sequence>
+					<element name="serverUrl" type="string">
+						<annotation>
+							<documentation>(Internet) Url to a time series server. The specified time series parser communicates with this server. Tags should be separated by "%" signs. The following tags can be used in this URL: %TIME_ZERO(dateFormat)% is replaced with the time0 of this import run. The time0 is formatted using the dateFormat that is specified between the brackets. For example %TIME_ZERO(yyyyMMdd)% would be replaced with the year, month and day of the time0. %RELATIVE_TIME_IN_SECONDS(dateFormat,relativeTime)% is replaced with time = (time0 + relativeTime), where time0 is the timeZero of this import run and relativeTime is a time relative to time0 in seconds (can be negative). The time is formatted using the dateFormat that is specified as the first argument between the brackets. For example %RELATIVE_TIME_IN_SECONDS(yyyyMMdd,-18000)% would be replaced with the year, month and day of time = time0 - 18000 seconds.</documentation>
+						</annotation>
+						<!--todo change to url type-->
+					</element>
+					<element name="backupServerUrl" type="string" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Optional Url's to define backup import locations.</documentation>
+						</annotation>
+					</element>
+					<element name="downLoadFolder" type="fews:directoryStringType" minOccurs="0">
+						<annotation>
+							<documentation>data will downloaded and saved as a file to this folder as well as imported</documentation>
+						</annotation>
+					</element>
+					<element name="fileNamePatternFilter" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2014.02. FEWS-11593 e.g *.xml to skip non xml files from server. Only the * and ? wild cards are recognized. Only supported by specific import types and parsers</documentation>
+						</annotation>
+					</element>
+					<element name="fileNameObservationDateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02 Currently supported only by import from OpenDAP. An example 'http://nomads.ncep.noaa.gov:9090/dods/gfs_0p25_1hr/gfs'yyyyMMdd'/gfs_0p25_1hr_'HH'?'.  This will overrule the observation time stored in the file. Some grid formats don't contain the  time at all, so for these files the pattern is required. Put the literal parts of the pattern between '				</documentation>
+						</annotation>
+					</element>
+					<element name="connectionTimeOutMillis" type="int" minOccurs="0">
+						<annotation>
+							<documentation>Optional timeout in milliseconds before a connection is deemed as unavailable. </documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<!-- basic authentication -->
+			<group ref="fews:UserAndPassword" minOccurs="0">
+				<annotation>
+					<documentation>User name and password, required for protected database connections and protected servers.</documentation>
+				</annotation>
+			</group>
+			<choice minOccurs="0">
+				<!-- oauth2 authentication -->
+				<element name="oauth2Config" type="fews:OAuth2ConfigComplexType"/>
+			</choice>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>Optional choice. The period for which data should be read can be specified here. Can be either a relative period (relative to time 0) or a fixed period.
+					</documentation>
+				</annotation>
+				<sequence>
+					<group ref="fews:WantedPeriod" minOccurs="0">
+						<annotation>
+							<documentation>Group that can be used for either a relative or absolute period</documentation>
+						</annotation>
+					</group>
+					<element name="onlyGaps" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Since 2022.02. Only import for periods where there are gaps in the data. Only supported for specific imports, an error will be logged when not supported
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<element name="forecastSearchPeriod" type="fews:RelativePeriodComplexType">
+					<annotation>
+						<documentation>Since 2024.02. Only  time series with (external) forecast time within this forecastSearchPeriod will be imported. If multiple forecast are found, only the most recent forecast will be imported. Supported only for specific imports</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="externalForecastTimesSearchRelativePeriod" type="fews:RelativePeriodComplexType">
+						<annotation>
+							<documentation>Since 2021.01, it is possible to import older forecast data within a given period. Only supported for specific imports, an error will be logged when not supported</documentation>
+						</annotation>
+					</element>
+					<element name="externalForecastTimesCardinalTimeStep" type="fews:TimeStepComplexType">
+						<annotation>
+							<documentation>Since 2021.01, for each time step within the period, the parser is used to import forecast data.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="forecastMaxAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Skip all forecasts with are older than the specified age. The (external) forecast time and the time0
+						are used to calculate the age. The import file modification time and current actual time are not used.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="table" type="fews:TableMetadataComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Currently the generalCsv and Database import require a table layout description configured by the user. Non-standard imports (plugins) can also required a table layout. See the documentation of the specific import The order of the listed column is used to calculate the column indices when there is no column name information available. Add the columns that are not used as skipped columns so the column indices can be calculated correctly</documentation>
+				</annotation>
+			</element>
+			<element name="validate" type="boolean" nillable="false" minOccurs="0">
+				<annotation>
+					<documentation>Option to allow validation of the import files against the template, i.e.  xml-schema. If there is no template available, this option wil be ignored.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>logErrorsAsWarnings</documentation>
+				</annotation>
+			<element name="logErrorsAsWarnings" type="boolean" default="true">
+				<annotation>
+					<documentation>Since 2014.01. Exceptions occuring in a parser as well as some not parser-specific log messages such as " Import folder ... does not exist" or " Can not connect to..." can be logged as Error or as Warning.  Use this option to change it. Default is logErrorsAsWarnings=true. Configure False if you wish clear alert notifications in SystemMonitor and Explorer statusBar </documentation>
+				</annotation>
+			</element>
+			<element name="logErrorsAsWarningsToFileOnly" type="boolean" default="false">
+				<annotation>
+					<documentation>Since 2018.02. Exceptions occuring in a parser as well as some not parser-specific log messages such as " Import folder ... does not exist" or " Can not connect to..." can be logged to file and database. Set this option to true if you do not wish to log them to the database.</documentation>
+				</annotation>
+			</element>
+			</choice>
+			<element name="logWarningsForUnmappableTimeSeries" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>When true warnings are logged when time series in the imported files are skipped. By default unmappable time series are silently skipped</documentation>
+				</annotation>
+			</element>
+			<element name="failOnUnmappableTimeSeries" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>If an import file contains some time series that can not be mapped use this option to mark file as failed</documentation>
+				</annotation>
+			</element>
+			<element name="logWarningsForUnmappableLocations" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>When true warnings are logged when locations in the imported files are skipped. By default un mappable locations are silently skipped</documentation>
+				</annotation>
+			</element>
+			<element name="logWarningsForUnmappableParameters" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10839. When true warnings are logged when parameters in the imported files are skipped. By default unmappable parameters are silently skipped</documentation>
+				</annotation>
+			</element>
+			<element name="logWarningsForUnmappableQualifiers" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10839. When true warnings are logged when qualifiers in the imported files are skipped. By default unmappable qualifiers are silently skipped</documentation>
+				</annotation>
+			</element>
+			<element name="failOnUnmappableLocations" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>If an import file contains some locations that can not be mapped use this option to mark file as failed</documentation>
+				</annotation>
+			</element>
+			<element name="maxLogWarnings" type="nonNegativeInteger" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10078. Maximum number of warnings logged for import. When not specified max log warnings is set to 5. Only applies to general import warnings and not parser specific warnings.</documentation>
+				</annotation>
+			</element>
+			<element name="logWarningsToSeparateFile" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10839. Log warnings for import file to a specific file called [importFileName].log This file will be placed in either the backupFolder or failedFolder depending on whether they are configured and if the import was successful or not</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreFileNotFoundWarnings" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2020.02. Default is false. If it is set to true, FileNotFound warnings are only logged in debug mode.</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of IdMap to be used for parameter, location, qualifier and ensemble member mapping</documentation>
+				</annotation>
+			</element>
+			<element name="moduleInstanceAware" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2023.01. If value is set to true, data will only be imported if the module instance id specified in the config file matches the module instance id of the downloaded data.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="useStandardName" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2012.02. When the parser provides the standard name the parameter mapping can be done by matching the standard name. The standard name of the parameter in the time series set should be configured in the parameters.xml and the standard name should be provided by the import format. If not an error is logged. When also the maximumSnapDistance is configured no id map is required at all.</documentation>
+				</annotation>
+			</element>
+			<element name="maximumSnapDistance" type="fews:doubleStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2012.02. Optional maximum horizontal snap distance in meters. When the parser provides horizontal location coordinates (x,y) and no locationIds, then the location mapping will be done by matching the horizontal coordinates. The horizontal snap distance is the tolerance used to detect which internal and external horizontal coordinates are the same. Don't forget to configure the geoDatum when the input format does not provide the coordinate system for the locations. When the parser does not provide the coordinates for a time series an error is logged. Note: this option has no effect for grid data. Note 2: it is not possible to import data using horizontal coordinates and using locationIds in the same import, need to define separate import elements for that (one with maximumSnapDistance and one without maximumSnapDistance).</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="maximumVerticalSnapDistance" type="fews:doubleStringType">
+					<annotation>
+						<documentation>Since 2014.02. Optional maximum vertical snap distance in meters. When the parser provides vertical location coordinates (z) and no locationIds, then the location mapping will be done by matching the vertical coordinates.
+							The vertical snap distance is the tolerance used to detect which internal and external vertical coordinates are the same. This only works when the input format provides the coordinates of the locations. When the parser does not provide the vertical coordinates for a time series an error is logged.
+							Note: this option currently only works for importing horizontal layers from netcdf 3D grid data. Note 2: it is not possible to import data with z-coordinates (layers from 3D grids) and data without z-coordinates (2D grids) in the same import, need to define separate import elements for that (one with maximumVerticalSnapDistance and one without maximumVerticalSnapDistance).
+						</documentation>
+					</annotation>
+				</element>
+				<element name="mapLocationsByLayerSigmaCoordinate" type="boolean">
+					<annotation>
+						<documentation>Since 2017.02. When true the location is resolved by the layer sigma coordinate</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="disableImportOnMissingUnitConversion" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If this flag is True and the extern unit does not  equal the intern unit and there is no unit-mapping available, the time series wil be not imported.</documentation>
+				</annotation>
+			</element>
+			<element name="flagConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of flagConversions to be used for flag mapping</documentation>
+				</annotation>
+			</element>
+			<element name="flagSourceConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.02 Id of flag source conversions(flagConversions.xsd format) to be used for flag source mapping</documentation>
+				</annotation>
+			</element>
+			<element name="missingValue" type="float" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Values that are replaced by NaN during import. NaN is always recognized as missing value.</documentation>
+				</annotation>
+			</element>
+			<element name="missingValueText" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Values that are replaced by NaN during import. NaN is always recognized as missing value.</documentation>
+				</annotation>
+			</element>
+			<element name="traceValue" type="float" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>All trace values are replaced by 0 during import, before datum conversion</documentation>
+				</annotation>
+			</element>
+			<element name="importTimeZone" type="fews:TimeZoneComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Time zone of the import data. If this is not configured, then GMT is used.</documentation>
+				</annotation>
+			</element>
+			<element name="gridStartPoint" type="fews:GridStartPointSimpleType" minOccurs="0">
+				<annotation>
+					<documentation>Identification of the cell considered as the first cell of the grid. Enumeration of options includes : NW for upper left, SW for lower left, NE for  upper right ,  SE  for lower right.  This option should only be used if  the  NetCDF file is  not CF compliant and  contains  insufficient metadata  with info of the grid, its orientation etc.</documentation>
+				</annotation>
+			</element>
+			<element name="geoDatum" type="fews:geoDatumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Type of coordinate system</documentation>
+				</annotation>
+			</element>
+			<element name="importTypeConfig" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>configuration of the reader specified with importType</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02. FEWS-13479. Optional choice for storing import status  in the database (table  ImportStatus) . If this choice is omitted,  import status will be stored in database using the import folder name as dataFeedId.</documentation>
+				</annotation>
+				<element name="dataFeedId" type="fews:idStringType">
+					<annotation>
+						<documentation>Id for data feed. Import status will be stored in database using this id</documentation>
+					</annotation>
+				</element>
+				<element name="disableDataFeedInfo" type="fews:emptyElement">
+					<annotation>
+						<documentation>option disableDataFeedInfo indicates that no import status should be stored in database</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="convertDatum" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Convert datum from local datum during import. The conversion wil be done for all  parameters which use datum (as configured  Parameters.xsd)</documentation>
+				</annotation>
+			</element>
+			<element name="skipMissingValues" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 Skip missing values so they are not overwriting existing values in the database</documentation>
+				</annotation>
+			</element>
+			<element name="skipEmptyTextValues" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02 Skip empty text values so they are not imported as missing values.</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01. Option to skip time series sets if the location set does not exist. Useful when module or workflow is run in loop with tags being translated. When omitted defaults to 'false'.</documentation>
+				</annotation>
+			</element>
+			<element name="reportChangedValues" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Option to allow printing messages to the log-file if the imported values are changed, compared to the previously imported values</documentation>
+				</annotation>
+			</element>
+			<element name="actionLogEventTypeId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>ID of the action message  that must be logged if any data imported. This message is then used to start up an action as configured in the MasterController config.files (e.g. start a forecast)</documentation>
+				</annotation>
+			</element>
+			<element name="comment" type="fews:CommentComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Comment to add to the imported values, visible in the time series dialog as tooltip
+					</documentation>
+				</annotation>
+			</element>
+			<element name="synchLevel" type="int" default="0" minOccurs="0">
+				<annotation>
+					<documentation>
+						Sync level used when not specified in the time series sets
+					</documentation>
+				</annotation>
+			</element>
+			<element name="expiryTime" type="fews:CalendarTimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Expiry time used when not specified in the time series sets
+					</documentation>
+				</annotation>
+			</element>
+			<element name="relativeForecastTime" type="fews:RelativeTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional forecast time relative to the T0 of the import run. All imported external forecast time series will get this forecast time. This overrules any forecast times stored in the imported data itself. All time series with the same forecast time belong to the same forecast.</documentation>
+				</annotation>
+			</element>
+			<element name="skipFirstLinesCount" type="int" default="0" minOccurs="0">
+				<annotation>
+					<documentation>
+						Skips the first n lines of a file. Error is logged when this option is configured for a binary file.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="gotoLineWhichStartsWith" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2017.02: Find the first line that starts with the specified string. All lines before will be skipped by the import. Only supported for line based text imports
+					</documentation>
+				</annotation>
+			</element>
+			<element name="commentIgnoreFilter" minOccurs="0">
+				<complexType>
+					<choice>
+						<element name="ignoreCommentPattern" type="fews:nonEmptyStringType" minOccurs="0">
+							<annotation>
+								<documentation>
+									Regular expression that specifies which comments should be ignored during import. For instance the regular expression ^(FEWS).* specifies that comments starting with "FEWS" must be ignored. This can also be extended for multiple strings: for instance the regular expression ^(FEWS|DELTARES).* specifies that comments starting with "FEWS" or "DELTARES" must be ignored.
+								</documentation>
+							</annotation>
+						</element>
+						<element name="ignoreComment" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+							<annotation>
+								<documentation>
+									List of exact comments that should be ignored
+								</documentation>
+							</annotation>
+						</element>
+					</choice>
+				</complexType>
+			</element>
+			<element name="ignoreEmptyComments" type="boolean" minOccurs="0" default="true">
+				<annotation>
+					<documentation>Since 2021.02. Default is true. When false imported empty comments overwrite existing comments. Import notice: this will also overwrite comments written by users when data is reimported</documentation>
+				</annotation>
+			</element>
+			<element name="mergeWithExistingSampleData" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. When true, newly imported sample data will overwrite and extend existing sample data, keeping non overwritten data from the same sample. When false the non overwritten sample data from the same sample will be removed. Be careful with changing qualifiers when set to true because changing a qualifier will result in a different time series. This "new" time series will be added to the sample and the "old" will remain, instead of overwriting the old with the new. Also sample properties can not be changed when merging because sample properties should be the same for the entire sample, this also applies to already and newly imported data for the same sample.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="rejectCompleteSampleOnUnmappableId" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. When true, if part of an imported sample cannot be mapped to a time serie in FEWS the whole sample will be rejected, when false part of a sample can be imported.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="rejectCompleteSampleOnDuplicateValues" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02. When true, if for the same time step within a time series multiple values are imported reject sample and add log warning</documentation>
+				</annotation>
+			</element>
+			<element name="overwriteAnnotations" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02. When true, annotations with same location and time but different content (both annotation itself and properties) will overwrite eachother instead of coexist. Default is false.</documentation>
+				</annotation>
+			</element>
+			<element name="trimPeriodWhenLastImportedTimeStepAfterPeriod" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02. When true, import types that trim requested period to last imported time step will not make an exception (and skip entire period) when last imported time step is after the requested period</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="columnSeparator" type="fews:columnSeparatorEnumStringType">
+					<annotation>
+						<documentation>Since 2016.01 User defined column separator used for specific serializers like generalCsvSerializer</documentation>
+					</annotation>
+				</element>
+				<element name="decimalSeparator" type="fews:decimalSeparatorEnumStringType">
+					<annotation>
+						<documentation>Since 2016.01 User defined decimal separator used for specific serializers like generalCsvSerializer</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. For formats that supports a custom date time pattern. e.g. yyyy/MM/dd HH:mm:ss</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. Character set of the import file. Specify only when the file contains non western characters.
+					</documentation>
+				</annotation>
+			</element>			
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="CommentComplexType">
+		<sequence>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType" default="yyyy-MM-dd HH:mm" minOccurs="0">
+				<annotation>
+					<documentation>
+						Date time pattern used for %IMPORT_DATE_TIME%, %FILE_DATE_TIME%
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeZone" type="fews:TimeZoneComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Time used for formatting %IMPORT_DATE_TIME%, %FILE_DATE_TIME%
+					</documentation>
+				</annotation>
+			</element>
+			<element name="commentForFirstValue" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						%IMPORT_DATE_TIME%, %FILE_DATE_TIME%, %FILE_NAME%
+					</documentation>
+				</annotation>
+			</element>
+			<element name="commentForAllValues" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						%IMPORT_DATE_TIME%, %FILE_DATE_TIME%, %FILE_NAME%
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesImportStartTimeShiftComplexType">
+		<annotation>
+			<documentation>Allows the external forecast start time to begin prior to the begin time of the imported time series.</documentation>
+		</annotation>
+		<sequence>
+			<choice minOccurs="0">
+				<element name="locationSetId" type="fews:idStringType"/>
+				<element name="locationId" type="fews:idStringType"/>
+			</choice>
+			<element name="parameterId" type="fews:idStringType"/>
+			<element name="relativePeriod" type="fews:RelativePeriodComplexType"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<simpleType name="GridStartPointSimpleType">
+		<restriction base="string">
+			<enumeration value="NW"/>
+			<enumeration value="SW"/>
+			<enumeration value="NE"/>
+			<enumeration value="SE"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="importTypeEnumStringType">
+		<annotation>
+			<documentation>Overview of supported parsers</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="AdconTimeSeriesServerParser"/>
+			<enumeration value="ahd"/>
+			<enumeration value="AifsML"/>
+			<enumeration value="AifsMLArea"/>
+			<enumeration value="AifsMLHazard"/>
+			<enumeration value="AifsMLObservations"/>
+			<enumeration value="Akvo"/>
+			<enumeration value="AoClimateIndex"/>
+			<enumeration value="Aqualarm"/>
+			<enumeration value="AqualarmRest"/>
+			<enumeration value="AquariusRestV2"/>
+			<enumeration value="AquariusFieldVisitReadingsByLocation"/>
+			<enumeration value="ArcInfoAsciiGrid"/>
+			<enumeration value="ARCWAT_DBF"/>
+			<enumeration value="AsciiGrid"/>
+			<enumeration value="AsciiGridWithOptionalFooterLines"/>
+			<enumeration value="AVAMET"/>
+			<enumeration value="AzureIotHub"/>
+			<enumeration value="Bayern"/>
+			<enumeration value="bc2000"/>
+			<enumeration value="bfg"/>
+			<enumeration value="bil"/>
+			<enumeration value="BILBIPBSQ"/>
+			<enumeration value="BMALatest"/>
+			<enumeration value="BMADay"/>
+			<enumeration value="BUFR"/>
+			<enumeration value="BrazilAna"/>
+			<enumeration value="BroGldAdditionServer"/>
+			<enumeration value="BroGldAddition"/>
+			<enumeration value="BSH-MARNET"/>
+			<enumeration value="CanadaDFO"/>
+			<enumeration value="CanadaMeteo">
+				<annotation>
+					<documentation>SINCE 2018.02. Import files according the http://dms.ec.gc.ca/schema/point-observation/2.1
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="CanadaMeteoWCS"/>
+			<enumeration value="campbell"/>
+			<enumeration value="CapAlert"/>
+			<enumeration value="CapAlerts"/>
+			<enumeration value="CEMIG"/>
+			<enumeration value="cerf"/>
+			<enumeration value="CHC"/>
+			<enumeration value="Cmems"/>
+			<enumeration value="CorpsFlowsheet"/>
+			<enumeration value="cosmo7_cor"/>
+			<enumeration value="covadem">
+				<annotation>
+					<documentation>Since 2017.02 Covadem import that uses the area request parameter</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="covademTrack">
+				<annotation>
+					<documentation>Since 2020.01 Covadem import that uses the track request parameter</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="covademTrack2">
+				<annotation>
+					<documentation>Since 2020.01 Covadem import that uses the track2 request parameter</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="CroatianHFSResults"/>
+			<enumeration value="CS3xTidalSurge"/>
+			<enumeration value="CSV"/>
+			<enumeration value="CWMS"/>
+			<enumeration value="CyMons">
+				<annotation>
+					<documentation>Since 2014.01</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="delft3dflow"/>
+			<enumeration value="database">
+				<annotation>
+					<documentation>Fill in in the table element for every table you want to import.
+                        Blobs are also supported. Specify the parser attribute in every value column element</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="DataWare"/>
+			<enumeration value="DDSC"/>
+			<enumeration value="Delft3dFlow"/>
+			<enumeration value="DHI_PRESA"/>
+			<enumeration value="DHI-SFA"/>
+			<enumeration value="DHILAWRArcInfoAsciiGrid"/>
+			<enumeration value="DHM"/>
+			<enumeration value="DigitalDelta"/>
+			<enumeration value="DigitalDelta3.0"/>
+			<enumeration value="dino"/>
+			<enumeration value="dinoservice"/>
+			<enumeration value="divermon"/>
+			<enumeration value="dwd-gme"/>
+			<enumeration value="dwd-lm"/>
+			<enumeration value="dwd-lm2"/>
+			<enumeration value="dwd8"/>
+			<enumeration value="dwd9"/>
+			<enumeration value="dwd10"/>
+			<enumeration value="DXOFFLINE"/>
+			<enumeration value="DXOnline"/>
+			<enumeration value="ea"/>
+			<enumeration value="EARS_Satellite_Rainfall_Estimate"/>
+			<enumeration value="easyQ"/>
+			<enumeration value="ECTemperature"/>
+			<enumeration value="EDSHydrothermal"/>
+			<enumeration value="EDStransmission"/>
+			<enumeration value="EEX"/>
+			<enumeration value="EHDCC"/>
+			<enumeration value="EfasSos"/>
+			<enumeration value="EfasSosServer"/>
+			<enumeration value="eksw"/>
+			<enumeration value="eksw2005"/>
+			<enumeration value="Element360">
+				<annotation>
+					<documentation> Import data from the Element 360, formerly Contrail, API.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="Element360Metadata">
+				<annotation>
+					<documentation>Import sensor metadata from the Element360, formerly Contrail, API.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="EnviromonCsv"/>
+			<enumeration value="era15"/>
+			<enumeration value="EtaSmn"/>
+			<enumeration value="evn"/>
+			<enumeration value="Farm21"/>
+			<enumeration value="fewsdatabase"/>
+			<enumeration value="foc"/>
+			<enumeration value="FOCnew"/>
+			<enumeration value="generalCsv">
+				<annotation>
+					<documentation>Imports most csv file by configuring the csv table structure in the table element in this config file. Decimal and column separator are automatically recognized.
+						First row should contain the column names. Other rows should contain the data</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="GermanSnow"/>
+			<enumeration value="ghd"/>
+			<enumeration value="grayscaleimage"/>
+			<enumeration value="GSMaP"/>
+			<enumeration value="grib"/>
+			<enumeration value="grib1"/>
+			<enumeration value="GRIB1Unstructured"/>
+			<enumeration value="grib2"/>
+			<enumeration value="GRIB2DIR"/>
+			<enumeration value="GRIB2_UKV"/>
+			<enumeration value="GRIB_HIRLAM_FLIPPED"/>
+			<enumeration value="gribbasic"/>
+			<enumeration value="gribcosmo"/>
+			<enumeration value="gsod"/>
+			<enumeration value="HCS"/>
+			<enumeration value="hdf4"/>
+			<enumeration value="hdfSoilMoisture"/>
+			<enumeration value="EDSHydrothermal">
+				<annotation>
+					<documentation>Since 2020.02</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="HecDss">
+				<annotation>
+					<documentation>Since 2017.02</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="Hessen"/>
+			<enumeration value="HidroInformatica"/>
+			<enumeration value="HHRR"/>
+			<enumeration value="HHZZ">
+				<annotation>
+					<documentation>SINCE 2024.01.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="hims"/>
+			<enumeration value="historicalEventsXML">
+				<annotation>
+					<documentation>SINCE 2013.02. Import files according the https://fewsdocs.deltares.nl/schemas/version1.0/historicalEvents.xsd. It is no longer required to handle historical events as config. They can now be moved out of the region config and imported like astronomical time series. Don't configure time series sets when using this import.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="HVZ-LILA"/>
+			<enumeration value="Hycom_netcdf"/>
+			<enumeration value="HYDAMS-XML"/>
+			<enumeration value="hydris"/>
+			<enumeration value="HydroQuebecPRN"/>
+			<enumeration value="OttawaRiverRegulation"/>
+			<enumeration value="HyFSAstro"/>
+			<enumeration value="HYMOSASCII"/>
+			<enumeration value="IDEAM"/>
+			<enumeration value="IDEAMQ"/>
+			<enumeration value="hymosTransfer"/>
+			<enumeration value="IFKIS"/>
+			<enumeration value="iHistorian"/>
+			<enumeration value="IJGKlepstanden"/>
+			<enumeration value="IMIS"/>
+			<enumeration value="IModIDF"/>
+			<enumeration value="IOCSeaLevelMonitoring"/>
+			<enumeration value="ItaipuBDH"/>
+			<enumeration value="ItaipuForecast"/>
+			<enumeration value="ItaipuRawData"/>
+			<enumeration value="ItaipuSchedule"/>
+			<enumeration value="IP1"/>
+			<enumeration value="JTWC"/>
+			<enumeration value="keller"/>
+			<enumeration value="knmi"/>
+			<enumeration value="knmi-hdf5"/>
+			<enumeration value="knmicsv"/>
+			<enumeration value="knmieps"/>
+			<enumeration value="knmievp"/>
+			<enumeration value="Knmi-Hdf5-Radar-Nowcast"/>
+			<enumeration value="knmiiris"/>
+			<enumeration value="knmisynops"/>
+			<enumeration value="KnmiWAQUA-TS"/>
+			<enumeration value="Landsat-Hdf5"/>
+			<enumeration value="LILA"/>
+			<enumeration value="LMW"/>
+			<enumeration value="LmwHy3m"/>
+			<enumeration value="LmwKnmiCsv"/>
+			<enumeration value="LmwLixhe"/>
+			<enumeration value="LmwUkmo"/>
+			<enumeration value="LmwWallonie"/>
+			<enumeration value="LmwWeatherdata"/>
+			<enumeration value="locationIdsHeaderCsv">
+				<annotation>
+					<documentation>Since 2016.02. A csv file with on the first line the location id per column</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="lubw"/>
+			<enumeration value="LUBWImport"/>
+			<enumeration value="MactaquacDischarge"/>
+			<enumeration value="matroos_netcdf-cf_grid"/>
+			<enumeration value="matroos_netcdf-cf_timeseries"/>
+			<enumeration value="matroos_netcdfmapseries"/>
+			<enumeration value="matroos_netcdfspectrumseries"/>
+			<enumeration value="McIDASArea"/>
+			<enumeration value="MeiClimateIndex"/>
+			<enumeration value="MeteoFranceAscii"/>
+			<enumeration value="MeteoFranceArome"/>
+			<enumeration value="MeteoFranceDPObs"/>
+			<enumeration value="MetOffice"/>
+			<enumeration value="MetOfficeWW3"/>
+			<enumeration value="MinerveJson" />
+			<enumeration value="Mis"/>
+			<enumeration value="MjoClimateIndex"/>
+			<enumeration value="mm3pCsv"/>
+			<enumeration value="Modifier"/>
+			<enumeration value="modis"/>
+			<enumeration value="ModisSca"/>
+			<enumeration value="mosaic"/>
+			<enumeration value="mosm"/>
+			<enumeration value="MultiflexMeter"/>
+			<enumeration value="MunisenseImport"/>
+			<enumeration value="msw"/>
+			<enumeration value="nea"/>
+			<enumeration value="netcdf-cf"/>
+			<enumeration value="netcdf-stf"/>
+			<enumeration value="netcdf-wdss2"/>
+			<enumeration value="NetCdfGridDataset"/>
+			<enumeration value="NetCdfGridDatasetFlipped"/>
+			<enumeration value="NetcdfHydralab"/>
+			<enumeration value="NETCDF-CF_GRID"/>
+			<enumeration value="NETCDF-CF_GRID_REFERENCES"/>
+			<enumeration value="NETCDF-CF_GRID-NW"/>
+			<enumeration value="NETCDF-CF_GRID-SW"/>
+			<enumeration value="NETCDF-CF_PROFILE"/>
+			<enumeration value="NETCDF-CF_TIMESERIES"/>
+			<enumeration value="NETCDF-CF_TRAJECTORY"/>
+			<enumeration value="NETCDF-CF VERTICAL PROFILE"/>
+			<enumeration value="NETCDF-CF_SPECTRUM"/>
+			<enumeration value="NETCDF-CF_SPECTRUM_TEMP"/>
+			<enumeration value="NETCDF-WDSS2_SPARSE_LAT_LON_GRID"/>
+			<enumeration value="NETCDF-STF_TIMESERIES"/>
+			<enumeration value="NETCDF-TIDAL_TIMESERIES"/>
+			<enumeration value="NetCDFStorageLatestForecastScalar">
+				<annotation>
+					<documentation>Since 2020.02. Imports the latest grid forecast from a netcdf storage (THREDDS).</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="NetCDFStorageLatestForecastGrid">
+				<annotation>
+					<documentation>Since 2020.02. Imports the latest scalar forecast from a netcdf storage (THREDDS).</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="NetcdfVerticalProfile"/>
+			<enumeration value="nimrod"/>
+			<enumeration value="NinoClimateIndex"/>
+			<enumeration value="noaa_global_forecast_system"/>
+			<enumeration value="noaa_satellite_rainfall_estimate"/>
+			<enumeration value="noos_server">
+				<annotation>
+					<documentation>
+						Specify url, username and password
+						Can be used to retrieve data from matroos.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="noos_mapseries"/>
+			<enumeration value="noos_timeseries"/>
+			<enumeration value="noos_1dmapseries"/>
+			<enumeration value="NRWTelemetry">
+				<annotation>
+					<documentation>
+						For FEWS-Wales, specify url, tokenUrl, username and password.
+						For other use, specify url and apiKey.
+						Can be used to retrieve telemetry data (readings) from NRW API.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="NRWTelemetryMeasure">
+				<annotation>
+					<documentation>
+						For FEWS-Wales, specify url, tokenUrl, username and password.
+						For other use, specify url and apiKey.
+						Can be used to retrieve telemetry data (readings for specified measures) from NRW API.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="NRWWiski"/>
+			<enumeration value="ntuquarter"/>
+			<enumeration value="nturain"/>
+			<enumeration value="NWS-DATACARD"/>
+			<enumeration value="NWS-DATACARD-HINDCAST"/>
+			<enumeration value="NWS-DATACARD-INSTANTANEOUS"/>
+			<enumeration value="NWS-DATACARD-RATING-CURVE"/>
+			<enumeration value="Obscape"/>
+			<enumeration value="obserview"/>
+			<enumeration value="ofsde"/>
+			<enumeration value="OGCSensorThings"/>
+			<enumeration value="omc"/>
+			<enumeration value="ONS-CPTEC_ETA"/>
+			<enumeration value="ONS-Synoptic"/>
+			<enumeration value="ONSSoap"/>
+			<enumeration value="ONSWebService"/>
+			<enumeration value="OSHDAsciiGrid">
+				<annotation>
+					<documentation>Since 2017.01. Import type for Operational Snow-HyDrological service (OSHD) ascii grid files with additional metadata files. Each file contains an ESRI ascii grid with data. For each grid file there must be an additional metadata file with the same name as the grid file, only different extension (.META).</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="PdoClimateIndex"/>
+			<enumeration value="pegelonline"/>
+			<enumeration value="pi"/>
+			<enumeration value="pi_json"/>
+			<enumeration value="pi_ratingcurves"/>
+			<enumeration value="pi_server">
+				<annotation>
+					<documentation>Since 2017.01. Import from FewsPiServer.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi_server_SOAP">
+				<annotation>
+					<documentation>Since 2021.02. Import from FewsPiServer SOAP service. Deprecated, please use pi_server instead if possible.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi_tables">
+				<annotation>
+					<documentation>Since 2015.02</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="piDiagnostics"/>
+			<enumeration value="piMapStack"/>
+			<enumeration value="pmdsynoptici"/>
+			<enumeration value="pmdtelemetric"/>
+			<enumeration value="QboClimateIndex"/>
+			<enumeration value="QPF"/>
+			<enumeration value="radolan"/>
+			<enumeration value="rijnlandrtd"/>
+			<enumeration value="RivDaily"/>
+			<enumeration value="RotterdamPort">
+				<annotation>
+					<documentation>Since 2018.02</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="SAIH"/>
+			<enumeration value="senamhi"/>
+			<enumeration value="shd"/>
+			<enumeration value="shd-extloc">
+				<annotation>
+					<documentation>Since 2017.01</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="shef"/>
+			<enumeration value="SingaporeLDS"/>
+			<enumeration value="SingaporeNEA"/>
+			<enumeration value="SingaporeNEAv2"/>
+			<enumeration value="SkyGeo"/>
+			<enumeration value="SsarrPrecipitation"/>
+			<enumeration value="SsarrTemperature"/>
+			<enumeration value="sma"/>
+			<enumeration value="smaecmwf"/>
+			<enumeration value="SoiClimateIndex"/>
+			<enumeration value="sse"/>
+			<enumeration value="swan-spectrum">
+				<annotation>
+					<documentation>
+						Can read 1D and 2D spectra see http://swanmodel.sourceforge.net/online_doc/swanuse/node50.htm
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="swe"/>
+			<enumeration value="swissradar"/>
+			<enumeration value="synop"/>
+			<enumeration value="tahmo"/>
+			<enumeration value="TaiwanRmoServer"/>
+			<enumeration value="TaiwanCwbAsciiForecast"/>
+			<enumeration value="TaiwanCwbSeaWave"/>
+			<enumeration value="TeleconnClimateIndex"/>
+			<enumeration value="TheissCsv"/>
+			<enumeration value="tmsi"/>
+			<enumeration value="tmx"/>
+			<enumeration value="tmxCsv"/>
+			<enumeration value="ttrr"/>
+			<enumeration value="TvaDailyWaterViewCsv">
+				<annotation>
+					<documentation>Since 2014.01</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="TvaHourlyWaterViewCsv">
+				<annotation>
+					<documentation>Since 2014.01</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="TvaKentuckyBarkley"/>
+			<enumeration value="TvaTvaKentuckyBarkley">
+				<annotation>
+					<documentation>Since 2014.01</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="TvaTransaction">
+				<annotation>
+					<documentation>Since 2014.01</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="UkEaBwq"/>
+			<enumeration value="UruguayAna"/>
+			<enumeration value="UruguayDatawise"/>
+			<enumeration value="UruguayDc"/>
+			<enumeration value="UruguayDher"/>
+			<enumeration value="UruguayEtaSmn"/>
+			<enumeration value="UruguayFdc"/>
+			<enumeration value="UruguayFundagro"/>
+			<enumeration value="UruguayHermes"/>
+			<enumeration value="UruguayHydroEstimator"/>
+			<enumeration value="UruguayInia"/>
+			<enumeration value="UruguayInmet"/>
+			<enumeration value="UruguayPna"/>
+			<enumeration value="UruguaySmn"/>
+			<enumeration value="UruguaySupervisor"/>
+			<enumeration value="UruguayTero"/>
+			<enumeration value="UruguayTractebel"/>
+			<enumeration value="VaisalaXML"/>
+			<enumeration value="URA"/>
+			<enumeration value="UsgsTwis"/>
+			<enumeration value="UsgsWSIVJson_server">
+				<annotation>
+					<documentation>Since 2024.02: Import data from USGS Water Services Instantaneous Values rest api in JSON format files.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="UVF"/>
+			<enumeration value="UyAna"/>
+			<enumeration value="UyDinagua"/>
+			<enumeration value="UySalto"/>
+			<enumeration value="UyUteTelemetric"/>
+			<enumeration value="UyUteConventional"/>
+			<enumeration value="VegaAir"/>
+			<enumeration value="Vigicrues_web"/>
+			<enumeration value="VQJA"/>
+			<enumeration value="wapdatelemetric"/>
+			<enumeration value="WaterqualityApp"/>
+			<enumeration value="WdtfXml"/>
+			<enumeration value="WdtfTsoXml"/>
+			<enumeration value="WinSys">
+				<annotation>
+					<documentation>Since 2024.02: Import Win Sys Sensor data</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="WIWB"/>
+			<enumeration value="WIWB_async"/>
+			<enumeration value="wiski"/>
+			<enumeration value="wiskiservice"/>
+			<enumeration value="Wispcloud"/>
+			<enumeration value="wml2">
+				<annotation>
+					<documentation>Since 2017.01: Import WML2 files</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="wml2_server">
+				<annotation>
+					<documentation>Since 2017.01: Import WML2 server</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="wml2_kiwis">
+				<annotation>
+					<documentation>Since 2023.02: Import WML2 data from kiwis service</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="wmoBufr"/>
+			<enumeration value="wmoBufrAscii"/>
+			<enumeration value="WQCSV"/>
+			<enumeration value="WRFGrads"/>
+			<enumeration value="WSCCCsv"/>
+			<enumeration value="wsd"/>
+			<enumeration value="WW3Spectrum"/>
+			<enumeration value="YacyretaImport"/>
+			<enumeration value="ZhiTian"/>
+		</restriction>
+	</simpleType>
+	<complexType name="FileNameDateTimeFilterComplexType">
+		<sequence>
+			<element name="timeStep" type="fews:TimeStepComplexType">
+				<annotation>
+					<documentation>SINCE 2017.01. Specify a monthly time step for yyyyMM </documentation>
+				</annotation>
+			</element>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>SINCE 2017.01. eg yyyyMM, </documentation>
+				</annotation>
+			</element>
+			<element name="preFixLength" type="nonNegativeInteger">
+				<annotation>
+					<documentation>SINCE 2017.01. Number of characters before date time in the file-name / sub-dir name </documentation>
+				</annotation>
+			</element>
+			<element name="postFixLength" type="nonNegativeInteger">
+				<annotation>
+					<documentation>SINCE 2017.01. Number of characters after date time in the file-name / sub-dir name</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="subFolderLevel" type="nonNegativeInteger" use="required">
+			<annotation>
+				<documentation>SINCE 2017.01 Level of the sub dir. Specify 0 for the folder itself</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="OAuth2ConfigComplexType">
+		<sequence>
+			<element name="authUrl" type="string" />
+			<element name="clientId" type="string" minOccurs="0"/>
+			<element name="clientSecret" type="string" minOccurs="0">
+				<annotation><documentation>For some servers no CLIENT_ID or CLIENT_SECRET are required. Instead the auth URL is queried with Basic Authentication using the username and password</documentation></annotation>
+			</element>
+			<element name="scope" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="audience" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="issuer" type="string" minOccurs="0" />
+			<element name="refreshToken" type="string" minOccurs="0" />
+		</sequence>
+	</complexType>
+	<group name="WantedPeriod">
+		<annotation>
+			<documentation>Group that can be used for either a relative or absolute period</documentation>
+		</annotation>
+		<choice>
+			<element name="relativeViewPeriod" type="fews:TimeSeriesSetRelativePeriodComplexType">
+				<annotation>
+					<documentation>Period relative to the time 0 of the run. When the start and end time are overrulable the user can specify the download length with the cold state time and forecast
+						length in the manual forecast dialog.
+					</documentation>
+				</annotation>
+			</element>
+			<sequence>
+				<element name="startDateTime" type="fews:DateTimeComplexType">
+					<annotation>
+						<documentation>Start date and time of the (fixed) period for which data should be read. Start is inclusive. This dateTime is in the configured importTimeZone.</documentation>
+					</annotation>
+				</element>
+				<element name="endDateTime" type="fews:DateTimeComplexType">
+					<annotation>
+						<documentation>End date and time of the (fixed) period for which data should be read. End is inclusive. This dateTime is in the configured importTimeZone.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+		</choice>
+	</group>
+	<complexType name="GroupImportPatternComplexType">
+		<sequence>
+			<element name="numberOfFiles" type="int"/>
+			<element name="fileNameDateTimePattern" type="fews:nonEmptyStringType"/>
+			<element name="waitingTime" type="fews:TimeSpanComplexType"/>
+		</sequence>
+	</complexType>
+	<group name="FtpOptionsGroup">
+		<sequence>
+			<element name="ftpPassiveMode" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2026.01 the default has been set to true. Can bet set to false ftp passive mode is not supported by a ftp server.
+					</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="sftpPrivateKeyFile" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Since 2025.02. Allow connecting to a SFTP server using a private key instead of username and password. File location of the sftp private key to be used for authentication when connecting to the sftp server. Only absolute paths are supported. Only RSA and ECDSA PEM keys are supported. Ed25519 is supported from 2026.01. Typically generated with: 'ssh-keygen -t rsa -m PEM -f my_rsa_key.pem' or 'ssh-keygen -t ecdsa -b 521 -m PEM -f ecdsa'</documentation>
+					</annotation>
+				</element>
+				<element name="sftpPrivateKey" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Since 2025.02. Allow connecting to a SFTP server using a private key instead of username and password. Never put the Key directly in the config. Can be referenced using an ENV variable or secure global properties.  Only RSA and ECDSA PEM keys are supported. Ed25519 is supported from 2026.01. Typically generated with: 'ssh-keygen -t rsa -m PEM -f my_rsa_key.pem' or 'ssh-keygen -t ecdsa -b 521 -m PEM -f ecdsa'</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="sftpHostKeyFile" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.02. File reference to the host key to validate the connection to a SFTP server. Only absolute paths are supported. For an existing sftp server the content of the file can be retrieved with: 'ssh-keyscan -t rsa,ecdsa mysftpserver'</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="sftpPassPhraseFile" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Since 2025.02. File reference to the pass phrase the is required to read the private key. Only absolute paths are supported.</documentation>
+					</annotation>
+				</element>
+				<element name="sftpPassPhrase" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Since 2025.02. Content of the pass phrase required to read the private key. Never put the pass phrase directly in the config. Can be referenced using an ENV variable or secure global properties.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+</schema>

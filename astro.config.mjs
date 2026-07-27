@@ -33,7 +33,6 @@ export default defineConfig({
         },
         {
           label: 'Configuration Tasks',
-          badge: { text: 'Coming soon', variant: 'caution' },
           items: [
             { label: 'Define locations & location sets', slug: 'tasks/locations' },
             { label: 'Define parameters & units', slug: 'tasks/parameters' },
