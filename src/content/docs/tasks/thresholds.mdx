@@ -1,0 +1,365 @@
+---
+title: Thresholds & warnings
+description: Turn stored values into warnings — define the warning-level vocabulary and named threshold levels once, then assign the actual numbers per location and parameter so crossings raise events and show on charts.
+sidebar:
+  order: 6
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Thresholds are how a stored [time series](/concepts/glossary/#time-series) turns
+into a *warning*. Once data is imported and processed, FEWS can watch it and fire
+an **event** the moment a value climbs past "minor flood" or drops below a low-flow
+limit — and paint that state onto charts and maps. This is the output side of the
+pipeline ([hop ⑤](/concepts/data-flow/)): thresholds don't create data, they
+*interpret* the data you already have.
+
+<Aside type="note" title="Prerequisites">
+A threshold is attached to a location + parameter, so both must already exist.
+Declare your [locations](/tasks/locations/) and [parameters](/tasks/parameters/)
+first, and make sure the series you want to watch is actually being
+[imported](/tasks/import-timeseries/) or computed — a threshold on a series that
+never arrives simply never fires.
+</Aside>
+
+## The one idea to hold on to: define once, assign per location
+
+The single most common confusion here is that thresholds are spread across
+**separate files that each do one job**. Keep them straight and the rest follows:
+
+- **Warning levels** (`ThresholdWarningLevels`) are the *vocabulary* — the named
+  severities like "Minor" and "Major", each with a colour and icon. Defined once
+  for the whole system.
+- **Thresholds** (`Thresholds`) are named *level slots*, grouped, each pointing at
+  a warning level. Still location- and parameter-**independent**: this file says
+  *"there is a threshold called `MinorFlood` and it means the Minor warning
+  level"* — but not *what number* trips it.
+- **Threshold value sets** (`ThresholdValueSets`) supply the *actual numbers* per
+  location and parameter, and bind them to a specific series. This is where
+  `MinorFlood` on `RiverGauge_01`'s discharge becomes `250 m³/s`.
+
+<Aside type="tip" title="The mental split">
+**`Thresholds` defines the levels; `ThresholdValueSets` assigns the values.** The
+same `MinorFlood` slot can be `250 m³/s` at one gauge and `600 m³/s` at another —
+one definition, many values.
+</Aside>
+
+## Anatomy: three files, one chain
+
+<div class="diagram">
+
+```text
+ThresholdWarningLevels        ← the SEVERITY vocabulary (colour + icon)
+└─ thresholdWarningLevel id="Minor"   (ordered least → most severe)
+   thresholdWarningLevel id="Major"
+                 ▲
+                 │  upWarningLevelId points here
+Thresholds                    ← named LEVEL SLOTS (no numbers yet)
+└─ thresholdGroup id="Public"
+   ├─ defaultThreshold shortName="Normal"   (the "nothing crossed" state)
+   ├─ levelThreshold id="MinorFlood" → upWarningLevelId=Minor
+   └─ levelThreshold id="MajorFlood" → upWarningLevelId=Major
+                 ▲
+                 │  levelThresholdId points here
+ThresholdValueSets            ← the NUMBERS, per location/parameter
+└─ thresholdValueSet id="Flood_Discharge"
+   ├─ levelThresholdValue: levelThresholdId=MinorFlood  value=250
+   ├─ levelThresholdValue: levelThresholdId=MajorFlood  value=400
+   └─ timeSeriesSet: parameterId=Q.obs · locationSetId=AllDischargeGauges
+```
+
+</div>
+
+Read the arrows bottom-up: a value set says *"apply the `MinorFlood` level to
+`Q.obs` on these gauges at `250`"*; `MinorFlood` says *"I mean the `Minor`
+warning level"*; `Minor` says *"draw me orange."*
+
+<Aside type="caution" title="Warning levels live in their own file">
+The official docs sometimes fold "warning levels" into the thresholds
+discussion, but the severity vocabulary is a **separate** configuration —
+`thresholdWarningLevels.xsd`, root element `thresholdWarningLevels`. `Thresholds`
+only *references* those levels by id. If a `upWarningLevelId` doesn't match a
+warning level, the crossing still generates an event but has no colour to display.
+</Aside>
+
+## Minimal example
+
+The three files for the running example — Minor/Major flood warnings on observed
+discharge (`Q.obs`), applied to the `AllDischargeGauges` set.
+
+<Tabs>
+<TabItem label="1. Warning levels">
+
+The severities, **ordered least severe to most severe** — the order *is* the
+severity ranking, there's no numeric rank field. The least-severe level is the
+"nothing crossed" state.
+
+```xml title="Config/RegionConfigFiles/ThresholdWarningLevels 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdWarningLevels xmlns="http://www.wldelft.nl/fews">
+  <thresholdWarningLevel id="Normal" name="No warning">
+    <color>00FF00</color>
+    <iconName>normal.png</iconName>
+    <historicOverlayIconName>normal_hist.png</historicOverlayIconName>
+    <forecastOverlayIconName>normal_fc.png</forecastOverlayIconName>
+  </thresholdWarningLevel>
+  <thresholdWarningLevel id="Minor" name="Minor flood">
+    <color>FFA500</color>
+    <iconName>minor.png</iconName>
+    <historicOverlayIconName>minor_hist.png</historicOverlayIconName>
+    <forecastOverlayIconName>minor_fc.png</forecastOverlayIconName>
+  </thresholdWarningLevel>
+  <thresholdWarningLevel id="Major" name="Major flood">
+    <color>FF0000</color>
+    <iconName>major.png</iconName>
+    <historicOverlayIconName>major_hist.png</historicOverlayIconName>
+    <forecastOverlayIconName>major_fc.png</forecastOverlayIconName>
+  </thresholdWarningLevel>
+</thresholdWarningLevels>
+```
+
+`color` is a hex RGB string like `FF0000` (red) or a
+[named FEWS colour](https://fews.wldelft.nl/schemas/version1.0/thresholdWarningLevels.xsd);
+the icon filenames point at images in the `IconFiles` config directory.
+
+</TabItem>
+<TabItem label="2. Thresholds">
+
+The named level slots, grouped. `defaultThreshold` names the "no threshold
+crossed" state; each `levelThreshold` binds an id to a warning level. **No values
+here** — those are location-specific and live in the next file.
+
+```xml title="Config/RegionConfigFiles/Thresholds 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdGroups xmlns="http://www.wldelft.nl/fews">
+  <thresholdGroup id="Public" name="Public warnings">
+    <defaultThreshold shortName="Normal"/>
+    <levelThreshold id="MinorFlood" name="Minor flood">
+      <upWarningLevelId>Minor</upWarningLevelId>
+    </levelThreshold>
+    <levelThreshold id="MajorFlood" name="Major flood">
+      <upWarningLevelId>Major</upWarningLevelId>
+    </levelThreshold>
+  </thresholdGroup>
+</thresholdGroups>
+```
+
+`upWarningLevelId` is the warning level to raise when the value crosses the
+threshold **upward**; use `downWarningLevelId` for a level that means trouble when
+a value falls (e.g. a low-flow limit). You pick one per `levelThreshold`.
+
+</TabItem>
+<TabItem label="3. Threshold value sets">
+
+The numbers, at last — and the binding to a real series. `levelThresholdId`
+refers back to a slot from the `Thresholds` file; `value` is the number in the
+parameter's stored unit; `timeSeriesSet` says *which* data this set applies to.
+
+```xml title="Config/RegionConfigFiles/ThresholdValueSets 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdValueSets xmlns="http://www.wldelft.nl/fews">
+  <thresholdValueSet id="Flood_Discharge" name="Discharge flood levels">
+    <levelThresholdValue>
+      <levelThresholdId>MinorFlood</levelThresholdId>
+      <value>250</value>
+      <label>Minor flood</label>
+    </levelThresholdValue>
+    <levelThresholdValue>
+      <levelThresholdId>MajorFlood</levelThresholdId>
+      <value>400</value>
+      <label>Major flood</label>
+    </levelThresholdValue>
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationSetId>AllDischargeGauges</locationSetId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>read only</readWriteMode>
+    </timeSeriesSet>
+  </thresholdValueSet>
+</thresholdValueSets>
+```
+
+Because the `timeSeriesSet` uses a `locationSetId`, these two numbers apply to
+*every* gauge in `AllDischargeGauges`. Values are in `m³/s` — the stored
+[unit](/tasks/parameters/#unit-and-displayunit) of `Q.obs`.
+
+</TabItem>
+</Tabs>
+
+<Aside type="caution" title="No version attribute on these roots">
+Unlike [`parameters`](/tasks/parameters/) or an [`idMap`](/tasks/id-mapping/),
+none of the three threshold roots declares a `version` attribute in its schema —
+so don't add one. The `version` you see is on the `<schema>` element inside the
+`.xsd`, not on your document's root. Namespace only:
+`xmlns="http://www.wldelft.nl/fews"`. Verify against the
+[.xsd](https://fews.wldelft.nl/schemas/version1.0/thresholds.xsd) if a future
+release differs.
+</Aside>
+
+## The three threshold *types*
+
+The `Thresholds` file (and its matching values) supports three kinds of level,
+each triggering on a different condition:
+
+| Type (in `Thresholds`) | Fires when… | Value element (in `ThresholdValueSets`) |
+| --- | --- | --- |
+| `levelThreshold` | A value crosses a fixed level, up or down. | `levelThresholdValue` → `value` |
+| `rateThreshold` | The **rate of change** exceeds a limit (e.g. −0.1 m/hour). | `rateThresholdValue` → `value` + `timeSpan` |
+| `maxThreshold` | A **peak** above a level occurs within a time window. | `maxThresholdValue` → `value` + `timeSpan` |
+
+`levelThreshold` is by far the most common — it's the "minor/major flood" case.
+The other two exist for flashiness (`rate`) and peak-detection (`max`) alerting.
+
+## How a crossing becomes a warning
+
+When FEWS evaluates a series against its value set and a value crosses a level,
+two things can happen:
+
+- **A threshold event is logged.** Crossings (up and down) are recorded in the
+  database's threshold-event table and surface in the **Threshold Events** and
+  **Threshold Overview** displays. These are the raw "gauge X crossed Minor at
+  09:00" records.
+- **An action / warning level is activated.** Via `upWarningLevelId`, the
+  crossing raises the associated warning level, which drives the **colour and
+  icon** shown for that location. Optionally, `upActionLogEventTypeId` /
+  `downActionLogEventTypeId` on a value emit an action log message (the id must
+  contain a dot, e.g. `Flood.Up`) that the master controller can route to
+  enhanced forecasting, emails, or system alerts.
+
+<Aside type="note">
+Threshold **evaluation** in the strict, event-generating sense is done by the
+Threshold Crossing module during a [workflow](/tasks/workflows/). But even
+without running that module, the FEWS Explorer and Time Series Display read the
+same value sets to **draw** threshold lines and colour locations — so you get the
+visual warnings from configuration alone.
+</Aside>
+
+## Showing thresholds on charts and maps
+
+Thresholds are most useful when you can *see* them, and that's handled by the
+[display side](/tasks/filters-displays/):
+
+- **On a chart**, each `levelThresholdValue` draws a horizontal line at its
+  `value`, labelled with its `label` and coloured by its warning level. `toolTip`
+  adds hover text (it supports HTML via `CDATA`).
+- **On a spatial map**, each location is coloured by the **most severe** warning
+  level currently crossed — which is exactly why warning levels must be *ordered*
+  by severity in the `ThresholdWarningLevels` file.
+- **In overview tables**, `warningArea` and the `ThresholdOverviewDisplay` roll
+  crossings up into counts per area.
+
+## Common patterns
+
+- **Different numbers per gauge, same levels.** Keep one `Thresholds` definition
+  and give each gauge its own `thresholdValueSet` (or use one set over a
+  [location set](/tasks/locations/) when they share numbers). This is the whole
+  reason the definition and the values are split.
+- **Location-attribute-driven values.** Instead of `value`, use `valueFunction`
+  with a location attribute tag like `@FLOOD_WATCH@` (defined in
+  [locationSets](/tasks/locations/)). One value set then produces a *different*
+  number at every location, read from its attributes — no per-gauge XML.
+- **Low-flow / falling-level alarms.** Use `downWarningLevelId` on the
+  `levelThreshold` so the warning is raised when values fall *below* the level.
+- **Stage vs discharge with a rating curve.** The schema has dedicated `stage`
+  and `discharge` branches that convert threshold levels through a rating curve —
+  reach for these only when your thresholds are defined in one unit but your
+  series is in the other. For a plain discharge-on-discharge case, the simple
+  `levelThresholdValue` + `timeSeriesSet` form above is all you need.
+
+## Key fields at a glance
+
+The full element lists are in the schemas linked under *See also*.
+
+**`thresholdWarningLevel`** (the severity vocabulary)
+
+| Field | Meaning |
+| --- | --- |
+| `id` (attribute) | Warning-level id referenced by `upWarningLevelId`. |
+| `name` (attribute) | Display name, e.g. "Flood Warning". |
+| `color` | Hex RGB (`FF0000`) or named FEWS colour (required). |
+| `iconName`, `historicOverlayIconName`, `forecastOverlayIconName` | Icon files in `IconFiles` (all required). |
+| *(file order)* | Levels **must** be listed least→most severe. |
+
+**`levelThreshold`** (a named slot, in `Thresholds`)
+
+| Field | Meaning |
+| --- | --- |
+| `id` (attribute) | Threshold id referenced by `levelThresholdId`; unique across the whole file. |
+| `upWarningLevelId` / `downWarningLevelId` | Which warning level to raise (pick one). |
+| `season` | Optional — restrict the threshold to part of the year. |
+
+**`levelThresholdValue`** (the number, in `ThresholdValueSets`)
+
+| Field | Meaning |
+| --- | --- |
+| `levelThresholdId` | The slot this value fills (must match a `Thresholds` id). |
+| `value` / `valueFunction` | The number, or a location-attribute expression. |
+| `label`, `toolTip` | Chart label and hover text. |
+| `warningArea` | Area name(s) for overview-display roll-ups. |
+| `upActionLogEventTypeId` / `downActionLogEventTypeId` | Action message on crossing (id must contain a dot). |
+
+**`thresholdValueSet`** (the binding)
+
+| Field | Meaning |
+| --- | --- |
+| `id` (attribute) | Identifier of the value set. |
+| `timeSeriesSet` / `timeSeries` | Which series the values apply to (location + parameter). |
+| `unit` | Only if the values differ from the parameter's stored unit (needs a `configUnitConversionsId`). |
+
+## Gotchas
+
+- **Values in the wrong unit.** `value` is interpreted in the parameter's
+  **stored** unit, not its `displayUnit`. `Q.obs` stores `m³/s`, so `250` means
+  250 m³/s — set flood levels in storage units or add a `unit` +
+  `configUnitConversionsId`. This is silent: the line just sits at the wrong height.
+- **The `timeSeriesSet` must match the stored header.** A value set attaches by
+  reconstructing the series' [header](/concepts/glossary/#time-series-header) —
+  same `moduleInstanceId`, `parameterId`, location, `timeSeriesType`, and
+  `timeStep` as the [import](/tasks/import-timeseries/) wrote. Mismatch it and the
+  threshold silently applies to nothing.
+- **A dangling `upWarningLevelId`.** If it names a warning level that isn't in
+  `ThresholdWarningLevels`, crossings still log as events but have no colour/icon
+  to display — you get events with no visible warning.
+- **Warning levels out of order.** They must run least→most severe. Reverse two
+  and the "most severe crossed" colour on maps is wrong even though every number
+  is right.
+- **`id` collisions across groups.** Threshold ids must be unique across the
+  *entire* `Thresholds` file — two threshold groups cannot reuse the same
+  threshold `id`.
+- **A change has no effect → a higher-versioned file wins.** Check for a sibling
+  like `ThresholdValueSets 1.01 default.xml`. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Load the config** and confirm no threshold-resolution errors in the log —
+   unresolved `levelThresholdId` or `upWarningLevelId` references show up here.
+2. **Open the series in the Time Series Display.** With a value set matching the
+   header, you should see horizontal threshold lines at `250` and `400`, in the
+   Minor/Major colours, labelled as configured. No lines usually means the
+   `timeSeriesSet` didn't match — line it up field by field.
+3. **Force a crossing.** Point the value set at a series you know exceeds a level
+   (or lower a level temporarily) and confirm the location colours up on the
+   [spatial display](/tasks/filters-displays/) and a crossing appears in the
+   Threshold Events display.
+4. **Check severity ordering.** Where several levels are crossed, the map should
+   show the *most severe* colour — if it shows the wrong one, re-check the order
+   in `ThresholdWarningLevels`.
+
+</Steps>
+
+## See also
+
+<Card title="Related pieces" icon="right-arrow">
+- [Filters & display groups](/tasks/filters-displays/) — where threshold lines and colours are shown
+- [Define locations](/tasks/locations/) and [parameters](/tasks/parameters/) — the location/parameter a threshold attaches to
+- [Import time series](/tasks/import-timeseries/) — the series header a value set must match
+- [Workflows](/tasks/workflows/) — where the Threshold Crossing module runs to generate events
+- Concept: [How data flows through FEWS](/concepts/data-flow/) (hop ⑤) and the [glossary entry](/concepts/glossary/#threshold)
+- Schemas: [`thresholds.xsd`](https://fews.wldelft.nl/schemas/version1.0/thresholds.xsd) · [`thresholdValueSets.xsd`](https://fews.wldelft.nl/schemas/version1.0/thresholdValueSets.xsd) · [`thresholdWarningLevels.xsd`](https://fews.wldelft.nl/schemas/version1.0/thresholdWarningLevels.xsd)
+</Card>

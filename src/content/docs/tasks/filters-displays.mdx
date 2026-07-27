@@ -1,0 +1,355 @@
+---
+title: Filters & display groups
+description: Control what data users can browse and how it's charted — the Explorer's filter tree, predefined display groups, and the header-matching that decides whether your data shows up at all.
+sidebar:
+  order: 5
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Once data is imported, mapped, stored, and processed, someone has to *see* it.
+This is [hop ⑤](/concepts/data-flow/) — the display side of FEWS. Two config
+files own this job, and they answer two different questions:
+
+- **Filters** ([`Filters`](/concepts/config-directory/)) build the browsable
+  tree in the FEWS Explorer — *what data can a user reach, and how is it
+  grouped?*
+- **Display groups** ([`DisplayGroups`](/concepts/config-directory/)) bundle
+  related series into predefined chart and table views — *once you've picked
+  something, what does the plot look like?*
+
+Both are just *queries* over the data store. Neither creates data; they surface
+what [imports](/tasks/import-timeseries/) and [transformations](/tasks/transformations/)
+already wrote. That single fact drives every gotcha on this page.
+
+<Aside type="note" title="Prerequisites">
+A filter or display can only show a [time series](/concepts/glossary/#time-series)
+that already exists in the data store. Before this hop makes sense, you need the
+[locations](/tasks/locations/) and [parameters](/tasks/parameters/) declared and
+an [import](/tasks/import-timeseries/) (or model run) that has actually written
+series. This page reuses that import's output: module instance
+`ImportObservations`, parameter `Q.obs`, gauge `RiverGauge_01`, location set
+`AllDischargeGauges`.
+</Aside>
+
+## Filters vs. display groups, up front
+
+The distinction trips up newcomers because both contain `timeSeriesSet` blocks
+and both end up on screen. Keep them straight:
+
+| | **Filter** | **Display group** |
+| --- | --- | --- |
+| Governs | *Browsability* — the tree on the left of the Explorer | *Presentation* — a specific chart/table layout |
+| User sees | A clickable node ("Discharge → Observed") | A named plot with axes, colors, subplots |
+| File | `Config/RegionConfigFiles/Filters …` | `Config/DisplayConfigFiles/DisplayGroups …` |
+| Root element | `<filters>` (version `1.1`) | `<displayGroups>` (version `1.0`) |
+| Mental model | "What's *reachable*." | "How the reachable thing is *drawn*." |
+
+You can use FEWS with filters alone (the default plot is fine); display groups
+are what you add when you want *curated* views — this station's stage and
+discharge stacked on one figure, say.
+
+## Part 1 — Filters: the browsable tree
+
+### Anatomy of a filters file
+
+<div class="diagram">
+
+```text
+filters                         (version="1.1", required)
+├─ description                  (optional)
+├─ defaultFilterId              (optional — which node is selected first)
+├─ timeSeriesSets              *(optional — reusable named set collections)
+└─ filter                      +(one or more — each is a node in the tree)
+   ├─ @id            (required — referenced by defaultFilterId / child)
+   ├─ @name          (optional — the label shown in the Explorer)
+   └─ ONE of:
+      ├─ timeSeriesSet+        ← a LEAF: the query that fills this node
+      │    └─ (+ optional groupBy to auto-split by attribute)
+      ├─ timeSeries+ / constraints  ← criteria-based leaf (2014.02+)
+      └─ child+                ← a BRANCH: <child foreignKey="otherFilterId"/>
+```
+
+</div>
+
+Every `<filter>` is a node. A node is **either a leaf** (it carries one or more
+`timeSeriesSet` queries that define the data under it) **or a branch** (it
+carries `<child>` references to other filters). That either/or is a schema
+`<choice>` — you don't mix `timeSeriesSet` and `child` in the same filter.
+
+### How filters nest into a tree
+
+There are two ways to build depth, and they solve different problems.
+
+<Tabs>
+<TabItem label="Explicit children (foreignKey)">
+
+A parent filter lists its children by **id**, using `<child>` — whose only
+attribute is `foreignKey`, pointing at another filter's `id`:
+
+```xml
+<filter id="Discharge" name="Discharge">
+  <child foreignKey="Discharge.Observed"/>
+  <child foreignKey="Discharge.Forecast"/>
+</filter>
+
+<filter id="Discharge.Observed" name="Observed">
+  <timeSeriesSet>…</timeSeriesSet>
+</filter>
+```
+
+The parent is a pure branch (no `timeSeriesSet` of its own); the leaves it names
+carry the actual queries. This is how you hand-build a tidy, hand-labelled tree.
+
+</TabItem>
+<TabItem label="Automatic grouping (groupBy)">
+
+When a leaf's data has meaningful **attributes** (a basin, a region, a parameter
+group), let FEWS split it for you. `<groupBy>` builds sub-nodes on the fly from
+attribute values — no child filters to hand-maintain:
+
+```xml
+<filter id="Discharge" name="Discharge">
+  <timeSeriesSet>…</timeSeriesSet>
+  <groupBy>
+    <locationAttributeId>BASIN</locationAttributeId>
+  </groupBy>
+</filter>
+```
+
+`groupBy` accepts `locationAttributeId`, `parameterAttributeId`, and
+`qualifierAttributeId` (repeatable, so you can nest "by basin, then by
+parameter"). Reach for this once a hand-listed tree becomes unwieldy.
+
+</TabItem>
+</Tabs>
+
+<Aside type="caution" title="foreignKey points at an id, not a file">
+`<child foreignKey="Discharge.Observed"/>` must match the `id` of a `<filter>`
+that exists (usually in the same file). A typo doesn't error loudly — the branch
+just comes up empty. The `groupBy` element and `child`/`foreignKey` are
+version-gated features (`groupBy` since 2016.01); if either is missing, confirm
+your build against [`filters.xsd`](https://fews.wldelft.nl/schemas/version1.0/filters.xsd).
+</Aside>
+
+### A filter's timeSeriesSet is a query — it must match the stored header
+
+This is the crux of the whole page. A leaf filter's `timeSeriesSet` is **not**
+where data is defined; it's a *lookup key*. FEWS takes its fields, assembles a
+[time series header](/concepts/glossary/#time-series-header), and asks the data
+store "what matches?" If **every** field matches what the import stored, the
+series appears. If **one** field differs, the node is empty — with no error.
+
+So the filter below is deliberately the mirror image of the
+[import guide's](/tasks/import-timeseries/) `timeSeriesSet`. Line them up field
+by field:
+
+```xml title="Config/RegionConfigFiles/Filters 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<filters xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <defaultFilterId>Discharge</defaultFilterId>
+  <filter id="Discharge" name="Discharge observations">
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationSetId>AllDischargeGauges</locationSetId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>read only</readWriteMode>
+    </timeSeriesSet>
+  </filter>
+</filters>
+```
+
+Every one of those first six fields has to equal what the import wrote —
+`moduleInstanceId` `ImportObservations`, `parameterId` `Q.obs`,
+`timeSeriesType` `external historical`, the same `timeStep`. This is the "write
+here, read there" contract: the import *writes* the header, the filter *reads*
+it back. Get one wrong and it's the classic "my data imported but won't show up"
+bug (see [Gotchas](#gotchas)).
+
+<Aside type="tip" title="readWriteMode actually matters here">
+On an [import](/tasks/import-timeseries/#gotchas), `readWriteMode` is ignored.
+In a filter or display it is **required** and it *is* honoured — the schema notes
+it's used only by the Time Series Display. Use `read only` for a
+browse-only feed; the editable modes (`add originals`,
+`editing visible to all future task runs`, …) let forecasters correct values
+from the display. See [`sharedTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/sharedTypes.xsd)
+for the full enum.
+</Aside>
+
+## Part 2 — Display groups: predefined chart & table views
+
+Where a filter decides *reachability*, a display group decides *presentation*.
+It's the answer to "when the user opens this, show discharge and stage on the
+same figure, discharge on the left axis, in blue."
+
+### Anatomy of a displayGroups file
+
+<div class="diagram">
+
+```text
+displayGroups                   (version="1.0", optional attribute)
+├─ description                  (optional)
+├─ plot                        *(optional — reusable plot definitions, by id)
+│   └─ subplot                 +(one or more stacked panels)
+│       └─ line                 (a styled series → its timeSeriesSet)
+└─ displayGroup                +(one or more — a node in the display tree)
+    ├─ @name          (required)
+    ├─ @id            (optional)
+    └─ display / displayGroup / displayGroupId …
+        └─ display
+            ├─ locationId | locationSetId   (which locations to draw)
+            └─ plotId  OR  inline subplot+  (which plot layout to use)
+```
+
+</div>
+
+The reusable-`plot` pattern is the idiomatic one: define the *layout* once
+(subplots, lines, axes) with an `id`, then a `display` points at it with
+`plotId` and constrains it to specific locations. That lets one plot definition
+serve many stations.
+
+### Minimal example
+
+```xml title="Config/DisplayConfigFiles/DisplayGroups 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<displayGroups xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <plot id="DischargePlot">
+    <subplot>
+      <line>
+        <color>0000FF</color>
+        <lineStyle>solid</lineStyle>
+        <timeSeriesSet>
+          <moduleInstanceId>ImportObservations</moduleInstanceId>
+          <valueType>scalar</valueType>
+          <parameterId>Q.obs</parameterId>
+          <locationId>RiverGauge_01</locationId>
+          <timeSeriesType>external historical</timeSeriesType>
+          <timeStep unit="hour" multiplier="1"/>
+          <readWriteMode>read only</readWriteMode>
+        </timeSeriesSet>
+      </line>
+    </subplot>
+  </plot>
+  <displayGroup name="Discharge gauges">
+    <display name="River Gauge 01">
+      <locationId>RiverGauge_01</locationId>
+      <plotId>DischargePlot</plotId>
+    </display>
+  </displayGroup>
+</displayGroups>
+```
+
+Notice the `timeSeriesSet` inside the `line` is the **same kind of query** as in
+the filter — same header-matching rules apply. A display group with a mistyped
+`parameterId` draws an empty chart just as silently as a mismatched filter shows
+an empty node.
+
+### The nesting pieces
+
+| Element | Role |
+| --- | --- |
+| `plot` (+ `id`) | A reusable layout: one or more `subplot`s, referenced by `plotId`. |
+| `subplot` | A stacked panel within a plot. Multiple subplots share the time axis. |
+| `line` / `area` / `clusteredBars` | A styled series inside a subplot; each wraps a `timeSeriesSet`. |
+| `displayGroup` (+ `name`) | A node in the display tree; can nest further `displayGroup`s. |
+| `display` | One entry under a group — a `plotId` (or inline subplots) plus location constraints. |
+| `locationLoop` | Auto-generate one display per location in a set (2015.01+). |
+
+## Common patterns
+
+- **One plot, many gauges.** Define the `plot` once and give the `display` a
+  `locationSetId` (e.g. `AllDischargeGauges`) instead of a single `locationId` —
+  every station in the set gets the same layout. Combine with `locationLoop` to
+  spin up one display *per* location automatically.
+- **Observed and forecast on one figure.** Put two `line`s (or two
+  `timeSeriesSet`s) in a subplot — one `external historical`, one
+  `external forecasting` / `simulated forecasting` — to see history and forecast
+  meet at [T0](/concepts/glossary/#t0-time-zero).
+- **Stacked panels.** Multiple `<subplot>`s in one `plot` stack vertically on a
+  shared time axis — discharge on top, rainfall below.
+- **A tidy filter tree.** Use a branch filter with `<child>` references for the
+  top levels ("Discharge", "Water level") and `groupBy` on the leaves to split
+  by basin — hand-labelled where it matters, automatic where it scales.
+- **A default landing node.** Set `<defaultFilterId>` so the Explorer opens on a
+  sensible filter instead of the first one alphabetically.
+
+## Key fields at a glance
+
+**Filter** (`filters.xsd`)
+
+| Field | Meaning |
+| --- | --- |
+| `filter` `@id` | Node id; targeted by `defaultFilterId` and `child/@foreignKey`. |
+| `filter` `@name` | Label shown in the Explorer tree. |
+| `timeSeriesSet` | The query that fills a leaf node (must match a stored header). |
+| `child` `@foreignKey` | Reference to a child filter's `id` — builds a branch. |
+| `groupBy` | Auto-split a node by `locationAttributeId` / `parameterAttributeId` / `qualifierAttributeId`. |
+| `defaultFilterId` | Which filter is selected when the Explorer opens. |
+
+**Display group** (`displayGroups.xsd`)
+
+| Field | Meaning |
+| --- | --- |
+| `plot` `@id` | Reusable plot layout, referenced by `plotId`. |
+| `subplot` | A stacked panel; holds `line`/`area`/`clusteredBars`. |
+| `line` → `timeSeriesSet` | A styled series and the query that supplies it. |
+| `displayGroup` `@name` | A node in the display tree (required attribute). |
+| `display` → `plotId` | Binds a plot layout to location constraints. |
+| `locationId` / `locationSetId` | Which locations a display draws. |
+
+## Gotchas
+
+- **Imported but won't display → header mismatch.** The single most common
+  problem. The filter/display `timeSeriesSet` must reconstruct the *exact* header
+  the [import](/tasks/import-timeseries/) wrote — same `moduleInstanceId`,
+  `parameterId`, `locationId`/`locationSetId`, `timeSeriesType`, and `timeStep`.
+  A different `moduleInstanceId` (say the import uses `ImportObservations` but the
+  filter asks for `Import`) yields an empty node with no error. Compare field by
+  field.
+- **`external historical` vs `external forecasting` counts.** `timeSeriesType`
+  is part of the header. A filter asking for `external forecasting` will not find
+  observed data stored as `external historical`, even if everything else matches.
+- **`child`/`foreignKey` typo → empty branch.** The `foreignKey` must equal an
+  existing `<filter>` `id`. Mismatched case or punctuation gives a silent, empty
+  node — same failure mode as [ID mapping](/tasks/id-mapping/).
+- **Referencing an undeclared location/parameter.** A `timeSeriesSet` naming a
+  `locationSetId` or `parameterId` that isn't declared won't resolve — declare
+  your [locations](/tasks/locations/) and [parameters](/tasks/parameters/) first.
+- **A change has no effect → a higher-versioned file wins.** Check for a sibling
+  like `Filters 1.01 default.xml` or `DisplayGroups 1.01 default.xml`. FEWS loads
+  the highest version and ignores the rest. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Open the FEWS Explorer** and confirm your filter appears in the tree with
+   the `name` you gave it, nested where you expect. `defaultFilterId` should be
+   selected on start-up.
+2. **Click the leaf node.** The map/location panel should populate with the
+   locations in your `timeSeriesSet` (e.g. every gauge in `AllDischargeGauges`).
+   An empty node almost always means a header field doesn't match — revisit the
+   [import's](/tasks/import-timeseries/) `timeSeriesSet`.
+3. **Select a location and open the display.** Your display group's plot should
+   draw the series with the styling you configured. A blank chart with a
+   populated node points at the *display's* `timeSeriesSet`, not the filter's.
+4. **Cross-check the header.** If it's still empty, open the same series through a
+   plain default filter (just the `timeSeriesSet`, no styling). If *that* works,
+   the problem is in the display config, not the stored data.
+
+</Steps>
+
+## See also
+
+<Card title="Related pieces" icon="right-arrow">
+- [Import time series](/tasks/import-timeseries/) — writes the header your filter must match ("write here, read there")
+- [ID mapping](/tasks/id-mapping/) — the other place silent, no-error mismatches hide
+- [Define locations](/tasks/locations/) and [parameters](/tasks/parameters/) — the ids your queries reference
+- [Thresholds](/tasks/thresholds/) — warning levels shown on these same displays
+- Concept: [How data flows through FEWS](/concepts/data-flow/) (hop ⑤) and the [glossary](/concepts/glossary/#filter)
+- Schema: [`filters.xsd`](https://fews.wldelft.nl/schemas/version1.0/filters.xsd) and [`displayGroups.xsd`](https://fews.wldelft.nl/schemas/version1.0/displayGroups.xsd)
+</Card>

@@ -1,0 +1,308 @@
+---
+title: Workflows & scheduling
+description: Chain modules into an ordered recipe FEWS runs top to bottom — activities, nested workflows, ensemble loops, and the registration step that lets a workflow actually run.
+sidebar:
+  order: 9
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A workflow is the ordered recipe that drives a whole forecast. Where the
+[lifecycle](/concepts/lifecycle/) describes what happens in sequence — set T0,
+import, pre-process, run the model, post-process, check thresholds, export — the
+workflow file is *that sequence written down*. Each step is an `<activity>` that
+runs one [module instance](/concepts/glossary/#module-instance); FEWS executes
+the activities in the order they appear. The workflow is the script; the
+[modules](/concepts/glossary/#module) are its lines.
+
+<Aside type="note" title="Prerequisites">
+A workflow only references work defined elsewhere — it runs *existing* module
+instances by id. Before an activity can name `ImportObservations`, that
+[import](/tasks/import-timeseries/) must exist; a transform activity needs its
+[transformation](/tasks/transformations/) module, an export activity its
+[export](/tasks/export/) module. Build the modules first, then order them here.
+</Aside>
+
+## Anatomy of a workflow file
+
+A workflow file is a list of activities. Its root is `<workflow>`, and its
+children are the steps — most commonly `<activity>` elements, run **in the order
+written**.
+
+<div class="diagram">
+
+```text
+workflow  (version="1.1")
+├─ properties?                    optional $key$ values shared with nested files
+└─ (one or more, run in order):
+   ├─ activity        ← the common case: one step of the recipe
+   │   ├─ runIndependent?         continue even if this step fails
+   │   ├─ ONE OF:
+   │   │   ├─ moduleInstanceId     run a module instance
+   │   │   ├─ workflowId           run another (nested) workflow
+   │   │   └─ predefinedActivity   a built-in housekeeping task
+   │   ├─ ensemble?               loop the step over ensemble members
+   │   ├─ fallbackActivity?       run instead if this activity fails
+   │   └─ description?
+   ├─ parallel        run several activities at the same time
+   └─ sequence        group activities so they can share properties
+```
+
+</div>
+
+<Aside type="caution" title="Activities are direct children — there is no wrapper element">
+A common misreading: that `<workflow>` holds a single `<sequence>` element that
+wraps every activity. It does **not**. In
+[`workflow.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflow.xsd) the
+activities are direct children of `<workflow>` (a repeating XSD choice). There
+*is* an optional `<sequence>` **element** — but it's just one way to *group* some
+activities, not a required container. The minimal, normal workflow is
+`<workflow>` with `<activity>` children and nothing else in between.
+</Aside>
+
+## Minimal example
+
+The smallest useful workflow has one activity — the same one-step import from the
+[getting-started tutorial](/start-here/getting-started/):
+
+```xml title="Config/WorkflowFiles/ImportObserved 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<workflow xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <activity>
+    <runIndependent>true</runIndependent>
+    <moduleInstanceId>ImportObservations</moduleInstanceId>
+  </activity>
+</workflow>
+```
+
+`moduleInstanceId` names the [module instance](/concepts/glossary/#module-instance)
+to run — here the import whose config file is `ImportObservations …`. The
+`version` attribute is required on the root (the schema doesn't fix its value;
+`1.1` is the usual choice, matching the other config files).
+
+## Inside an activity
+
+Each `<activity>` chooses **one** of three things to do:
+
+| Element | The activity… |
+| --- | --- |
+| `moduleInstanceId` | Runs a single [module instance](/concepts/glossary/#module-instance) — an import, transformation, general adapter, export, etc. This is the everyday case. |
+| `workflowId` | Runs **another whole workflow** in place — the building block for nesting and reuse (see below). |
+| `predefinedActivity` | Runs a built-in housekeeping task that needs no config file (e.g. `threshold event crossing`). Rare in a first configuration. |
+
+Two more per-activity fields matter early:
+
+- **`runIndependent`** — `true` lets the workflow continue with the next activity
+  even if this one fails. The schema's default is the opposite: *stop the whole
+  workflow the moment an activity fails*. Set it to `true` on activities whose
+  failure shouldn't sink the run (a flaky optional import), and leave it `false`
+  where a later step genuinely can't proceed without this one.
+- **`fallbackActivity`** — an alternative activity to run *instead* when this one
+  fails. Optional, and itself a full activity definition.
+
+## A realistic sequence: import → transform → export
+
+Most workflows are a short pipeline. This one imports observations, converts
+stage to discharge, then exports the result — three module instances in order,
+reusing `ImportObservations` from the earlier guides:
+
+```xml title="Config/WorkflowFiles/ForecastRiver 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<workflow xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <activity>
+    <runIndependent>true</runIndependent>
+    <moduleInstanceId>ImportObservations</moduleInstanceId>
+  </activity>
+  <activity>
+    <runIndependent>false</runIndependent>
+    <moduleInstanceId>StageToDischarge</moduleInstanceId>
+  </activity>
+  <activity>
+    <runIndependent>false</runIndependent>
+    <moduleInstanceId>ExportForecast</moduleInstanceId>
+  </activity>
+</workflow>
+```
+
+Order is the whole point: `StageToDischarge` reads what `ImportObservations`
+wrote, and `ExportForecast` sends on what the transform produced. Put the
+transform before the import and it finds no data. The import is
+`runIndependent` (a gap in one gauge shouldn't stop the run), but the transform
+and export are not — if the transform fails there's nothing worth exporting.
+
+## Common patterns
+
+<Tabs>
+<TabItem label="Nesting / reuse (workflowId)">
+
+An activity can run **another workflow** instead of a module. This lets you build
+one "master" workflow out of smaller, reusable ones:
+
+```xml
+<workflow xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <activity>
+    <workflowId>ImportAll</workflowId>
+  </activity>
+  <activity>
+    <workflowId>RunModels</workflowId>
+  </activity>
+</workflow>
+```
+
+`ImportAll` and `RunModels` are themselves workflow files. Nesting keeps each
+piece small and lets several parents share a common sub-workflow. The
+one-instance-per-workflow rule below still applies **across** the nesting.
+
+</TabItem>
+<TabItem label="Ensemble looping (ensemble)">
+
+To run a step once per member of an [ensemble](/concepts/glossary/#ensemble) (say
+a 50-member weather forecast), add an `<ensemble>` block to the activity:
+
+```xml
+<activity>
+  <moduleInstanceId>RunRainfallRunoff</moduleInstanceId>
+  <ensemble>
+    <ensembleId>EPS</ensembleId>
+    <runInLoop>true</runInLoop>
+  </ensemble>
+</activity>
+```
+
+`runInLoop` `true` runs the module **once per member**; `false` hands the whole
+ensemble to the module in one go. You can narrow the loop to specific members
+with `ensembleMemberId`, `ensembleMemberIndex`, or an
+`ensembleMemberIdRegularExpression` — see the schema for the full choice.
+
+</TabItem>
+<TabItem label="Continue on failure (runIndependent)">
+
+Make non-critical steps survivable so one hiccup doesn't abort the run:
+
+```xml
+<activity>
+  <runIndependent>true</runIndependent>
+  <moduleInstanceId>ImportSecondarySource</moduleInstanceId>
+</activity>
+```
+
+With `runIndependent` `true`, a failure here is logged and the workflow moves on.
+Leave it out (or set `false`) on steps a later activity depends on.
+
+</TabItem>
+</Tabs>
+
+## Registering the workflow so it can run
+
+Writing the file in `WorkflowFiles/` makes it *valid* — but not yet *runnable*.
+For FEWS to offer a workflow in the Manual Forecast dialog, or to let the system
+schedule it, the workflow must be **registered** in the WorkflowDescriptors file
+(`Config/RegionConfigFiles/`). That file, governed by
+[`workflowDescriptors.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflowDescriptors.xsd),
+is the list of workflows the system knows about:
+
+```xml title="Config/RegionConfigFiles/WorkflowDescriptors 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<workflowDescriptors xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <workflowDescriptor id="ForecastRiver" name="River Forecast"
+                      visible="true" forecast="true">
+    <description>Import, transform, and export the river forecast</description>
+    <workflowFileName>ForecastRiver</workflowFileName>
+    <schedulingAllowed>true</schedulingAllowed>
+  </workflowDescriptor>
+</workflowDescriptors>
+```
+
+The link between "the file exists" and "the workflow can run":
+
+- **`id`** (attribute, required) is the workflow's identity in the UI and in task
+  definitions.
+- **`workflowFileName`** points at the workflow file to start (base name). If
+  omitted it **defaults to the `id`**, so a descriptor whose `id` matches the
+  file name needs no `workflowFileName` at all.
+- **`visible`** (default `true`) controls whether it appears in the dialog;
+  **`forecast`** (default `true`) marks it as a forecast run.
+- **`schedulingAllowed`** governs whether the system may schedule it (with
+  `defaultSchedulingPeriod`, `minSchedulingInterval`, and friends tuning *how*).
+
+<Aside type="note" title="Scheduling and triggering live outside configuration">
+*Actually* firing a workflow — on a timer, from the Master Controller, or by
+hand — is system operation, largely out of scope for this configuration guide.
+The descriptor is the configuration half of the story: it's what makes a workflow
+*eligible* to be offered and scheduled. See
+[the lifecycle](/concepts/lifecycle/) for how a run unfolds once triggered.
+</Aside>
+
+## Key fields at a glance
+
+**`activity`** (from [`workflow.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflow.xsd))
+
+| Field | Meaning |
+| --- | --- |
+| `moduleInstanceId` | The module instance to run (the common case). |
+| `workflowId` | Run a nested workflow instead of a module. |
+| `predefinedActivity` | A built-in task needing no config file. |
+| `runIndependent` | `true` = continue on failure; default is stop the workflow. |
+| `ensemble` | Loop the activity over ensemble members (`ensembleId`, `runInLoop`, …). |
+| `fallbackActivity` | Activity to run instead if this one fails. |
+| `loopLocationSetId` | Run the activity once per location in a set. |
+
+**`workflowDescriptor`** (from [`workflowDescriptors.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflowDescriptors.xsd))
+
+| Field | Meaning |
+| --- | --- |
+| `id` (attribute) | Workflow identity in the UI / tasks (required). |
+| `name` (attribute) | Human-readable label shown to users. |
+| `visible` (attribute) | Whether it's offered in the dialog (default `true`). |
+| `forecast` (attribute) | Marks it as a forecast run (default `true`). |
+| `workflowFileName` | Workflow file to start (defaults to `id`). |
+| `schedulingAllowed` | Whether the system may schedule it. |
+| `viewPermission` / `runPermission` | Who may see / run it. |
+
+## Gotchas
+
+- **A module instance may appear only once per workflow.** Straight from the
+  schema: *"Each module instance may occur only once in a workflow (including
+  nested workflows)."* Reuse across parents means factoring the shared step into
+  a sub-workflow, not naming the same `moduleInstanceId` twice.
+- **Order is execution order.** Activities run top to bottom. A transform placed
+  before the import it depends on simply finds no data — no error, just empty
+  output. Read the file as a timeline.
+- **`runIndependent` defaults to *stop*.** Omit it and a failing activity aborts
+  the whole workflow. That's often what you want mid-pipeline; add
+  `runIndependent` `true` only where a failure is genuinely survivable.
+- **The file exists but no button appears → it isn't registered.** A workflow
+  that runs fine from a test but never shows up in the UI is almost always
+  missing (or misspelled in) the [WorkflowDescriptors](#registering-the-workflow-so-it-can-run)
+  entry. Check `id` and `workflowFileName`.
+- **A change has no effect → a higher-versioned file wins.** As with every config
+  file, check for a sibling like `ForecastRiver 1.01 default.xml`. See [how FEWS
+  finds a file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Register, then look for it in the UI.** Add the `workflowDescriptor`, reload
+   config, and confirm the workflow appears in the Manual Forecast dialog under
+   its `name`. If it doesn't, re-check `id`, `workflowFileName`, and `visible`.
+2. **Run it and read the log in order.** Each activity logs its start and finish.
+   Confirm they fire in the sequence you wrote, and that no unexpected activity
+   was skipped (a skipped step usually means `runIndependent` swallowed a
+   failure — look for the warning).
+3. **Confirm the data moved through.** Browse the series each step should have
+   written via a [filter](/tasks/filters-displays/) — the import's input, the
+   transform's output, and (for an export) the file it produced. A missing link
+   points at either activity **order** or a module instance that failed.
+
+</Steps>
+
+## See also
+
+<Card title="The pieces a workflow orders" icon="right-arrow">
+- [Import time series](/tasks/import-timeseries/), [transformations](/tasks/transformations/), [general adapter](/tasks/general-adapter/), and [export](/tasks/export/) — the modules activities run
+- Concept: [the forecasting lifecycle](/concepts/lifecycle/) — the sequence a workflow encodes
+- Concept: [how data flows through FEWS](/concepts/data-flow/) and the [glossary entry](/concepts/glossary/#workflow)
+- Tutorial: [Getting started](/start-here/getting-started/) — a one-activity workflow in context
+- Schema: [`workflow.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflow.xsd) and [`workflowDescriptors.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflowDescriptors.xsd)
+</Card>

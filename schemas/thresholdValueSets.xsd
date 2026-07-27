@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2014 rel. 2 sp1 (x64) (http://www.altova.com) by Afdeling ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!--top level element declaration-->
+	<!-- -->
+	<element name="thresholdValueSets" type="fews:ThresholdValueSetsComplexType">
+		<annotation>
+			<documentation>Contains thresholdValueSets. In this configuration file define which of the available thresholds should be evaluated for which combinations of locations and parameters. It is also possible to define additional options for thresholds for specific locations and parameters. The available thresholds are defined in the thresholds configuration file.</documentation>
+		</annotation>
+	</element>
+	<!-- -->
+	<complexType name="ThresholdValueSetsComplexType">
+		<sequence>
+			<element name="thresholdValueSet" type="fews:ThresholdValueSetComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more thresholdValueSets to define which of the available thresholds should be evaluated for which combinations of locations and parameters.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="eventTimeViewPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. View period for showing threshold events in the Threshold Events display. Uses FEWS system time to construct absolute view period.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="stageOrDischargeComplexType">
+		<sequence>
+			<group ref="fews:ThresholdValueSetSequence"/>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Define one or more time series sets for which the threshold values in this thresholdValueSet will be used. Please note that the config unit conversion specified here
+						is ignored if no discharge timeSeriesSets are specified here.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="ThresholdValueSetComplexType">
+		<annotation>
+			<documentation>contains  level- and/or rate- and/or max-thresholds set for a given time series</documentation>
+		</annotation>
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the ThresholdValueSet. Used for reference purposes only.</documentation>
+				</annotation>
+			</element>
+			<element name="considerQualifiers" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.01 #67260. Default = true.  If set to false, qualifiers are ignored when matching threshold value rule sets to time series. When set to false it is no longer possible to generate threshold events using the ThresholdCrossingModule. The explorer and time series dialog will work with this option</documentation>
+				</annotation>
+			</element>
+			<element name="standDownIndividualLocations" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>By default observation stand-down events are only issued when all locations of the same ThresholdValueSet are stood down.
+						To issue stand down events even if other locations are in enhanced mode set this option to 'true'. This cannot be used in combination with
+						SystemAlert triggers linked to enhanced forecasts, but it can be used to triggers linked to sending email messages.</documentation>
+				</annotation>
+			</element>
+			<element name="locationAttributeId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Location attribute ids for which the values should be added to the threshold log messages</documentation>
+				</annotation>
+			</element>
+			<element name="graceTime" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>To avoid numerous rate thresholds being issued during a period of heavy rain the graceTime period can be configured. After an initial threshold crossing for a given timeseries no further crossings will be issued for the duration of the graceTime period. Only if the timeseries crosses the next threshold level, an event will be issued.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="stage" type="fews:stageOrDischargeComplexType">
+						<annotation>
+							<documentation>Threshold values and time series that are in units of stage.</documentation>
+						</annotation>
+					</element>
+					<element name="discharge" type="fews:stageOrDischargeComplexType">
+						<annotation>
+							<documentation>Threshold values and time series that are in units of discharge.</documentation>
+						</annotation>
+					</element>
+					<element name="forecastAvailableThresholdValue" type="fews:ForecastAvailableValueComplexType" minOccurs="0">
+						<annotation>
+							<documentation>If a threshold crossing event is measured for a given observed parameter, then the thresholdEventCrossing module logs whether or not there is a forecast run available for the corresponding forecast parameter, within a given relative time period. This information is used in the ThresholdSkillScoreDisplay.</documentation>
+						</annotation>
+					</element>
+					<group ref="fews:RatingCurveLocationAndQualifierSequenceGroup"/>
+				</sequence>
+				<sequence>
+					<group ref="fews:ThresholdValueSetSequence"/>
+					<element name="forecastAvailableThresholdValue" type="fews:ForecastAvailableValueComplexType" minOccurs="0">
+						<annotation>
+							<documentation>If a threshold crossing event is measured for a given observed parameter, then the thresholdEventCrossing module logs whether or not there is a forecast run available for the corresponding forecast parameter, within a given relative time period. This information is used in the ThresholdSkillScoreDisplay.</documentation>
+						</annotation>
+					</element>
+					<choice>
+						<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded">
+							<annotation>
+								<documentation>Define one or more time series to filter the time series sets for which the threshold values in this thresholdValueSet will be used. Please note that only time series with value type scalar or sample will be considered.</documentation>
+							</annotation>
+						</element>
+						<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+							<annotation>
+								<documentation>Define one or more time series sets for which the threshold values in this thresholdValueSet will be used.</documentation>
+							</annotation>
+						</element>
+					</choice>
+					<group ref="fews:deprecatedConversionChoice" minOccurs="0"/>
+				</sequence>
+			</choice>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<!-- -->
+	<complexType name="LevelThresholdValueComplexType">
+		<annotation>
+			<documentation>contains level threshold value</documentation>
+		</annotation>
+		<sequence>
+			<choice>
+				<element name="levelThresholdId" type="fews:idStringType">
+					<annotation>
+						<documentation>ID of the level threshold type, as it is specified in the file thresholds</documentation>
+					</annotation>
+				</element>
+				<element name="levelThresholdIdFunction" type="string">
+					<annotation>
+						<documentation>Location dependent threshold id by using a function with location attributes. eg. @THRESHOLD_ID@</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="description" type="string">
+					<annotation>
+						<documentation>Optional description.</documentation>
+					</annotation>
+				</element>
+				<element name="descriptionFunction" type="string">
+					<annotation>
+						<documentation>Optional location dependent description that is specified by a function, e.g. "@FLOOD_WATCH@", in which tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute is missing for a location, then the description is ignored for that location.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="comment" type="string">
+					<annotation>
+						<documentation>Optional comment.</documentation>
+					</annotation>
+				</element>
+				<element name="commentFunction" type="string">
+					<annotation>
+						<documentation>Since 2020.02, Optional location dependent comment that is specified by a function.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice>
+				<element name="value" type="float">
+					<annotation>
+						<documentation>level threshold value</documentation>
+					</annotation>
+				</element>
+				<element name="valueFunction" type="string">
+					<annotation>
+						<documentation>Location dependent threshold value by using a function with location attributes. eg. @FLOOD_WATCH@. When an attribute is missing for a location the threshold value is invisible/ignored for that location.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="label" type="string">
+					<annotation>
+						<documentation>Optional label.</documentation>
+					</annotation>
+				</element>
+				<element name="labelFunction" type="string">
+					<annotation>
+						<documentation>Optional location dependent label that is specified by a function, e.g. "@FLOOD_WATCH@", in which tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute is missing for a location, then the label is ignored for that location.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="toolTip" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 Tooltip to be displayed in the TimeSeriesDisplay plot while pointing to the threshold line.		The tooltip supports html .
+Use the CDATA xml tag to include html in a xml file.		
+You can configure location dependent toolTip that is specified by a function, e.g. '@FLOOD_WATCH_INFO@' (similar to the labelFunction) </documentation>
+				</annotation>
+			</element>
+			<element name="targetLocationIdFunction" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Location dependent text value that points to an id of a different location that is effected by this threshold crossing @TARGET_LOCATION_ID@</documentation>
+				</annotation>
+			</element>
+			<element name="warningArea" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more warnings that correspond to this threshold for the configured timeSeriesSet(s). These warningAreas are e.g. used in the ThresholdOverviewDisplay threshold crossing counts tabs.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="upActionLogEventTypeId" type="string">
+					<annotation>
+						<documentation>ID of the action message (=additional log.message) that must be logged if a threshold value is crossed UP. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Up". The event code need not be unique.</documentation>
+					</annotation>
+				</element>
+				<element name="upActionLogEventTypeIdFunction" type="string">
+					<annotation>
+						<documentation>ID of the action message (=additional log.message) that must be logged if a threshold value is crossed UP. This id has to contain a dot, because the action eventis only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Up". The event code need not be unique.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="downActionLogEventTypeId" type="string">
+					<annotation>
+						<documentation>ID of the action message (=additional log.message) that must be logged if a threshold value is crossed DOWN. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Down". The event code need not be unique.</documentation>
+					</annotation>
+				</element>
+				<element name="downActionLogEventTypeIdFunction" type="string">
+					<annotation>
+						<documentation>ID of the action message (=additional log.message) that must be logged if a threshold value is crossed DOWN. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Down". The event code need not be unique.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="visibleInEventsDisplay" minOccurs="0" type="boolean" default="true">
+				<annotation>
+					<documentation>Since 2017.02. Option to toggle the visibility of the level in the Threshold Events display.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="AggregationLevelThresholdValuesComplexType">
+		<sequence>
+			<element name="levelThresholdId" type="fews:idStringType">
+				<annotation>
+					<documentation>ID of the level threshold type, as it is specified in the file thresholds</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0"/>
+			<choice>
+				<element name="timeSpanValue" type="fews:AggregationTimeSpanValueComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>One or more level threshold values for different aggregation periods. If this threshold value set is used for a time series without an aggregation period, then the timeStep of that time series is used as aggregation period. If a value for the aggregation period of a time series is not configured here, then these threshold values are ignored for that time series.</documentation>
+					</annotation>
+				</element>
+				<element name="timeSpanValueFunction" type="fews:AggregationTimeSpanValueFunctionComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>One or more level threshold values for different aggregation periods. If this threshold value set is used for a time series without an aggregation period, then the timeStep of that time series is used as aggregation period. If a value for the aggregation period of a time series is not configured here, then these threshold values are ignored for that time series. Here the value elements can be function expressions, e.g. "@N@ / 1000", in which tags between "@" signs refer to location attributes that are defined in the locationSets config file. The expression is evaluated when the configuration is read, by replacing the tags with actual values. These values can be different for different locations. When an attribute is missing for a location the threshold value is invisible/ignored for that location.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="label" type="string">
+					<annotation>
+						<documentation>Optional label.</documentation>
+					</annotation>
+				</element>
+				<element name="labelFunction" type="string">
+					<annotation>
+						<documentation>Optional location dependent label that is specified by a function, e.g. "@FLOOD_WATCH@", in which tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute is missing for a location, then the label is ignored for that location.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="toolTip" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 Tooltip to be Since 2015.02 Tooltip to be displayed in the TimeSeriesDisplay plot while pointing to the threshold line.		The tooltip supports html .
+Use the CDATA xml tag to include html in a xml file.		
+You can configure location dependent toolTip that is specified by a function, e.g. '@FLOOD_WATCH_INFO@' (similar to the labelFunction) </documentation>
+				</annotation>
+			</element>
+			<element name="warningArea" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more warnings that correspond to this threshold for the configured timeSeriesSet(s). These warningAreas are e.g. used in the ThresholdOverviewDisplay threshold crossing counts tabs.</documentation>
+				</annotation>
+			</element>
+			<element name="upActionLogEventTypeId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>ID of the action message (=additional log.message) that must be logged if a threshold value is crossed UP. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Up". The event code need not be unique.</documentation>
+				</annotation>
+			</element>
+			<element name="downActionLogEventTypeId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>ID of the action message (=additional log.message) that must be logged if a threshold value is crossed DOWN. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Down". The event code need not be unique.</documentation>
+				</annotation>
+			</element>
+			<element name="visibleInEventsDisplay" minOccurs="0" type="boolean" default="true">
+				<annotation>
+					<documentation>Since 2017.02. Option to toggle the visibility of the level in the Threshold Events display.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="RateThresholdValueComplexType">
+		<annotation>
+			<documentation>contains rate threshold value</documentation>
+		</annotation>
+		<sequence>
+			<element name="rateThresholdId" type="fews:idStringType">
+				<annotation>
+					<documentation>ID of the rate threshold type, as it is specified in the file thresholds</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0"/>
+			<choice>
+				<element name="value" type="float">
+					<annotation>
+						<documentation>Value of the rate threshold. This is the change within timeSpan where timeSpan is the timeSpan configured below. Rate of change = (change within timeSpan) / timeSpan.</documentation>
+					</annotation>
+				</element>
+				<element name="valueFunction" type="string">
+					<annotation>
+						<documentation>Location dependent threshold value by using a function with location attributes. eg. @FLOOD_WATCH@. When an attribute is missing for a location the threshold value is invisible/ignored for that location</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="label" type="string">
+					<annotation>
+						<documentation>Optional label.</documentation>
+					</annotation>
+				</element>
+				<element name="labelFunction" type="string">
+					<annotation>
+						<documentation>Optional location dependent label that is specified by a function, e.g. "@FLOOD_WATCH@", in which tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute is missing for a location, then the label is ignored for that location.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="upActionLogEventTypeId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>ID of the action message (=additional log.message) that must be logged if threshold value is crossed UP. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Up". The event code need not be unique.</documentation>
+				</annotation>
+			</element>
+			<element name="downEventTypeId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>ID of the action message (=additional log.message) that must be logged if threshold value is crossed DOWN. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Down". The event code need not be unique.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSpan" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>This time span will be used in the computation of the rate of change. Rate of change = (change within timeSpan) / timeSpan.</documentation>
+				</annotation>
+			</element>
+			<element name="relativeViewPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Relative view period to be used for this specific threshold. Use this when no relative view period configured in the time series sets</documentation>
+				</annotation>
+			</element>
+			<element name="rainRate" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>If rainRate is true, then the input time series is accumulated before the rate of change is computed.</documentation>
+				</annotation>
+			</element>
+			<element name="visibleInEventsDisplay" minOccurs="0" type="boolean" default="true">
+				<annotation>
+					<documentation>Since 2017.02. Option to toggle the visibility of the level in the Threshold Events display.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="MaxThresholdValueComplexType">
+		<annotation>
+			<documentation>contains max threshold value</documentation>
+		</annotation>
+		<sequence>
+			<element name="maxThresholdId" type="fews:idStringType">
+				<annotation>
+					<documentation>ID of the max threshold type, as it is specified in the file thresholds</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0"/>
+			<choice>
+				<element name="value" type="float">
+					<annotation>
+						<documentation>max threshold value</documentation>
+					</annotation>
+				</element>
+				<element name="valueFunction" type="string">
+					<annotation>
+						<documentation>Location dependent threshold value by using a function with location attributes. eg. @FLOOD_WATCH@. When an attribute is missing for a location the threshold value is invisible/ignored for that location</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="label" type="string">
+					<annotation>
+						<documentation>Optional label.</documentation>
+					</annotation>
+				</element>
+				<element name="labelFunction" type="string">
+					<annotation>
+						<documentation>Optional location dependent label that is specified by a function, e.g. "@FLOOD_WATCH@", in which tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute is missing for a location, then the label is ignored for that location.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="actionLogEventTypeId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>ID of the action message (=additional log.message) that must be logged if threshold value is exceeded. This id has to contain a dot, because the action event is only visible to the master controller if this id contains a dot, e.g. "Threshold_Name.Max". The event code need not be unique.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSpan" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>If two peaks fall have a distance that is less then the defined timeSpan, only the first peak will be reported.</documentation>
+				</annotation>
+			</element>
+			<element name="visibleInEventsDisplay" minOccurs="0" type="boolean" default="true">
+				<annotation>
+					<documentation>Since 2017.02. Option to toggle the visibility of the level in the Threshold Events display.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="EventThresholdValuesComplexType">
+		<annotation>
+			<documentation>Contains event threshold values. Especially designed for multi valued attributes. The used attribute functions should all have the same amount of values</documentation>
+		</annotation>
+		<sequence>
+			<element name="eventThresholdId" type="fews:idStringType">
+				<annotation>
+					<documentation>ID of the event threshold type, as it is specified in the file thresholds</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="valueFunction" type="string">
+				<annotation>
+					<documentation>Location dependent threshold value by using a function with location attributes. eg. @FLOOD_WATCH@. When an attribute is missing for a location the threshold
+						value is invisible/ignored for that location. Especially designed for multi valued attributes.</documentation>
+				</annotation>
+			</element>
+			<element name="labelFunction" type="string">
+				<annotation>
+					<documentation>Optional location dependent label that is specified by a function, e.g. "@FLOOD_WATCH@", in which tags between "@" signs refer to location attributes that are
+						defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute
+						is missing for a location, then the label is ignored for that location. Especially designed for multi valued attributes.</documentation>
+				</annotation>
+			</element>
+			<element name="parameterIdFunction" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function to determine which parameter is used in the events</documentation>
+				</annotation>
+			</element>
+			<element name="warningAreaIdFunction" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Function to determine which location id's should be used as warning area's. Especially designed for multi valued attributes.</documentation>
+				</annotation>
+			</element>
+			<element name="enabledFunction" type="fews:idStringType">
+				<annotation>
+					<documentation>Boolean which specifies whether the event should be included. Especially designed for multi valued attributes.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ForecastAvailableValueComplexType">
+		<annotation>
+			<documentation>Iis used to log the info that the related forecast run was available within a certain time window when the observed threshold has been crossed.</documentation>
+		</annotation>
+		<sequence>
+			<element name="forecastAvailableThresholdId" type="fews:idStringType"/>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="periodBegin" type="fews:RelativeTimeComplexType"/>
+			<element name="periodEnd" type="fews:RelativeTimeComplexType"/>
+			<element name="parameterPairs" type="fews:ParameterPairComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="RatingCurveMappingComplexType">
+		<sequence>
+			<element name="id" type="fews:idStringType">
+				<annotation>
+					<documentation>Rating curve id to use for threshold mapping.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveType" type="fews:RatingCurveTypeEnumStringType">
+				<annotation>
+					<documentation>Type of rating curve</documentation>
+				</annotation>
+			</element>
+			<element name="parameterId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Parameter ids of the time series sets for which the conversion should take place.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="StageDischargeConversionComplexType">
+		<sequence>
+			<element name="dischargeParameterId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Discharge parameters for which the threshold values should be converted from stage to discharge.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:RatingCurveLocationAndQualifierSequenceGroup"/>
+		</sequence>
+	</complexType>
+	<complexType name="DischargeStageConversionComplexType">
+		<sequence>
+			<element name="stageParameterId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Stage parameters for which the threshold values should be converted from discharge to stage</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:RatingCurveLocationAndQualifierSequenceGroup"/>
+		</sequence>
+	</complexType>
+	<group name="RatingCurveLocationAndQualifierSequenceGroup">
+		<sequence>
+			<element name="ratingCurveLocationId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>When specified the rating curve available at this location is used instead of the location from the time series set.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveQualifierId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more qualifier ids the used rating curve should have all</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<!---->
+	<complexType name="ParameterPairComplexType">
+		<attribute name="parameterIdObs" type="fews:idStringType" use="required"/>
+		<attribute name="parameterIdFor" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="AggregationTimeSpanValueComplexType">
+		<complexContent>
+			<extension base="fews:TimeSpanComplexType">
+				<attribute name="value" type="float" use="required">
+					<annotation>
+						<documentation>Threshold value for this aggregation timeSpan.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="AggregationTimeSpanValueFunctionComplexType">
+		<complexContent>
+			<extension base="fews:TimeSpanComplexType">
+				<attribute name="value" type="string" use="required">
+					<annotation>
+						<documentation>Threshold value for this aggregation timeSpan.</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</complexContent>
+	</complexType>
+	<group name="ThresholdValueSetSequence">
+		<sequence>
+			<element name="unit" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Specify when the unit given for the values is not the same as the (internally stored) unit of the parameter it applies to. When specified it is required to also specify  configUnitConversionsId in Parameters.xml. In this unit conversions the conversion from the specified unit to the (internal) unit should be available
+                    </documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="levelThresholdValue" type="fews:LevelThresholdValueComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Specific values for level thresholds.</documentation>
+					</annotation>
+				</element>
+				<element name="aggregationLevelThresholdValues" type="fews:AggregationLevelThresholdValuesComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Specific values for level thresholds. This contains one or more level threshold values for different aggregation periods.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="rateThresholdValue" type="fews:RateThresholdValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Specific values for rate thresholds.</documentation>
+				</annotation>
+			</element>
+			<element name="maxThresholdValue" type="fews:MaxThresholdValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Specific values for max thresholds.</documentation>
+				</annotation>
+			</element>
+			<element name="eventThresholdValues" type="fews:EventThresholdValuesComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Specific values based on events</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<group name="deprecatedConversionChoice">
+		<choice>
+			<element name="stageDischargeConversion" type="fews:StageDischargeConversionComplexType">
+				<annotation>
+					<documentation>since 2010.01, for NEW style rating curve types. Used when stages are specified for the threshold levels and there are discharges in (some of) the specified time series sets.</documentation>
+				</annotation>
+			</element>
+			<element name="dischargeStageConversion" type="fews:DischargeStageConversionComplexType">
+				<annotation>
+					<documentation>since 2010.01, for NEW style rating curve types. Used when discharges are specified for the threshold levels and there are stages in (some of) the specified time series sets.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurve" type="fews:RatingCurveMappingComplexType">
+				<annotation>
+					<documentation>For OLD style rating curve types. Convert the threshold levels from stage to discharge or vice versa using the rating curve defined here.</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+</schema>

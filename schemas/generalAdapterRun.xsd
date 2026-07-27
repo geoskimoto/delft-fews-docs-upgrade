@@ -1,0 +1,2074 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by rooij_e (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- moduleRun -->
+	<element name="generalAdapterRun" type="fews:GeneralAdapterRunComplexType">
+		<annotation>
+			<documentation>Configuration for a single run of the General Adapter. Exactly one such configuration is necessary for each module instance run.</documentation>
+		</annotation>
+	</element>
+	<complexType name="GeneralAdapterRunComplexType">
+		<sequence>
+			<element name="general" type="fews:GeneralComplexType">
+				<annotation>
+					<documentation>General - i.e. activity independent - settings for this General Adapter run.</documentation>
+				</annotation>
+			</element>
+			<element name="burnInProfile" type="fews:BurnInProfileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Burn-in periods for cold state starts.</documentation>
+				</annotation>
+			</element>
+			<element name="activities" type="fews:ActivitiesComplexType">
+				<annotation>
+					<documentation>Activities that will be performed within this General Adapter run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- GeneralComplexType -->
+	<complexType name="GeneralComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description of the General Adapter run.</documentation>
+				</annotation>
+			</element>
+			<element name="piVersion" type="fews:piVersionString" default="1.2" minOccurs="0">
+				<annotation>
+					<documentation>Version of the PI specification that is supported by the pre and post adapter</documentation>
+				</annotation>
+			</element>
+			<element name="inMemoryFileTransfer" type="fews:booleanStringAttributeAndPropertyType" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02. When true all exported and imported files are transferred in memory between FEWS and execute activities. An execute activity can read the file content from var input = (InputStream)
+						System.getProperties().get(file) and write to var output = (BufferedOutputStream) System.getProperties().get(file). All execute activities that transfer files to and from FEWS should be java activities that don't use a custom jre and check the
+						System.getProperties().get(file) before they fall back to read/write the file on disk. Only NetCDF3 files can be transferred in memory. For NetCDF files the System.getProperties().get(file) contains a chunked byte array (byte[][]). An empty byte[][] array is set to tell an execute activity to save the nc file to memory as chunked byte array. The diagnostic file is also transferred in memory. Execute activities should always fall back on the files on disk when the
+						System.getProperties().get(file) == null
+					</documentation>
+				</annotation>
+			</element>
+			<element name="rootDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Root directory of the module instance. This may be either a relative or absolute path.</documentation>
+				</annotation>
+			</element>
+			<element name="workDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Working directory for several activities. Best to use %TEMP_DIR% as value. The OS location of the temp dir can be overruled with global property tempDir. When running the GA in debug mode using the manual forecast dialog (ctrl+R) the temp dir is preserved till FEWS exits</documentation>
+				</annotation>
+			</element>
+			<element name="exportDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Directory to which the General Adapter will export data.</documentation>
+				</annotation>
+			</element>
+			<element name="exportDataSetDir" type="fews:directoryStringType" minOccurs="0">
+				<annotation>
+					<documentation>Directory to which the General Adapter will export data sets.</documentation>
+				</annotation>
+			</element>
+			<element name="updateExportDataSetDirOnlyOnChange" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Check all export dataset activities for changes before updating. If no change detected skip update. If change detected dataset is updated</documentation>
+				</annotation>
+			</element>
+			<element name="purgeExportDataSetDirOnUpdate" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Option to purge content of export module dataset dir before updating. Default 'false' will result in overwriting of existing contents</documentation>
+				</annotation>
+			</element>
+			<element name="exportIdMap" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from internal to external location and parameter ID's.</documentation>
+				</annotation>
+			</element>
+			<element name="exportUnitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for export unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="importDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Directory the General Adapter will import data from.</documentation>
+				</annotation>
+			</element>
+			<element name="importIdMap" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a file that contains mapping from external to internal location and parameter ID's.</documentation>
+				</annotation>
+			</element>
+			<element name="importUnitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for import unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="dumpFileDir" type="fews:fileStringType">
+				<annotation>
+					<documentation>Directory of the dump file.</documentation>
+				</annotation>
+			</element>
+			<element name="dumpDir" type="fews:directoryStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>List of directories that the General Adapter will dump in case of a module failure. The binary dump will include all sub directories.</documentation>
+				</annotation>
+			</element>
+			<element name="diagnosticFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File containing diagnostic information about the module instance run. This file always is located in the importDir.</documentation>
+				</annotation>
+			</element>
+			<element name="missVal" type="double" minOccurs="0">
+				<annotation>
+					<documentation>Missing value definition for this TimeSeries. Defaults to -999 if not defined. An exception applies to NetCdf files:  if exportMissingValue is not configured, then  9.96921e+036f  is  used  </documentation>
+				</annotation>
+			</element>
+			<element name="convertDatum" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Convert datum from Ordnance level during Import.
+Convert datum to Ordnance level during Export.</documentation>
+				</annotation>
+			</element>
+			<element name="timeZone" type="fews:TimeZoneComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Import data is converted from this timezone to GMT.
+Export data is converted from GMT to this timezone.</documentation>
+				</annotation>
+			</element>
+			<element name="time0Format" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The date time format of the %TIME0% variable. This date time format is only used if there is no date time format specified in the arguments for the variable. yyyy = Year, MM = Month in year, dd = Day in month, HH = Hour in day (0-23), mm = Minute in hour, ss = Second in minute.</documentation>
+				</annotation>
+			</element>
+			<element name="startDateTimeFormat" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The date time format of the %START_DATE_TIME% variable. This date time format is only used if there is no date time format specified in the arguments for the variable. yyyy = Year, MM = Month in year, dd = Day in month, HH = Hour in day (0-23), mm = Minute in hour, ss = Second in minute. The %START_DATE_TIME% variable only works in an importStateActivity (since 2014.02) and inside a template file for an exportCustomFormatRunFileActivity (since 2013.02).</documentation>
+				</annotation>
+			</element>
+			<element name="endDateTimeFormat" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The date time format of the %END_DATE_TIME% variable. This date time format is only used if there is no date time format specified in the arguments for the variable. yyyy = Year, MM = Month in year, dd = Day in month, HH = Hour in day (0-23), mm = Minute in hour, ss = Second in minute. The %END_DATE_TIME% variable only works in an importStateActivity (since 2014.02) and inside a template file for an exportCustomFormatRunFileActivity (since 2013.02).</documentation>
+				</annotation>
+			</element>
+			<element name="dateTimeFormat" type="fews:GeneralAdapterDateFormatComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since stable build 2015.01. Definitions of date time formats that can be used as arguments for the %TIME0%, %START_DATE_TIME% and %END_DATE_TIME% variables, e.g.: %START_DATE_TIME(idOfADateFormat)% %END_DATE_TIME(idOfAnotherDateFormat)%. Date time formats specified as arguments overrule the startDateTimeFormat and endDateTimeFormat specified above. The %START_DATE_TIME% and %END_DATE_TIME% variables only work in an importStateActivity (since 2014.02) and inside a template file for an exportCustomFormatRunFileActivity (since 2013.02).</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleMemberCount" type="int" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2009.01. Specify the member range in the workflow.</documentation>
+				</annotation>
+			</element>
+			<element name="modelTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>The model time step adjusts the end time when necessary of the run period for this model and for all models/modules that will run after this model in the same task run</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ActivitiesComplexType -->
+	<complexType name="ActivitiesComplexType">
+		<sequence>
+			<element name="startUpActivities" type="fews:StartUpActivitiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Activities to start up a General Adapter run.</documentation>
+				</annotation>
+			</element>
+			<element name="exportActivities" type="fews:ExportActivitiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Activities to export data through the Published Interface format.</documentation>
+				</annotation>
+			</element>
+			<element name="waitActivities" type="fews:WaitActivitiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01 Activities to wait for event</documentation>
+				</annotation>
+			</element>
+			<element name="executeActivities" type="fews:ExecuteActivitiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Activities to execute the module or its adapters.</documentation>
+				</annotation>
+			</element>
+			<element name="importActivities" type="fews:ImportActivitiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Activities to import data through the Published Interface format.</documentation>
+				</annotation>
+			</element>
+			<element name="shutDownActivities" type="fews:ShutDownActivitiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Activities to shut down a General Adapter run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- StartUpActivitiesComplexType -->
+	<complexType name="StartUpActivitiesComplexType">
+		<sequence>
+			<element name="purgeActivity" type="fews:PurgeActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Purges a single file or a set of files within a directory.</documentation>
+				</annotation>
+			</element>
+			<element name="makeDir" type="fews:MakeDirActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Creates directories and, if necessary, any parent directories.  Use this task for directories expected by the adapter but not used as input or output directory. Input and output directories are automatically created</documentation>
+				</annotation>
+			</element>
+			<element name="unzipActivity" type="fews:UnzipActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Unzip a single file or a set of files within a directory.</documentation>
+				</annotation>
+			</element>
+			<element name="zipActivity" type="fews:ZipActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Zip a single file or a set of files within a directory.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ExportActivitiesComplexType -->
+	<complexType name="ExportActivitiesComplexType">
+		<sequence>
+			<element name="exportStateActivity" type="fews:ExportStateActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports a module instance state.</documentation>
+				</annotation>
+			</element>
+			<element name="exportTimeSeriesActivity" type="fews:ExportTimeSeriesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports time series.</documentation>
+				</annotation>
+			</element>
+			<element name="exportDataSetActivity" type="fews:ExportDataSetActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports a data set. Triggers export of data set for active module instance. Since 2013.01 it is possible to export multiple data sets</documentation>
+				</annotation>
+			</element>
+			<element name="exportMapStacksActivity" type="fews:ExportMapStacksActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports map stacks.</documentation>
+				</annotation>
+			</element>
+			<element name="exportProfilesActivity" type="fews:ExportTimeSeriesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports longitudinal profiles.</documentation>
+				</annotation>
+			</element>
+			<element name="exportCustomFormatTimeSeriesActivity" type="fews:ExportCustomFormatTimeSeriesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2013.01. Calls a third party serializer that directly writes to a native model time series format. The serializer is not part of FEWS but is located in one of the jar files in the specified binDir</documentation>
+				</annotation>
+			</element>
+			<element name="exportRatingCurveActivity" type="fews:ExportRatingCurveActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports rating curve for the configured locations.  All rating curves within the run period and the last rating curve before or at the start of the run period are exported</documentation>
+				</annotation>
+			</element>
+			<element name="exportPiTablesActivity" type="fews:ExportPiTablesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2016.01 Export time series with a single shared domainParameter at once to pi_tables.xml. All tables within the run period and the last table before or at the start of the run period are exported</documentation>
+				</annotation>
+			</element>
+			<element name="exportParameterActivity" type="fews:ExportParameterActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports a module parameter set. Triggers export of parameter set for active module instance.</documentation>
+				</annotation>
+			</element>
+			<element name="exportTableActivity" type="fews:ExportTableActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports a rating curve or other table for one or more locations</documentation>
+				</annotation>
+			</element>
+			<element name="exportLocationAttributesCsvActivity" type="fews:ExportLocationAttributesCsvActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2020.01 Exports a csv file with attribute values for locations</documentation>
+				</annotation>
+			</element>
+			<element name="exportNetcdfActivity" type="fews:ExportNetcdfActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+<!--todo exportNetcdfActivity should be executed before the exportRatingCurve activity for the correct run period-->
+					<documentation>Exports scalar, grid or 1d/2d spectra time series to a NetCDF file. All time series specified inside one exportNetcdfActivity must have the same value type (grid, scalar, 1d spectra or 2d spectra). For this export it is required that all ensembles have exactly the same ensemble member indices. The usage of ensemble member id's (strings) is not supported yet.</documentation>
+				</annotation>
+			</element>
+			<element name="exportRunFileActivity" type="fews:ExportRunFileActivityComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Exports a pi run file in xml format. The run file contains general information about the run executed by the general adapter that is used by the pre and post adapter.</documentation>
+				</annotation>
+			</element>
+			<element name="exportNetcdfRunFileActivity" type="fews:ExportNetcdfRunFileActivityComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. FEWS-10385. Exports a run file in netcdf format. The netcdf run file contains general information about the run executed by the general adapter that can be used by the pre and post adapter.</documentation>
+				</annotation>
+			</element>
+			<element name="exportCustomFormatRunFileActivity" type="fews:ExportCustomFormatRunFileActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Activity to create a custom run info file. This activity replaces tags in a template file with actual (modified) values. The template file can contain location attribute tags between '@' signs, general adapter tags between '%' signs and global properties between '$' signs. The specified template file will be copied to the specified export file before the tags are replaced. So the template file itself is not changed. If the export file already exists, then it will be overwritten.</documentation>
+				</annotation>
+			</element>
+			<element name="exportAreaSelectionActivity" type="fews:ExportAreaSelectionActivityComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Exports an area selection mask as shape file or as PiMapStack. This activity requires an embedded polygon to be specified within the areaSelectionShapeFileBase64 field of the TaskProperties. This  file is then available to be used by the pre and post adapter.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="exportLocationAreaActivity" type="fews:ExportLocationAreaActivityComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Exports an area selection mask in the form of a PiMapStack (currently NGMS only). This activity requires selectedLocationIds to be specified within the TaskProperties. This selection is then available to be used by the pre and post adapter.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="exportCsvModuleRunTablesActivity" type="fews:ExportCsvModuleRunTablesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.01. Exports csv files as module run tables.</documentation>
+				</annotation>
+			</element>
+			<element name="exportCoefficientSetActivity" type="fews:ExportCoefficientSetActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Exports configured coefficient set for the configured location or location set.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="WaitActivitiesComplexType">
+		<sequence>
+			<element name="waitForFileCreation" type="fews:WaitForFileCreationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SINCE 2018.01. Used in combination with the parallel run option in the workflow. Wait until the specified file exits before starting the execute activities
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ExecuteActivitiesComplexType -->
+	<complexType name="ExecuteActivitiesComplexType">
+		<sequence>
+			<element name="waitForFileCreation" type="fews:WaitForFileCreationComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>SINCE 2018.01. Used in combination with the parallel run option in the workflow. Wait until the specified file exits before starting the execute activities</documentation>
+				</annotation>
+			</element>
+			<element name="executeActivity" type="fews:ExecuteActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Executes a module or its adapters.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="executeImportActivitiesOnError" type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>Since 2014.03. FEWS-12495. Execute import activities after error occurred, activity with error still fails.
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="WaitForFileCreationComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description of the execute activity.</documentation>
+				</annotation>
+			</element>
+			<element name="file" type="fews:fileStringType">
+				<annotation>
+					<documentation>File that should exist before continue</documentation>
+				</annotation>
+			</element>
+			<element name="timeOut" type="fews:nonNegativeIntegerStringType">
+				<annotation>
+					<documentation>Timeout to wait in milliseconds.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+
+	<!-- ImportActivitiesComplexType -->
+	<complexType name="ImportActivitiesComplexType">
+		<sequence>
+			<element name="importStateActivity" type="fews:ImportStateActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Imports a module instance state.</documentation>
+				</annotation>
+			</element>
+			<element name="importTimeSeriesActivity" type="fews:ImportTimeSeriesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Imports time series.</documentation>
+				</annotation>
+			</element>
+			<element name="importMapStacksActivity" type="fews:ImportTimeSeriesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Import map stacks.</documentation>
+				</annotation>
+			</element>
+			<element name="importNetcdfActivity" type="fews:ImportNetcdfActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Imports scalar, grid or 1d/2d spectra time series from a NetCDF file resulting from the run of the external modules. All time series specified inside one importNetcdfActivity must have the same value type (grid, scalar, 1d spectra or 2d spectra). For this activity the exportPlaceholderFile option only works for scalar and grid data, not for spectra data. Note: this activity is exactly the same as importPiNetcdfActivity, only the name is better, since the NetCDF format has nothing to do with the PI format.</documentation>
+				</annotation>
+			</element>
+			<element name="importPiNetcdfActivity" type="fews:ImportNetcdfActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated, do not use. Please use importNetcdfActivity instead. Imports scalar, grid or 1d/2d spectra time series from a NetCDF file resulting from the run of the external modules. All time series specified inside one importPiNetcdfActivity must have the same value type (grid, scalar, 1d spectra or 2d spectra). For this activity the exportPlaceholderFile option only works for scalar and grid data, not for spectra data.</documentation>
+				</annotation>
+			</element>
+			<element name="importProfilesActivity" type="fews:ImportTimeSeriesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Import longitudinal profiles.</documentation>
+				</annotation>
+			</element>
+			<element name="importShapeFileActivity" type="fews:ImportShapeActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2017.02. Import shape file</documentation>
+				</annotation>
+			</element>
+			<element name="importGeoJsonActivity" type="fews:ImportGeoJsonActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2024.02. Imports GeoJson files</documentation>
+				</annotation>
+			</element>
+			<element name="importCustomFormatTimeSeriesActivity" type="fews:ImportCustomFormatTimeSeriesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Imports time series using a dedicated custom time series parser.</documentation>
+				</annotation>
+			</element>
+			<element name="importCsvModuleRunTablesActivity" type="fews:ImportCsvModuleRunTablesActivityComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.01. Imports csv files as module run tables.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ShutDownActivitiesComplexType -->
+	<complexType name="ShutDownActivitiesComplexType">
+		<choice minOccurs="0" maxOccurs="unbounded">
+			<element name="unzipActivity" type="fews:UnzipActivityComplexType">
+				<annotation>
+					<documentation>Unzip a single file or a set of files within a directory.</documentation>
+				</annotation>
+			</element>
+			<element name="zipActivity" type="fews:ZipActivityComplexType">
+				<annotation>
+					<documentation>Zip a single file or a set of files within a directory.</documentation>
+				</annotation>
+			</element>
+			<element name="purgeActivity" type="fews:PurgeActivityComplexType">
+				<annotation>
+					<documentation>Purges a single file or a set of files within a directory.</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</complexType>
+	<!-- PurgeActivityComplexType -->
+	<complexType name="PurgeActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="includeSubdirectories" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Optional, set this to true to allow deletion of nested subdirectories when using a wild card.</documentation>
+				</annotation>
+			</element>
+			<element name="filter" type="fews:fileStringType">
+				<annotation>
+					<documentation>File or files to be deleted. Use * and ? as wild cards.</documentation>
+				</annotation>
+			</element>
+			<element name="minimumFileAge" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. Files older than this age are to be purged.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- MakeDirActivityComplexType -->
+	<complexType name="MakeDirActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="dir" type="fews:fileStringType">
+				<annotation>
+					<documentation>Directory to be created.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- UnzipActivityComplexType -->
+	<complexType name="UnzipActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="sourceZipFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Zip File that is to be unpacked.</documentation>
+				</annotation>
+			</element>
+			<element name="destinationDir" type="fews:fileStringType">
+				<annotation>
+					<documentation>Destination directory to which source is unpacked.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ZipActivityComplexType -->
+	<complexType name="ZipActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="sourceDir" type="fews:fileStringType" minOccurs="1" maxOccurs="1">
+				<annotation>
+					<documentation>Source directory that has to be packed. Wildcards are NOT allowed.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="sourcePattern" type="fews:fileStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2019.02 eSource file pattern to select a subset of files to be packed, relative to the source directory specified in the sourceDir element. Wildcards are
+							allowed. Tags between %% are allowed since 2022.01
+						</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="fileNameDateTimePattern" type="fews:nonEmptyStringType">
+						<annotation>
+							<documentation>Since 2024.02 Pattern to parse the date/time from the file name. e.g.'BXD0521000005_???????'yyyyMMdd_HHmmss'.nc'</documentation>
+						</annotation>
+					</element>
+					<element name="fileNameRelativePeriod" type="fews:RelativePeriodComplexType">
+						<annotation>
+							<documentation>Since 2024.02  Only files with file name in this period are allowed in this period</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="destinationZipFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Zip file that to be created.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ExportRunFileActivityComplexType -->
+	<complexType name="ExportRunFileActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the general run information is exported. This should be either an absolute path or a path relative to the exportDir defined in the general section.</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Kind of environment variables for the pre and post adapters. These properties
+						are copied to the run file. This is also a convenient way way to pass global properties to a
+						pre or post adapter. An adapter is not
+						allowed to access the FEWS global.properties directly. Global properties (between $) are
+						replace by there literal values before copied to the run file.
+						These extra options makes an additional pre or post adapter configuration file unnecessary.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportNetcdfRunFileActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for this activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Netcdf run file to which the general run information will be exported. This should be either an absolute path or a path relative to the exportDir defined in the general section.</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesWithLocationAttributesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional. Properties in the form of key-value pairs that can be used to pass information to the pre and post adapter. These properties will be copied to the netcdf run file. These properties can be used as configuration for the pre and post adapter, so it is not needed to have a separate configuration file for the pre and post adapter. This is also a convenient way to pass global properties from FEWS to a pre or post adapter, since an adapter is not allowed to access the FEWS global.properties file directly. Global properties (between '$' signs) in these key-value pairs will be replaced by their literal values before they are copied to the netcdf run file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportTimeSeriesActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the data will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="exportBinFile" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true the events in the PI time series file are written to a binary file instead of the xml file.
+                        The written xml file will only contain the time series headers and optionally a time zone.
+                        The binary file has the same name as the xml file only the extension is "bin" instead of "xml"
+                        During PI time series import the bin file is automatically read when available. The byte order in the bin file is always
+                        Intel x86.
+                </documentation>
+				</annotation>
+			</element>
+			<element name="ignoreRunPeriod" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true the run period, written in the pi run file, will not be extended. When false the relative view period specified is used to extend the period. For "read complete forecast" the period of actual available data is used.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="includeThresholds" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true any thresholds for a time series will be written in its header
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="allowLocationSelection" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true, the location selection will be applied. Otherwise all available locations will be exported.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleMemberFormat" type="fews:ensembleMemberFormatValueTypeEnumStringType" default="index" minOccurs="0">
+				<annotation>
+					<documentation>By default the ensemble member index is written. Since FEWS 2012.01 it is also possible to use non integer ensemble member ids. Configure in the general section piVersion = 1.10
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSets" type="fews:TimeSeriesSetsWithConstraintsComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>TimeSeriesSet that defines what data is to be exported with the possibility to define constraints.</documentation>
+				</annotation>
+			</element>
+			<element name="omitMissingValues" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>When "read complete forecast" is specified this also affects the run period.</documentation>
+				</annotation>
+			</element>
+			<element name="omitEmptyTimeSeries" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>The time series is not exported when the time series is empty or when omitMissingValues = true and
+                        the time series is empty after removing the missing values.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="omitEmptyFiles" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>File is not written when file is empty (after omitMissingValues and omitEmptyTimeSeries)</documentation>
+				</annotation>
+			</element>
+			<element name="forecastSelectionPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>use this period to select all approved forecasts with forecast start time lying within this period</documentation>
+				</annotation>
+			</element>
+			<element name="checkMissing" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Option to check the timeseries for missing values. This option works in combination
+                        with the Parameter flag 'allowMissing'. When omitted defaults to 'false'.</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. Option to skip time series sets if the location set does not exist. Useful when module or workflow is run in loop with tags being translated. When omitted defaults to 'false'.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportCustomFormatTimeSeriesActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the data will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="serializerClassName" type="string">
+				<annotation>
+					<documentation>Fully qualifying name of a Java class that implements a time series serializer interface.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="binDir" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Directory with jar files and optionally native dlls. When not specified the bin dir and class loader of FEWS is used. When specified the java class is executed in a private class loader, it will not use any jar in the FEWS bin dir except the Delft_Utils.jar. Only one class loader is created per binDir , serializers should still not use static variables
+					</documentation>
+				</annotation>
+			</element>
+			<element name="moduleDataSetName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Name of dataset file containing the binaries located in the 'binDir'. Use this to update 'binDir' through configuration changes. This will delete the 'binDir' for an update, therefore this will be limited to a 'binDir' that is a sub directory of region home.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="ignoreRunPeriod" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true the run period, written in the pi run file, will not be extended. When false the relative view period specified is used to extend the period. For "read complete forecast" the period of actual available data is used.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="allowLocationSelection" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true, the location selection will be applied. Otherwise all available locations will be exported.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSets" type="fews:TimeSeriesSetsWithConstraintsComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>TimeSeriesSet that defines what data is to be exported with the possibility to define constraints.</documentation>
+				</annotation>
+			</element>
+			<element name="omitMissingValues" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>When "read complete forecast" is specified this also affects the run period.</documentation>
+				</annotation>
+			</element>
+			<element name="omitEmptyTimeSeries" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>The time series is not exported when the time series is empty or when omitMissingValues = true and the time series is empty after removing the missing values.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="omitEmptyFiles" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>File is not written when file is empty (after omitMissingValues and omitEmptyTimeSeries)</documentation>
+				</annotation>
+			</element>
+			<element name="forecastSelectionPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>use this period to select all approved forecasts with forecast start time lying within this period</documentation>
+				</annotation>
+			</element>
+			<element name="checkMissing" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Option to check the time series for missing values. This option works in combination with the Parameter flag 'allowMissing'. When omitted defaults to 'false'.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ExportStateActivityComplexType -->
+	<complexType name="ExportStateActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="moduleInstanceId" type="fews:idStringType">
+				<annotation>
+					<documentation>ID of the module instance for which the state will be exported.</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Export state exported by this ensemble</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="ensembleMemberIdSubstringPattern" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Use a sub string of the active ensemble member id as member id when resolving the state. Fore example use (...) to use the first three characters of the active
+							ensemble member id
+						</documentation>
+					</annotation>
+				</element>
+				<element name="ensembleMemberId" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Use ensemble member id when resolving the state.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="stateExportDir" type="fews:directoryStringType">
+				<annotation>
+					<documentation>Directory to which the module instance state is to be exported. This should be the path where the model expects to find the state file(s). This should be either an absolute path or a path relative to the exportDir defined in the general section. All contents of the stored state are exported to this directory.</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="stateConfigFile" type="fews:fileStringType">
+					<annotation>
+						<documentation>Only use this option in combination with a PI state description xml file. Fully qualified name of the XML file containing the state export configuration. This should be either an absolute path or a path relative to the exportDir defined in the general section. This option writes the input state file paths to a pi state description xml file.</documentation>
+					</annotation>
+				</element>
+				<element name="stateLocations" type="fews:StateLocationsComplexType">
+					<annotation>
+						<documentation>Only use this option in combination with a PI state description xml file. The locations of the state. In case the state consists of a whole directory only one stateLocation is allowed. This option writes the input state file paths to a pi state description xml file.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="stateSelection" type="fews:StateSelectionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>State specific settings. They can be overruled by the TaskProperties. When not specified the state selection in the workflow descriptor is used. Time settings are relative to time0.</documentation>
+				</annotation>
+			</element>
+			<element name="adjustTimeSeriesStartTime" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Adjusts the start time of time series to the exported state time within this general adapter run when start is overrulable or not specified. Default is true.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="loopTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+					<annotation>
+						<documentation>When specified all activities are run in a loop to ensure on every cardinal time a state is produced. This has two advantages. States are equally and frequently distributed over time so it possible to start a update run from every point, also half way a cold update run that spans several days. The other advantage is the restriction on memory consumption, you can can run over months without going out of RAM. States will be produced on every cardinal time between the exported state time and time0. After finishing all activities, all the activities are run again until all states have been produced until time0. Do not specify a relative view period for the time series sets in the export activities when you need time series from input to output state time.</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="writeIntermediateState" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Write an extra state at end of the state search period that can be used in the next state run.</documentation>
+						</annotation>
+					</element>
+					<element name="minimumRunLength" type="fews:TimeSpanComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Some (HBV) models need a minimum run length to perform corrections at the end of the run.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+	</complexType>
+	<!--ExportDataSetActivityComplexType-->
+	<complexType name="ExportDataSetActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="moduleInstanceId" type="fews:idStringType">
+					<annotation>
+						<documentation>ID of the module instance for which the state will be exported.</documentation>
+					</annotation>
+				</element>
+				<element name="moduleDataSetName" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2021.01. Name of the module data set file that will be exported</documentation>
+					</annotation>
+				</element>
+				<element name="moduleDataSetNameMap" type="fews:ModuleDataSetNameMapComplexType">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-11097. Map a time series vale at time0 to a module data set name</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="coldStateDataSetName" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 FEWS-13044 Overruling dataset name when cold state was exported</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!--ExportRatingCurveActivityComplexType-->
+	<complexType name="ExportRatingCurveActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the rating curve will be exported. This file is always placed in exportDir</documentation>
+				</annotation>
+			</element>
+			<element name="onlyLatestAvailable" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>SINCE 2019.02  If configured, then only the latest available rating curve in the run period will be exported</documentation>
+				</annotation>
+			</element>
+			<element name="linearTableStageResolution" type="fews:nonNegativeDouble" minOccurs="0">
+				<annotation>
+					<documentation>Stage resolution. Use unit configured with 'displayUnit' in stage parameter group. If  there is no 'displayUnit' , m are used.   Every resolution 'step' (e.g. 0.5  ft)  stage/flow pair are exported.
+The exporting stage/value pairs starts at rating curve minStage and goes up to the ratingCurve  maxStage, if any available, otherwise up to the last rating curve stage value.  Background info: the logarithmic interpolation in a rating curve needs a complex algorithm.
+For this reason it's it is convenient when we can convert to a more detailed table where we can use linear interpolation </documentation>
+				</annotation>
+			</element>
+			<choice>
+				<annotation>
+					<documentation>ID of the  location(s)  for which the rating curve will be exported.</documentation>
+				</annotation>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<!--ExportPiTableActivityComplexType-->
+	<complexType name="ExportPiTablesActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the 1D spectra time series will be exported. This file is always placed in exportDir</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSets" type="fews:TimeSeriesSetsWithConstraintsComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>TimeSeriesSet that defines what 1D spectra time series should be exported to pi_tables.xml</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!--ExportParameterActivityComplexType-->
+	<complexType name="LocationModelLoopComplexType">
+		<sequence>
+			<choice>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<sequence>
+					<element name="locationSetId" type="fews:idStringType"/>
+					<element name="locationConstraints" type="fews:ConstraintsComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2015.01. FEWS-11031 Restriction for the locations in the specified time series sets.</documentation>
+						</annotation>
+					</element>
+					<element name="ignoreNonExistingLocationSets" type="boolean" default="false" minOccurs="0"/>
+				</sequence>
+			</choice>
+			<element name="model" type="string"/>
+		</sequence>
+	</complexType>
+	<complexType name="LocationTableLoopComplexType">
+		<sequence>
+			<choice>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+			<element name="parameterId" type="fews:idStringType"/>
+		</sequence>
+	</complexType>
+	<complexType name="TemplateLocationLoopingComplexType">
+		<sequence>
+			<choice>
+				<element name="locationModelLoop" type="fews:LocationModelLoopComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>this tag can used to generate a group for each location in the locationSet for the defined model</documentation>
+					</annotation>
+				</element>
+				<element name="locationTableLoop" type="fews:LocationTableLoopComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>this tag can used to used to generate table from a template defined for a certain parameter</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="ExportParameterActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="fileName" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Module name for parameter file being exported (Do not add file extension). </documentation>
+				</annotation>
+			</element>
+			<element name="templateLocationLooping" type="fews:TemplateLocationLoopingComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This tag can be used to generate a parameter-xml based on a template-xml. For each location in the locationset a group will be added to the parameter xml</documentation>
+				</annotation>
+			</element>
+			<element name="moduleInstanceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>ID of the module instance for which the state will be exported.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportLocationAttributesCsvActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the data will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="exportEmptyHeaderFile" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true an empty or non existing location set results in an empty header file, when false nothing will be exported. Default is false</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="1" maxOccurs="1">
+				<element name="locationSetId" type="fews:idStringType" maxOccurs="1">
+					<annotation>
+						<documentation>Id of the location set for which the attributes will be exported</documentation>
+					</annotation>
+				</element>
+				<element name="locationId" type="fews:idStringType" maxOccurs="1">
+					<annotation>
+						<documentation>Id of the location for which the attributes will be exported</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="locationIdColumn" type="fews:LocationIdColumnComplexType" minOccurs="0">
+				<annotation>
+					<documentation>First column which specifies the id of the location, can be overruled with an attribute</documentation>
+				</annotation>
+			</element>
+			<element name="attributeColumn" type="fews:ExportLocationAttributeColumnComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Column for exported location attribute values</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="GridFormatEnumStringType">
+		<annotation>
+			<documentation>Format of the exported grids</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="ascii"/>
+			<enumeration value="ascii_llcorner"/>
+			<enumeration value="pcrgrid"/>
+			<enumeration value="usgs"/>
+		</restriction>
+	</simpleType>
+	<!--ExportMapStacksActivityComplexType-->
+	<complexType name="ExportMapStacksActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the map stack will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="gridFile" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Name of exported grids. The number of names must coincide with the number of locations being exported.</documentation>
+				</annotation>
+				<complexType>
+					<sequence>
+						<element name="locationId" type="fews:idStringType">
+							<annotation>
+								<documentation>Fews Location id to which the gridName is linked.</documentation>
+							</annotation>
+						</element>
+						<element name="gridName" type="fews:nameStringType">
+							<annotation>
+								<documentation>For USGS BIL files this represents the file name. For ASCII/PCRASTER files this represents a file prefix used to store the separate time steps.</documentation>
+							</annotation>
+						</element>
+					</sequence>
+				</complexType>
+			</element>
+			<element name="gridFormat" type="fews:GridFormatEnumStringType">
+				<annotation>
+					<documentation>Format of the exported grids</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreRunPeriod" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true the run period, written in the pi run file, will not be extended.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Time series set information. ValueType must be equal to 'grid'. </documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional list of properties that can be used for configuring the export grids.
+USGS-properties:
+- nrBits (int)
+- nrDecimals (int)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportAreaSelectionActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the area selection will be exported. This file is always placed in exportDir. The specified file can have the extension shp for shape file or xml for a map stack in the case the grid location and gridFormat should also be specified</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="esriShapeFileGeoDatum" type="fews:geoDatumStringType">
+					<annotation>
+						<documentation>By default the shape file is exported with WGS 1984 coordinates</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="gridLocationId" type="fews:idStringType">
+						<annotation>
+							<documentation>Fews Location id to which the gridName is linked. When not specified a shape file is exported.</documentation>
+						</annotation>
+					</element>
+					<element name="gridFormat" type="fews:GridFormatEnumStringType">
+						<annotation>
+							<documentation>Format of the exported grids. When not specified a shape file is exported.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="ExportLocationAreaActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the area selection will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="gridLocationId" type="fews:idStringType">
+				<annotation>
+					<documentation>Fews Location id to which the gridName is linked.</documentation>
+				</annotation>
+			</element>
+			<element name="polygonLocationSetId" type="fews:idStringType">
+				<annotation>
+					<documentation>Identifier for locationset for which to generate grid files for each. The locations should have polygons associated with them.</documentation>
+				</annotation>
+			</element>
+			<element name="gridFormat" type="fews:GridFormatEnumStringType">
+				<annotation>
+					<documentation>Format of the exported grids</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!--ExportNetcdfGridActivityComplexType-->
+	<complexType name="ExportNetcdfActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the data will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="netcdfFormat" type="fews:netcdfFormatEnumStringType" minOccurs="0">
+					<annotation>
+						<documentation>Default value is netcdf3.</documentation>
+					</annotation>
+			</element>
+			<element name="metaData" type="fews:MetadataComplexType" minOccurs="0" maxOccurs="1" />
+			<element name="geoDatum" type="fews:geoDatumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Configure a GeoDatum conversion during export - applicable only to scalar data</documentation>
+				</annotation>
+			</element>
+			<element name="exportZLayers" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02 Applicable only to scalar time series. When true then the scalar time series at the same geo point X,Y but different Z are considered to be
+						Z-layers. Z values are used to create a z-dimension in the NetCdf file, and the time series values are written to the associated z element. Per parameter only one
+						z-dimension is allowed. Different parameters may have different z-dimensions
+					</documentation>
+				</annotation>
+			</element>
+			<element name="writeRealizationDimension" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02 Applicable only to scalar and gridded time series with exactly one ensemble member. When false then this ensemble member  is not written to the file and parameter in the file does not have realization dimension.	A  config error will be given when set to false and more ensemble members are found in the timeseries
+					</documentation>
+				</annotation>
+			</element>
+   	    	<element name="ignoreRunPeriod" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true the run period, written in the pi run file, will not be extended.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSets" type="fews:TimeSeriesSetsWithConstraintsAndZLayerComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>TimeSeriesSet that defines what data is to be exported with the possibility to define constraints.</documentation>
+				</annotation>
+			</element>
+			<element name="omitMissingValues" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Are missing values to be written to the export file or should they be left out.</documentation>
+				</annotation>
+			</element>
+			<element name="omitEmptyTimeSeries" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>The time series is not exported when the time series is empty or when omitMissingValues = true and the time series is empty after removing the missing values.</documentation>
+				</annotation>
+			</element>
+			<element name="omitEmptyFiles" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>File is not written when file is empty (after omitMissingValues and omitEmptyTimeSeries)</documentation>
+				</annotation>
+			</element>
+			<element name="allowLocationSelection" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true, the location selection will be applied. Otherwise all available locations will be exported.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02. Option to skip time series sets if the location set does not exist. Useful when module or workflow is run in loop with tags being translated. When omitted defaults
+						to 'false'.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="checkMissing" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Option to check the time series for missing values. This option works in combination with the Parameter flag 'allowMissing'. When omitted defaults to 'false'.</documentation>
+				</annotation>
+			</element>
+			<element name="includeFlags" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When true any flags for a time series will be written. Available since 2026.02</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="netcdfFormatEnumStringType">
+		<restriction base="string">
+			<enumeration value="netcdf3"/>
+			<enumeration value="netcdf4"/>
+		</restriction>
+	</simpleType>
+	<!-- ExportTableActivityComplexType -->
+	<complexType name="ExportTableActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the table will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="tableType">
+				<annotation>
+					<documentation>Type of table to be exported.</documentation>
+				</annotation>
+				<simpleType>
+					<restriction base="string">
+						<enumeration value="ratingCurve"/>
+					</restriction>
+				</simpleType>
+			</element>
+			<element name="operation">
+				<annotation>
+					<documentation>ID of the table to be exported.</documentation>
+				</annotation>
+				<simpleType>
+					<restriction base="string">
+						<enumeration value="selectValidTable"/>
+						<enumeration value="convertEquation"/>
+					</restriction>
+				</simpleType>
+			</element>
+			<element name="parameters" type="fews:EquationConversionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Parameters for the convertEquation operation.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>location id to select the rating curve</documentation>
+					</annotation>
+				</element>
+				<element name="locationSetId" type="fews:idStringType">
+					<annotation>
+						<documentation>Location set id of time series.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<!-- EquationConversionComplexType -->
+	<complexType name="EquationConversionComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the parameters.</documentation>
+				</annotation>
+			</element>
+			<element name="minimumLevel" type="float"/>
+			<element name="maximumLevel" type="float"/>
+			<element name="stepSize" type="float"/>
+		</sequence>
+	</complexType>
+	<!-- StateLocationsComplexType -->
+	<complexType name="StateLocationsComplexType">
+		<sequence>
+			<element name="stateLocation" type="fews:StateLocationComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>In case the state consists of a list of files the location can only be a file name without a path.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="type" use="required">
+			<annotation>
+				<documentation>Type of location: this is either file or directory</documentation>
+			</annotation>
+			<simpleType>
+				<restriction base="string">
+					<enumeration value="file"/>
+					<enumeration value="directory"/>
+				</restriction>
+			</simpleType>
+		</attribute>
+	</complexType>
+	<!-- StateLocationComplexType -->
+	<complexType name="StateLocationComplexType">
+		<sequence>
+			<element name="readLocation" type="fews:fileStringType">
+				<annotation>
+					<documentation>This should be either an absolute path or a path relative to the stateExportDir defined in this activity.</documentation>
+				</annotation>
+			</element>
+			<element name="writeLocation" type="fews:fileStringType">
+				<annotation>
+					<documentation>This should be an absolute path.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- TimeSeriesSetsComplexType -->
+	<complexType name="TimeSeriesSetsComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<!-- ImportStateActivityComplexType -->
+	<complexType name="ImportStateActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="stateConfigFile" type="fews:fileStringType">
+					<annotation>
+						<documentation>Deprecated, do not use this if a pi state description xml file is not needed. Fully qualified name of the XML file containing the state import configuration. This should be either an absolute path or a path relative to the importDir defined in the general section. This option reads the output state file paths from a pi state description xml file.</documentation>
+					</annotation>
+				</element>
+				<group ref="fews:ImportStateFileGroup"/>
+			</choice>
+			<element name="compressedStateLocation" type="fews:warmStateLocation" minOccurs="0">
+				<annotation>
+					<documentation>By default the warm state is zipped and stored as a blob in the database. For large states (>50MB) it is recommended to store the data outside the database in a directory. This directory is configured in the clientConfig.xml (optional element warmStatesDirectory). When using a stand alone system or using oracle and a single MC system it is possible to store larger grids inside the database. Expired states are removed automatically from this directory by the CompactCacheFiles workflow. The state description is still written to the database, the blob field will be empty</documentation>
+				</annotation>
+			</element>
+			<element name="expiryTime" type="fews:CalendarTimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>By default the expiry time is the same as the original expiry tme of the forecast.</documentation>
+				</annotation>
+			</element>
+			<element name="synchLevel" type="int" default="0" minOccurs="0">
+				<annotation>
+					<documentation>Optional Synch level for state. Defaults to 0 if not specified. Configure synch level 20 when this state should be downloaded to the OC for use in IFD</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- ImportTimeSeriesActivityComplexType -->
+	<complexType name="ImportTimeSeriesActivityComplexType">
+		<group ref="fews:ImportTimeSeriesActivitySequence"/>
+	</complexType>
+	<group name="ImportTimeSeriesActivitySequence">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="exportPlaceholderFile" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>if TRUE,  at GA export the importFile will be exported with headers only,  without any data.  Usage :  lets models know which data are expected at GA import. Note: this option is not supported for spectra data.</documentation>
+						</annotation>
+					</element>
+					<element name="importFile" type="fews:fileStringType">
+						<annotation>
+							<documentation>File the data will be imported from. This file is always placed in the importDir.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<sequence>
+					<!--todo rename to dir-->
+					<element name="folder" type="fews:directoryStringType">
+						<annotation>
+							<documentation>FEWS-11360. Folder in which import files are located, only available for Netcdf Import Activities</documentation>
+						</annotation>
+					</element>
+					<element name="fileNamePatternFilter" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>FEWS-11360. e.g *.xml to skip non xml files. Only the * and ? wild cards are recognized.
+								Only available for Netcdf Import Activities
+							</documentation>
+						</annotation>
+					</element>
+					<element name="fileNameLocationIdPattern" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2023.02. Regular Expression. When a match of the pattern in the filename is found, this will overrule the exernal grid location Id for the time series being imported. A simple pattern is (without quotations) '(.*)' which matches the whole filename. (.*)\.nc extracts the fle name without the .nc extension An other simple pattern is .{2}(.*).{4} that removes the first 2 and last 4 character of the filename to get the id More complicated expressions can be found at http://en.wikipedia.org/wiki/Regular_expression</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="timeSeriesSets" type="fews:TimeSeriesSetsComplexType">
+				<annotation>
+					<documentation>TimeSeriesSet that defines what data is to be exported with the possibility to define constraints.</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.01. Option to skip import when location set does not exist.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="propertyProvidingTimeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11446 .TimeSeriesSet to take over property from.</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType" minOccurs="0"/>
+			<!--<element name="checkMissing" type="boolean" minOccurs="0">-->
+			<!--<annotation>-->
+			<!--<documentation>Option to check the timeseries for missing values. This option works in combination-->
+			<!--with the Parameter flag 'allowMissing'. When omitted defaults to 'false'.</documentation>                    -->
+			<!--</annotation>-->
+			<!--</element>-->
+		</sequence>
+	</group>
+	<complexType name="ImportCsvModuleRunTablesActivityComplexType">
+		<annotation>
+			<documentation>
+				Since 2015.01. Import csv files that can be viewed by the ModuleDataViewer.
+			</documentation>
+		</annotation>
+		<sequence>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. Character set of the text in the csv file. Specify only when the csv file contains non western characters.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. Optional description for the import.</documentation>
+				</annotation>
+			</element>
+			<element name="importFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Since 2015.01. File the data will be imported from.</documentation>
+				</annotation>
+			</element>
+			<element name="displayName" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2015.01. Display name of the csv file that is imported.</documentation>
+				</annotation>
+			</element>
+			<element name="table" type="fews:CsvTableMetadataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. Configure a mapping of the CSV columns to different database types. If no mapping is specified for a column, the column will be mapped to a string.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="onFailWarnAndContinue" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02. By design the activity will fail if the configured importFile is not found. To overrule this behaviour a warning will be logged but the activity won't fail.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportCsvModuleRunTablesActivityComplexType">
+		<annotation>
+			<documentation>
+				Since 2020.02. Export csv files for ModuleRunTables.
+			</documentation>
+		</annotation>
+		<sequence>
+			<element name="moduleInstanceId" type="fews:idStringType">
+				<annotation>
+					<documentation>ID of the module instance for which the current ModuleRunTable will be exported.</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.02. Character set of the text in the csv file. Specify only when the data contains non western characters.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. Optional description for the export activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Since 2020.02. File the data will be exported to.</documentation>
+				</annotation>
+			</element>
+			<element name="displayName" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2020.02. Display name of the Module Run Table file that is to be exported.</documentation>
+				</annotation>
+			</element>
+			<element name="onFailWarnAndContinue" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.02. By design the activity will fail if a moduleRunTable with the requested ModuleInstanceId and display name is not found. To overrule this behaviour a warning will be logged but the activity won't fail.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportCoefficientSetActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to which the coefficient set will be exported. This file is always placed in exportDir.</documentation>
+				</annotation>
+			</element>
+			<element name="coefficientSetId" type="fews:idStringType">
+				<annotation>
+					<documentation>Identifier of a coefficientSet to export.</documentation>
+				</annotation>
+			</element>
+			<element name="coefficientSetFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Name of the file that contains the coefficientSet to use. This name should not include the file extension.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<annotation>
+					<documentation>ID of the location(s) for which the coefficient set will be exported.</documentation>
+				</annotation>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="CsvTableMetadataComplexType">
+		<annotation>
+			<documentation>
+				Since 2015.01. CSV columns will be mapped to database types so they can be viewed with the Module Data Viewer.
+			</documentation>
+		</annotation>
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="stringColumn" type="fews:CsvColumnComplexType">
+					<annotation>
+						<documentation>Since 2015.01. Column that contains string values</documentation>
+					</annotation>
+				</element>
+				<element name="integerColumn" type="fews:CsvColumnComplexType">
+					<annotation>
+						<documentation>Since 2015.01. Column that contains integer values</documentation>
+					</annotation>
+				</element>
+				<element name="doubleColumn" type="fews:CsvColumnComplexType">
+					<annotation>
+						<documentation>Since 2015.01. Column that contains double values</documentation>
+					</annotation>
+				</element>
+				<element name="booleanColumn" type="fews:CsvColumnComplexType">
+					<annotation>
+						<documentation>Since 2015.01. Column that contains boolean values. Should be set to either true or false.</documentation>
+					</annotation>
+				</element>
+				<element name="dateTimeColumn" type="fews:DateTimeCsvColumnComplexType">
+					<annotation>
+						<documentation>Since 2015.01.  Column that contains the date and time values</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="DateTimeCsvColumnComplexType">
+		<complexContent>
+			<extension base="fews:CsvColumnComplexType">
+				<attribute name="pattern" type="string">
+					<annotation>
+						<documentation>Since 2015.01. Only required when the type of the column is text instead of timestamp</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="CsvColumnComplexType">
+		<attribute name="name" type="string">
+			<annotation>
+				<documentation>Since 2015.01.  Name of the column in the CSV file. </documentation>
+			</annotation>
+		</attribute>
+		<attribute name="displayName" type="string" use="optional">
+			<annotation>
+				<documentation>Since 2015.01. Name of the column to be stored in FEWS. If not specified the name of the imported csv will be used.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ImportCustomFormatTimeSeriesActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="importFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File the data will be imported from. This file is always placed in the importDir.</documentation>
+				</annotation>
+			</element>
+			<element name="parserClassName" type="string">
+				<annotation>
+					<documentation>Fully qualifying name of a Java class that implements a time series parser interface.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="binDir" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Directory with jar files and optionally native dlls. When not specified the bin dir and class loader of FEWS is used. When specified the java class is executed in a private class loader, it will not use any jar in the FEWS bin dir except the Delft_Utils.jar. Only one class loader is created per binDir , parsers should still not use static variables
+					</documentation>
+				</annotation>
+			</element>
+			<element name="moduleDataSetName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Name of dataset file containing the binaries located in the 'binDir'. Use this to update 'binDir' through configuration changes.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSets" type="fews:TimeSeriesSetsComplexType">
+				<annotation>
+					<documentation>TimeSeriesSet that defines what data is to be exported with the possibility to define constraints.</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.01. Option to skip import when location set does not exist.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ImportNetcdfActivityComplexType">
+			<sequence>
+				<group ref="fews:ImportTimeSeriesActivitySequence"/>
+				<element name="maximumSnapDistance" type="fews:doubleStringType" minOccurs="0">
+					<annotation>
+						<documentation>Since 2014.01. FEWS-10771. Optional maximum horizontal snap distance in meters. When the parser provides horizontal location coordinates (x,y) and no locationIds, then the location mapping will be done by matching the horizontal coordinates. The horizontal snap distance is the tolerance used to detect which internal and external horizontal coordinates are the same. This only works when the input format provides the coordinate system for the coordinates of the locations. When the parser does not provide the coordinates for a time series an error is logged. Note: this option has no effect for grid data. Note 2: it is not possible to import data using horizontal coordinates and using locationIds in the same importNetcdfActivity, need to define separate import activities for that (one with maximumSnapDistance and one without maximumSnapDistance).</documentation>
+					</annotation>
+				</element>
+			<choice minOccurs="0">
+				<element name="maximumVerticalSnapDistance" type="fews:doubleStringType">
+					<annotation>
+						<documentation>Since 2014.02. Optional maximum vertical snap distance in meters. When the parser provides vertical location coordinates (z) and no locationIds, then the location mapping will be done by matching the vertical coordinates. The vertical snap distance is the tolerance used to detect which internal and external vertical coordinates are the same. This only works when the input format provides the coordinates of the locations. When the parser does not provide the vertical coordinates for a time series an error is logged. Note: this option currently only works for importing horizontal layers from netcdf 3D grid data. Note 2: it is not possible to import data with z-coordinates (layers from 3D grids) and data without z-coordinates (2D grids) in the same importNetcdfActivity, need to define separate import activities for that (one with maximumVerticalSnapDistance and one without maximumVerticalSnapDistance).</documentation>
+					</annotation>
+				</element>
+				<element name="mapLocationsByLayerSigmaCoordinate" type="boolean">
+					<annotation>
+						<documentation>Since 2017.02. When true the location is resolved by the layer sigma coordinate</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="startWhileRunningExecuteActivities" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Default is false. If this is true, then this importActivity will run continuously during the configured execute activities. Additionally this importActivity will also run as part of the configured import activities as normal. This way it is possible to import data that is produced by an execute activity, while it is being produced. For instance if a model run writes new output data to an existing file after each timeStep, then the continuously running importActivity will immediately import the file, including the new data. This way the new data can be viewed in FEWS as soon as it becomes available, i.e. already during the model run. Currently the data that is imported during the execute activities can only be viewed after selecting "open most recent running forecast and adjust system time" from the debug menu in the FEWS Explorer window. If the running forecast is opened and selected in the data viewer, then the displays are updated each time when new data becomes available during the run. This feature only has effect for stand alone FEWS systems and for FEWS systems that use direct database access.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="BurnInProfileComplexType">
+		<annotation>
+			<documentation>Burn-in profile for cold state starts. Used to replace first part of a time series.
+
+For time series with matching parameter-location ids, the first value is replaced by the initialValue. Element length defines the length of time series beginning that is to be replaced using linear interpolation. </documentation>
+		</annotation>
+		<sequence>
+			<element name="length" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>Length of time series beginning that is to be replaced.</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreNonExistingLocationSets" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.01. Option to skip export when location set does not exist.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeries" type="fews:BurnInProfileTimeSeriesComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="BurnInProfileTimeSeriesComplexType">
+		<sequence>
+			<element name="parameterId" type="fews:idStringType">
+				<annotation>
+					<documentation>Parameter id of time series.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>List of location ids of time series.</documentation>
+					</annotation>
+				</element>
+				<element name="locationSetId" type="fews:idStringType">
+					<annotation>
+						<documentation>Location set id of time series.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice>
+				<element name="initialValue" type="fews:floatStringType">
+					<annotation>
+						<documentation>New start value for the time series.</documentation>
+					</annotation>
+				</element>
+				<group ref="fews:InitialValueAttributesSequence">
+					<annotation>
+						<documentation>Since 2017.02. Start value for the time series using location attributes</documentation>
+					</annotation>
+				</group>
+			</choice>
+		</sequence>
+	</complexType>
+	<simpleType name="ensembleMemberFormatValueTypeEnumStringType">
+		<restriction base="string">
+			<enumeration value="index"/>
+			<enumeration value="name"/>
+			<enumeration value="hide"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="warmStateLocation">
+		<restriction base="string">
+			<enumeration value="database"/>
+			<enumeration value="directory"/>
+		</restriction>
+	</simpleType>
+	<group name="InitialValueAttributesSequence">
+		<sequence>
+			<element name="initialValueAttributeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2017.02. Id of the location attribute that contains the new start value for the time series.</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="lookupAttributeId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2019.01. Required when the attribute referenced by the initialValueAttributeId contains multiple values for a single location. When the look-up value is the nth value in the lookup attribute the nth initial value will be used.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="lookupText" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>Since 2019.01. Required when the attribute referenced by the initialValueAttributeId contains multiple values for a single location. When the lookup text is the nth value in the lookup attribute the nth initial value will be used.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+		</sequence>
+	</group>
+	<complexType name="ExportCustomFormatRunFileActivityComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description for the activity.</documentation>
+				</annotation>
+			</element>
+			<element name="templateFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>The pathname of the template file relative to the rootDir (or absolute path). This file can contain location attribute tags between '@' signs, general adapter tags between '%' signs and global properties between '$' signs.</documentation>
+				</annotation>
+			</element>
+			<element name="exportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>The pathname of the export file relative to the exportDir (or absolute path). This file is created during the workflow run and will be a copy of the template file in which the tags are replaced with actual (modified) values. If this file already exists, then it will be overwritten.</documentation>
+				</annotation>
+			</element>
+			<element name="locationId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional. Location attribute tags in the template file will be replaced with the corresponding (modified) attribute values of the location with this locationId. If this is not specified, then location attribute tags will not be replaced.</documentation>
+				</annotation>
+			</element>
+			<element name="fixedWidth" type="fews:intStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02, optional. All tags will be replaced with a fixed number of characters, spaces are inserted in front of the value where necessary. Note that when tags are replaced with text, the replacement text must be small enough to fit in the fixed width, otherwise the replacement text is used as is and the outputted value will therefore not conform to the fixed width. A warning is logged in this case.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="numberOfDecimals" type="fews:intStringType">
+					<annotation>
+						<documentation>Since 2017.02, optional. When replacing a tag with a number value, the specified number of decimals is used. Note that if configured, the fixedWidth must be
+							large enough to fit all number values with the given number of decimals.
+						</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="minNumberOfDecimals" type="fews:nonNegativeIntegerStringType">
+						<annotation>
+							<documentation>Since 2023.02, optional. When replacing a tag with a number value, the specified minimum number of decimals is used. Note that if configured, the fixedWidth must be large enough to fit all number values with the given number of decimals.</documentation>
+						</annotation>
+					</element>
+					<element name="maxNumberOfDecimals" type="fews:nonNegativeIntegerStringType">
+						<annotation>
+							<documentation>Since 2023.02, optional. When replacing a tag with a number value, the specified maximum number of decimals is used. Note that if configured, the fixedWidth must be large enough to fit all number values with the given number of decimals.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+	</complexType>
+	<group name="ImportStateFileGroup">
+		<sequence>
+			<element name="stateImportDir" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. Optional state import directory. This should be either an absolute path or a path relative to the importDir defined in the general section. If this stateImportDir is specified, then the importFile paths in this activity can be paths relative to this stateImportDir instead of absolute paths. This stateImportDir is only needed when you want to use relative importFile paths. If all importFile paths in this activity are absolute, then this stateImportDir is not needed and will not be used. This option does not use a pi state description xml file.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="stateFile" type="fews:ImportStateFileComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2014.01. One or more output state files from the model. The specified files will be imported. This option does not use a pi state description xml file.</documentation>
+					</annotation>
+				</element>
+				<sequence maxOccurs="unbounded">
+					<element name="stateFileDateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2017.02. eg. 'State_'yyyyMMdd_HHmmss'.bin' Imports all files from the state import dir that matches this pattern. To get the state time the pattern is used. The work
+								dir is used when the state import dir is not specified. This option does not use a pi state description xml file.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="relativeExportFile" type="fews:fileStringType">
+						<annotation>
+							<documentation>Since 2017.02. This relative path and name are used to store the imported file in FEWS. This path should be relative to the stateExportDir in the exportStateActivity that
+								will be used to export this state file again for a future model run. If the imported output state file needs to be renamed before it can be used as input state file for
+								a future model run, then the name of the relativeExportFile can be different from the name of the importFile. Since the 2023.02 is it possible to use question marks. The ? chars are copied from the input file name
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+	</group>
+	<complexType name="ImportStateFileComplexType">
+		<sequence>
+			<element name="importFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>Path and name of an output state file from the model. This file will be imported. This should be either an absolute path or a path relative to the stateImportDir defined in this activity. The %END_DATE_TIME% tag can be used here (since 2014.02), in case the state file name contains a timestamp of the end time of the run.</documentation>
+				</annotation>
+			</element>
+			<element name="relativeExportFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>This relative path and name are used to store the imported file in FEWS. This path should be relative to the stateExportDir in the exportStateActivity that will be used to export this state file again for a future model run. If the imported output state file needs to be renamed before it can be used as input state file for a future model run, then the name of the relativeExportFile can be different from the name of the importFile. The %END_DATE_TIME% tag can be used here (since 2014.02), in case the state file name contains a timestamp of the end time of the run.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ModuleDataSetNameMapComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11097. Time series set that determines the time serie for the value at T0 to pick the correct entry from the module data set map</documentation>
+				</annotation>
+			</element>
+			<element name="map" type="fews:ModuleDataSetMapComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11097. Map with different value-moduleDataSetName pairs, the value at T0 at the time serie from configured time series set will be used to pick the correct entry from the map</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GeneralAdapterDateFormatComplexType">
+		<sequence>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Pattern for this date time format. This can be e.g. "yyyy-MM-dd HH:mm:ss". yyyy = Year, MM = Month in year, dd = Day in month, HH = Hour in day (0-23), mm = Minute in hour, ss = Second in minute.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier for this date time format. Use this identifier to refer to this date time format in the argument of a variable.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="TimeSeriesSetsWithConstraintsComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+			<element name="zParameter" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.01. Z layer parameter</documentation>
+				</annotation>
+			</element>
+			<element name="locationConstraints" type="fews:ConstraintsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. FEWS-11031 Restriction for the locations in the specified time series sets.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="TimeSeriesSetsWithConstraintsAndZLayerComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+			<element name="zParameter" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.01. Z layer parameter</documentation>
+				</annotation>
+			</element>
+			<element name="locationConstraints" type="fews:ConstraintsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. FEWS-11031 Restriction for the locations in the specified time series sets.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ImportShapeActivityComplexType">
+		<sequence>
+			<group ref="fews:ImportShapeActivityGroup1"/>
+			<element name="geoDatum" type="fews:geoDatumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Indication of the coordinate system used - defaults to WGS-1984</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.01. Character set of the dbf file.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ImportShapeActivityGroup2"/>
+		</sequence>
+	</complexType>
+	<complexType name="ImportGeoJsonActivityComplexType">
+		<sequence>
+			<group ref="fews:ImportShapeActivityGroup1"/>
+			<group ref="fews:ImportShapeActivityGroup2"/>
+		</sequence>
+	</complexType>
+	<group name="ImportShapeActivityGroup1">
+		<choice>
+			<element name="importFile" type="fews:fileStringType">
+				<annotation>
+					<documentation>File to import. The file will be imported at time 0</documentation>
+				</annotation>
+			</element>
+			<sequence>
+				<element name="shapeFileImportDir" type="fews:fileStringType">
+					<annotation>
+						<documentation>Directory (relative to work dir or absolute) to import the files from</documentation>
+					</annotation>
+				</element>
+				<element name="fileDateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+					<annotation>
+						<documentation>eg. 'Shape_'yyyyMMdd_HHmmss'.shp' or  'provincies_'ddMMMyyyyHHmmss'.geojson'.  Imports all files from the import dir that matches this pattern. To get the time the pattern is used. The work dir is used when the import dir is not specified. When not specified time0 is used. In this case a single file is expected in the import dir
+						</documentation>
+					</annotation>
+				</element>
+			</sequence>
+		</choice>
+	</group>
+	<group name="ImportShapeActivityGroup2">
+		<sequence>
+			<element name="shapeFileAttribute" type="fews:ShapeFileAttributeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Attribute to import from the file</documentation>
+				</annotation>
+			</element>
+			<element name="valueAttributeId"  type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of the dbf file column. The values from this column are use to fill the polygons</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+		</sequence>
+	</group>
+	<complexType name="ShapeFileAttributeComplexType">
+		<attribute name="attributeId" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>Attribute Id to import. This Id is associatedwith dbf column. Note: geojson file is first converted to the shp file</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="propertyKey" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Time series property key used to store the property value. By default, the key equals the attribute id</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="LocationIdColumnComplexType">
+		<attribute name="columnName" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>Name / header of the column used for the location id</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ExportLocationAttributeColumnComplexType">
+		<attribute name="columnName" type="fews:nonEmptyStringType" use="required">
+			<annotation>
+				<documentation>Name / header of the column used for the values of this attibute</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="attributeId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Attribute that should be used to overrule the id of the location, useful if a different external id is desired for the location</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="PropertiesWithLocationAttributesComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description (this is never used in the code).</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:PropertiesChoice" maxOccurs="unbounded"/>
+			<element name="locationAttribute" type="fews:LocationAttributePropertyComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Optional. Since 2021.02, it is possible to include location attributes as properties.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="MetadataComplexType">
+		<sequence>
+			<group ref="fews:MetadataGroup"/>
+		</sequence>
+	</complexType>
+</schema>

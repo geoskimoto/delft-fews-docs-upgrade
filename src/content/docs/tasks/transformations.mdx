@@ -1,0 +1,257 @@
+---
+title: Transformations
+description: Compute new series from existing ones — the input→function→output pattern that every FEWS transformation shares, a gap-filling walkthrough, and the gotchas that make derived series go missing.
+sidebar:
+  order: 7
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A transformation is FEWS doing arithmetic on data it already holds. It reads one
+or more **input** [time series](/concepts/glossary/#time-series), computes
+something — gap-fill, aggregate, convert stage to flow — and writes one or more
+**output** series back into the data store. That's [hop
+④](/concepts/data-flow/), the *process* step: no outside world, no ID mapping,
+just internal series in and internal series out. In a real run it's almost always
+a **middle step** — the pre-processing before a model and the post-processing
+after it, both listed in a [workflow](/tasks/workflows/) (see [the
+lifecycle](/concepts/lifecycle/), steps 3 and 5).
+
+<Aside type="note" title="Prerequisites">
+A transformation can only read series that already exist. Its inputs come from an
+earlier hop — an [import](/tasks/import-timeseries/) or a prior transformation —
+and it references the same [locations](/tasks/locations/) and
+[parameters](/tasks/parameters/) as everything else. Declare those first.
+</Aside>
+
+## The core pattern
+
+Strip away the dozens of transformation types and every one has the same shape:
+a `transformation` names a **function**, the function reads an
+**`inputVariable`** and writes an **`outputVariable`**, and each of those is just
+a `timeSeriesSet` (the same kind you write in an import). Compute in the middle,
+a series on each side.
+
+<div class="diagram">
+
+```text
+transformationModule  (version="1.0")
+├─ variable*            ← optional named timeSeriesSets, reusable across steps
+└─ transformation  id="…"   (one or more, run top to bottom)
+   └─ <functionType>        ← e.g. interpolationSerial, aggregation, stageDischarge…
+      └─ <variant>          ← the specific function (e.g. linear, accumulative)
+         ├─ inputVariable   ─┐  each is EITHER
+         │   └─ timeSeriesSet │   an embedded <timeSeriesSet>
+         └─ outputVariable  ─┘   OR a <variableId> ref to a <variable>
+             └─ timeSeriesSet
+```
+
+</div>
+
+Two things carry the whole model:
+
+1. **Input and output are ordinary `timeSeriesSet`s.** The function reads the
+   series the input set resolves to and writes the series the output set
+   describes — same fields (`moduleInstanceId`, `parameterId`, `locationId`,
+   `timeSeriesType`, `timeStep`) you already know from
+   [importing](/tasks/import-timeseries/).
+2. **Transformations chain by naming.** One step's output series is the next
+   step's input. Define it once as a `<variable>` and reference it by
+   `variableId`, or just write the same `timeSeriesSet` on both sides of the
+   seam.
+
+## Minimal example: fill gaps in observed discharge
+
+Imported gauge data has holes — a sensor dropout, a late telemetry packet. Before
+a model consumes `Q.obs` it usually wants a *continuous* series. A serial linear
+interpolation fills short gaps by drawing a straight line between the values on
+either side, and writes the result as a new, derived series.
+
+```xml title="Config/ModuleConfigFiles/PreProcessObservations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="FillGapsQobs">
+    <interpolationSerial>
+      <linear>
+        <inputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationId>RiverGauge_01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariable>
+        <maxGapLength>6</maxGapLength>
+        <outputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>PreProcessObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationId>RiverGauge_01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </outputVariable>
+      </linear>
+    </interpolationSerial>
+  </transformation>
+</transformationModule>
+```
+
+What each part is doing:
+
+- **`inputVariable`** points at exactly the series the
+  [import](/tasks/import-timeseries/) wrote — same header, `external historical`,
+  from `moduleInstanceId` `ImportObservations`. If any field here doesn't match a
+  stored series, the transformation reads nothing.
+- **`maxGapLength`** (optional) caps how big a gap gets filled — here, gaps of up
+  to 6 time steps. Larger holes are left missing rather than invented across.
+- **`outputVariable`** describes the *new* series. Note `moduleInstanceId` is now
+  `PreProcessObservations` and `timeSeriesType` is `simulated historical`: this
+  value was **computed by FEWS**, not observed, so it gets a distinct header and
+  won't collide with the raw import.
+- **`id="FillGapsQobs"`** on `transformation` is a label for logs and error
+  messages only — it is not the series' identity.
+
+## How a transformation resolves its data
+
+A transformation is defined by *what it reads and writes*, not by named
+locations baked into the function. Because the input and output are
+`timeSeriesSet`s, everything you can do with a set applies:
+
+- Swap `locationId` for **`locationSetId`** (e.g. `AllDischargeGauges`) and the
+  one transformation runs per location in the set — gap-fill every gauge with a
+  single block. FEWS pairs each input location with the same-named output
+  location.
+- The output's **`parameterId`** and **`timeStep`** can differ from the input's.
+  That's exactly how an *aggregation* works: read hourly `Q.obs`, write a daily
+  series with `timeStep unit="day"`.
+
+## Common patterns
+
+- **Chaining steps.** List several `transformation` elements; they run top to
+  bottom. Give an intermediate result a `timeSeriesType` of `temporary` (or
+  hold it in a `<variable>`) when it exists only to feed the next step and
+  needn't persist.
+- **Reusable variables.** Declare a `<variable>` with a `variableId` and a
+  `timeSeriesSet` at the top of the module, then reference it by `<variableId>`
+  in later `inputVariable`/`outputVariable` blocks instead of repeating the set.
+- **Pre- vs post-processing.** The *same* module type does both — placement in
+  the [workflow](/tasks/workflows/) decides. Gap-fill and rating curves run
+  *before* the [model](/tasks/general-adapter/); ensemble stats and error
+  correction run *after*.
+- **Different result per range or period.** Instead of a single function, a
+  `transformation` can hold `rangeTransformation`s (a different computation for
+  different value ranges of a limit variable) or `periodTransformation`s
+  (different by time period) — reach for these when one formula doesn't fit the
+  whole domain.
+
+## The transformation families
+
+The function element (`interpolationSerial` above) is one of *many*. You don't
+learn them all up front; you reach for the family that matches the job. The
+common ones:
+
+| Family | Root element(s) | Typical use |
+| --- | --- | --- |
+| Gap-filling / interpolation | `interpolationSerial`, `interpolationSpatial` | Fill holes, extrapolate, interpolate across gauges. |
+| Aggregation / disaggregation | `aggregation`, `disaggregation`, `accumulation`, `deaccumulation` | Hourly→daily and back; sums vs means. |
+| Rating curves | `stageDischarge`, `dischargeStage` | Convert water level ↔ discharge. |
+| Combine / select | `merge`, `copy`, `selection`, `conditional` | Merge sources, pick a preferred series, branch on a condition. |
+| Arithmetic / user-defined | `user` | Custom formulas over one or more inputs. |
+| Statistics | `statisticsSerial`, `statisticsEnsemble`, … | Rolling means, ensemble spread, summaries. |
+| Time manipulation | `timeShift`, `sample` | Shift or resample in time. |
+
+<Aside type="caution" title="The full catalogue lives in the schema">
+There are far more function types (and many sub-variants per type) than any page
+should transcribe, and the exact child elements are version-dependent — new
+functions and options arrive with most FEWS releases. Treat the table above as a
+map, not a reference. For the authoritative list of function elements and the
+precise fields each one accepts, read the choice group in
+[`transformationTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationTypes.xsd)
+(included by
+[`transformationModule.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationModule.xsd)).
+The **input→function→output** shape is the stable part you can rely on; the
+specific function's inner fields are what to verify against the `.xsd`.
+</Aside>
+
+## Key fields at a glance
+
+**`transformationModule`** (the file root, `version="1.0"`)
+
+| Field | Meaning |
+| --- | --- |
+| `timeZone` | Optional zone for dates/times in this file (defaults to GMT). |
+| `variable` | Optional named `timeSeriesSet`s, reusable as input/output across steps. |
+| `transformation` | One or more; executed in document order. |
+
+**`transformation`**
+
+| Field | Meaning |
+| --- | --- |
+| `id` (attribute, required) | Label used **only** in log and exception messages. |
+| *function element* | One of the family elements (e.g. `interpolationSerial`, `aggregation`) — or `rangeTransformation` / `periodTransformation` for conditional variants. |
+| `description` | Optional tooltip shown in the workflow tree. |
+
+**`inputVariable` / `outputVariable`** (inside a function)
+
+| Field | Meaning |
+| --- | --- |
+| `timeSeriesSet` | Embedded set describing the series to read / write. |
+| `variableId` | Alternative: reference a `<variable>` defined above (optionally narrowed with `locationId`). |
+
+## Gotchas
+
+- **Reads nothing → the input header doesn't match.** The `inputVariable`'s
+  `timeSeriesSet` must reconstruct the exact header an earlier hop stored —
+  `moduleInstanceId`, `parameterId`, `locationId`, `timeSeriesType`, `timeStep`,
+  field for field. A mismatch isn't an error; the transformation just has no
+  data to work on. Line it up against the producing [import](/tasks/import-timeseries/)
+  or upstream step.
+- **Output overwrites the input → give the result its own identity.** If the
+  output `timeSeriesSet` has the same header as the input, the derived series
+  lands on top of the source. Change the `moduleInstanceId` and use a computed
+  `timeSeriesType` (`simulated historical` / `simulated forecasting`) so the
+  result is a distinct series.
+- **`readWriteMode` is required, but inert here.** The schema requires it on
+  every `timeSeriesSet`, so include it (`read only` on inputs, `add originals` on
+  outputs is a sensible convention). Its read-only-vs-editable *semantics* are
+  honoured *only* by the Time Series Display; the transformation module ignores
+  the value, so don't rely on it to control writes.
+- **Runs but nothing downstream sees it.** Whatever consumes the result — the
+  [model](/tasks/general-adapter/), a [filter](/tasks/filters-displays/), a
+  [threshold](/tasks/thresholds/) check — must query the **output** header you
+  wrote, not the input one. Match the two ends of every seam.
+- **A change has no effect → a higher-versioned file wins.** Check for a sibling
+  like `PreProcessObservations 1.01 default.xml`. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Run the transformation** as a step in a [workflow](/tasks/workflows/) and
+   read the log. Config problems and "no input data" show up here, keyed by the
+   `transformation` `id`.
+2. **Browse the derived series.** Add a [filter](/tasks/filters-displays/) whose
+   `timeSeriesSet` matches the **output** header (here: `moduleInstanceId`
+   `PreProcessObservations`, `simulated historical`) and confirm it appears.
+3. **Compare input and output on one chart.** Plot the raw `Q.obs` and the
+   gap-filled series together — the fills should bridge exactly the holes you
+   expected, and no farther than `maxGapLength`.
+
+</Steps>
+
+## See also
+
+<Card title="Related pieces" icon="right-arrow">
+- [Import time series](/tasks/import-timeseries/) — where a transformation's inputs usually come from
+- [Workflows](/tasks/workflows/) — the file that orders transformations before and after a model
+- [General Adapter](/tasks/general-adapter/) — the model run that pre-/post-processing wraps around
+- Concept: [How data flows through FEWS](/concepts/data-flow/) (hop ④) and [the lifecycle](/concepts/lifecycle/) (steps 3 & 5)
+- Schema: [`transformationModule.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationModule.xsd) and the function catalogue in [`transformationTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationTypes.xsd)
+</Card>

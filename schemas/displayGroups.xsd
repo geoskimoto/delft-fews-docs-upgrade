@@ -1,0 +1,1072 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="displayGroups" type="fews:DisplayGroupsComplexType"/>
+	<complexType name="DisplayGroupsComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="plot" type="fews:PlotComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="displayGroup" type="fews:DisplayGroupComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="optional" fixed="1.0"/>
+	</complexType>
+	<!---->
+	<complexType name="DisplayGroupComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="nodeId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+						This group is automatically selected when the node is selected in the topology panel
+						References a node in the topology.xml
+					</documentation>
+				</annotation>
+			</element>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+                        set a permission to control who can view this display group
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="editPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Set a permission to control who can edit timeseries enumerated in this display group (only editable timeseries can be editted)</documentation>
+				</annotation>
+			</element>
+			<element name="locationLoop" type="fews:LocationLoopComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01 Define a location set to create the tree of display groups for each location in the set</documentation>
+				</annotation>
+			</element>
+			<choice maxOccurs="unbounded">
+				<element name="display" type="fews:DisplayComplexType"/>
+				<element name="singleLocationDisplays" type="fews:DisplayComplexType">
+					<annotation>
+						<documentation>Adds multiple displays at once to this display group.
+							Every display will show only one location.</documentation>
+					</annotation>
+				</element>
+				<element name="singleParentLocationDisplays" type="fews:DisplayComplexType">
+					<annotation>
+						<documentation>Adds multiple displays at once to this display group.
+							Every display will show only children for one parent location, and the the parent location
+							itself when specified in the time series sets
+						</documentation>
+					</annotation>
+				</element>
+				<element name="displayGroup" type="fews:DisplayGroupComplexType"/>
+				<element name="displayGroupId" type="string">
+					<annotation>
+						<documentation>Since 2023.01. Include a display group defined elsewhere by referencing via the id. Can also reference to a display group in another displayGroups*.xml file. When root nodes are referenced they will only be placed at the location they are referenced and not as a separate tree.</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="name" type="fews:nameStringType" use="required"/>
+		<attribute name="id" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<!---->
+	<complexType name="RelativeViewPeriodScrollerComplexType">
+		<sequence>
+			<choice>
+				<element name="relativeViewPeriod" type="fews:TimeSeriesSetRelativePeriodComplexType"/>
+				<element name="showAllData" type="boolean" default="false"/>
+			</choice>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="PlotComplexType">
+		<annotation>
+			<documentation>Defines a number of sub plots with can be shared by multiple displays.
+            Add all the series you want to see in any display that uses this plot. In a specific display you can select a number
+                of series for one or more specific locations</documentation>
+		</annotation>
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="legendFontSize" type="positiveInteger" default="11" minOccurs="0"/>
+			<element name="axisTitleFontSize" type="positiveInteger" default="10" minOccurs="0"/>
+			<element name="tickLabelFontSize" type="positiveInteger" default="9" minOccurs="0"/>
+			<element name="tickTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Applicable only to scalar plots. 		When configured, the ticks  are  tied to this time step. For example if the time step is 6 hours, then the ticks are aligned with the synoptic times 00Z, 06Z, 12Z, 18Z. 
+					</documentation>
+				</annotation>
+			</element>
+			<element name="synchronizeParameterAxis" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02. When configured, the parameter axis of different subplots showing time series from the same parameter group will be synchronized, i.e., they will show the same value range.</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityGroup" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.01. Optional. Defines the order of the visibility groups in the drop down box
+					</documentation>
+				</annotation>
+			</element>
+			<element name="profilePositionMarkerLine" type="fews:ProfilePositionMarkerLineComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Horizonal marker line at a vertical position in a vertial profile or a horizontal chainage line in longitudinal profile. The line is attachted to time series set
+						with height/depth/chainage as parameter. The marker stretches over all sub-plots
+					</documentation>
+				</annotation>
+			</element>
+			<element name="subplot" type="fews:SubPlotComplexType" maxOccurs="unbounded"/>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>Optional element that allows configuration of alternate viewers for plots or table. If this element is not configured the TimeSeriesDialog uses plot viewer and table viewer that is default for the confugured time series               </documentation>
+				</annotation>
+				<element name="plotViewerId" type="fews:idStringType">
+					<annotation>
+						<documentation>
+                        </documentation>
+					</annotation>
+				</element>
+				<element name="tableViewerId" type="fews:idStringType"/>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+	</complexType>
+	<group name="SeasonGroup">
+		<sequence>
+			<element name="startForwardLookingPeriod" type="fews:monthDayType">
+				<annotation>
+					<documentation>When the current day month is before the start of the startForwardLookingPeriod in a year then the season of the previous year will be selected, otherwise the season of this year or the next year will be chosen. Note: using this option in combination with time series sets with readWriteMode set to "read complete forecast" will change the zoom period to also include the complete forecast (in addition to the season).</documentation>
+				</annotation>
+			</element>
+			<element name="season" type="fews:SeasonConditionComplexType"/>
+		</sequence>
+	</group>
+	<complexType name="DisplayComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+                        set a permission to control who can view this display
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="visibilityGroup" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2026.01. Optional. Defines the order of the visibility groups in the dropdown box
+					</documentation>
+				</annotation>
+			</element>
+			<element name="editPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Set a permission to control who can edit timeseries enumerated in this display  (only editable timeseries can be editted)</documentation>
+				</annotation>
+			</element>
+			<element name="enabledModifierGroups" type="fews:EnabledModifierGroups" minOccurs="0"/>
+			<choice>
+				<element name="relativeViewPeriod" type="fews:TimeSeriesSetRelativePeriodComplexType" minOccurs="0"/>
+				<group ref="fews:SeasonGroup" minOccurs="0"/>
+			</choice>
+			<choice>
+				<element name="nrOfRecentForecasts" type="nonNegativeInteger" default="0" minOccurs="0">
+					<annotation>
+						<documentation>By default only the current and selected forecasts forecast are visible, when
+							specifying e.g. 5
+							you see also the 5 most recent forecasts with a time0 before or at the display time.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="forecastSearchPeriod" type="fews:RelativePeriodComplexType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Shows for every specified forecastSearchPeriod the last available forecast. Duplicate found forecasts are filtered out.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="plotPerForecast" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>With this option it is possible to display each forecast in a separate plot
+					</documentation>
+				</annotation>
+			</element>
+			<element name="explorerFilterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2022.01 If a location in Filters is double clicked, then a  shortcut display will be opened  that matches both the clicked location  and one of the configured explorerFilterId’s
+						This functionality is  there only if  an option  doubleClickLocationEnabled is true in ‘TimeSeriesDialog’ explorerTask. </documentation>
+				</annotation>
+			</element>
+			<element name="explorerLocationId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>When the shortcuts option is given to the TimeSeriesDialog (clicking on a location) the first
+                   display that contains the clicked location is shown. When you specify an explorer location id than than this display is always
+                        shown when the user clicks  on the specified location </documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This makes it possible to reuse the same plot definition for multiple displays/charts
+                        section. When no constraints are specified all locations in the specified plot are visible
+					</documentation>
+				</annotation>
+				<element name="locationId" type="fews:idStringType"/>
+				<element name="locationSetId" type="fews:idStringType"/>
+			</choice>
+			<element name="moduleInstanceId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Optional. One or more moduleInstanceIds to filter the time series that are shown. This makes it possible to reuse the same plot definition for multiple displays/charts. When no constraints are specified all moduleInstanceIds in the specified plot are visible. When using this filter, all module instances should be listed which should be shown in the display, even if some of these module instances are individually defined in a timeSeriesSet as part of the plot. Since stable build 2013.02.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ModuleInstanceIdPatternSequence">
+				<annotation>
+					<documentation>Since 2015.01 Optional. One or more moduleInstanceIdPatterns to filter the time series that are shown. This makes it possible to reuse the same plot definition for multiple displays/charts. When no constraints are specified all moduleInstanceIds in the specified plot are visible. When using this filter, all module instances should be listed which should be shown in the display, even if some of these module instances are individually defined in a timeSeriesSet as part of the plot. Since stable build 2014.03.</documentation>
+				</annotation>
+			</group>
+			<element name="not" type="fews:TimeSeriesFilterNotComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01 Optional. One or more moduleInstanceIdPatterns to filter the time series that are shown. This makes it possible to reuse the same plot definition for multiple displays/charts. When no constraints are specified all moduleInstanceIds in the specified plot are visible. When using this filter, all module instances should be listed which should be shown in the display, even if some of these module instances are individually defined in a timeSeriesSet as part of the plot. Since stable build 2014.03.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>This makes it possible to reuse the same plot definition for multiple displays/charts
+                        section. When no constraints are specified all locations in the specified plot
+                        are visible</documentation>
+				</annotation>
+				<element name="parentLocationId" type="fews:idStringType"/>
+				<element name="parentLocationSetId" type="fews:idStringType"/>
+			</choice>
+			<element name="locationConstraints" type="fews:ConstraintsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This makes it possible to reuse the same plot definition for multiple displays/charts
+						section. When no constraints are specified all locations in the specified plot are visible
+					</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Define with locations can provide threshold value sets.
+                        By default all visible locations in a plot can provide threshold value sets.
+                        When multiple threshold values sets are active in one sub plot all thresholds are hidden for this
+                        plot.
+                    </documentation>
+				</annotation>
+				<element name="thresholdLocationId" type="fews:idStringType"/>
+				<element name="thresholdLocationSetId" type="fews:idStringType"/>
+			</choice>
+			<element name="tickTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Applicable only to scalar plots.
+When configured, the ticks  are  tied to this time step. For example if the time step is 6 hours, then the ticks are aligned with the synoptic times 00Z, 06Z, 12Z, 18Z.
+</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="legendFontSize" type="positiveInteger" default="11" minOccurs="0"/>
+					<element name="axisTitleFontSize" type="positiveInteger" default="10" minOccurs="0"/>
+					<element name="tickLabelFontSize" type="positiveInteger" default="9" minOccurs="0"/>
+					<element name="synchronizeParameterAxis" type="boolean" default="false" minOccurs="0">
+						<annotation>
+							<documentation>Since 2018.02. When configured, the parameter axis of different subplots showing time series from the same parameter group will be synchronized, i.e., they will show the same value range.</documentation>
+						</annotation>
+					</element>
+					<element name="subplot" type="fews:SubPlotComplexType" maxOccurs="unbounded"/>
+				</sequence>
+				<element name="plotId" type="fews:idStringType"/>
+			</choice>
+			<sequence minOccurs="0">
+				<element name="showAsVerticalProfile" type="boolean">
+					<annotation>
+						<documentation>
+							SINCE 2011.02. When true vertical profile time series are calculated on the fly from the scalar time series at the child locations from the locations specified in the time
+							series sets.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="alwaysDisplayAsColorMap" type="boolean" minOccurs="0" default="false">
+					<annotation>
+						<documentation>Available since 2024.01. If set to true, the plot will be displayed as a color map by default. A heatmap can only be displayed if the subplot has a classbreak configured.
+							It can only be used in combination with showAsVerticalProfile = true.
+							If it's set to true, toggling between vertical profile and heatmap will be disabled.</documentation>
+					</annotation>
+				</element>
+				<element name="contourLineColor" type="fews:colorStringType" minOccurs="0">
+					<annotation>
+						<documentation>Available since 2025.01. Allows to configure a custom contour line colour for the heatmap. All contour lines in the same subplot will have the same color.
+							Default is black.
+						</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="relativeViewPeriodScroller" type="fews:RelativeViewPeriodScrollerComplexType" minOccurs="0">
+				<annotation>
+					<documentation>If a relativeViewPeriodScroller is configured a plot with the configured
+						timeseries will be plotted underneath the configured plots.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="displayViewType" type="fews:viewType" minOccurs="0"/>
+			<group ref="fews:statisticalFunctionChoice">
+				<annotation>
+					<documentation>Optional value that allows control on how the diplay opens the timeSeriesDialog;
+                        table- or chart mode. Default is chart mode.
+					</documentation>
+				</annotation>
+			</group>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="optional"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<simpleType name="viewType">
+		<restriction base="string">
+			<enumeration value="table"/>
+			<enumeration value="chart"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="ratingCurveAxisChoice">
+		<restriction base="string">
+			<enumeration value="stageDischarge"/>
+			<enumeration value="dischargeStage"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ShowElevationFunctionComplexType">
+		<sequence>
+			<element name="errorBar" type="fews:ErrorBarComplexType" minOccurs="2" maxOccurs="2"/>
+		</sequence>
+	</complexType>
+	<complexType name="ErrorBarComplexType">
+		<sequence>
+			<element name="parameterID" type="string"/>
+			<element name="qualifierID" type="string" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<group name="statisticalFunctionChoice">
+		<choice>
+			<element name="showAsScatterPlot" type="fews:ShowAsScatterPlotComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11245 Time series will be displayed in a scatter box, show the correlation between all different parameters. The interaction line is also displayed in the scatter box
+					</documentation>
+				</annotation>
+			</element>
+			<element name="addInteractionScatterPlot" type="fews:InteractionScatterPlotComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. If set to true, the time series display will show a regular time series, and the scatterplot will only appear if the info plot button is selected. The info plot button has to be enabled in the TieSeriesDisplayConfig.xml buttonsettings.</documentation>
+				</annotation>
+			</element>
+			<element name="showElevationFunction" type="fews:ShowElevationFunctionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. Selects the elevation statistical function.</documentation>
+				</annotation>
+			</element>
+			<element name="statisticalFunctionId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02. Id of the statistical function configured in the system config file TimeSeriesDisplay.xml</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="InteractionLineComplexType">
+		<sequence>
+			<group ref="fews:ScatterPlotLineElements"/>
+			<element name="referencePoints" type="fews:ReferencePointsComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="DataLineComplexType">
+		<sequence>
+			<group ref="fews:ScatterPlotLineElements"/>
+		</sequence>
+	</complexType>
+	<group name="ScatterPlotLineElements">
+		<sequence>
+			<element name="lineColor" type="fews:colorStringType" minOccurs="0"></element>
+			<element name="lineStyle" type="fews:chartLineStyleEnumStringType" minOccurs="0"></element>
+			<element name="lineWidth" type="fews:nonNegativeDouble" minOccurs="0"/>
+			<element name="markerStyle" type="fews:markerStyleEnumStringType" minOccurs="0"/>
+			<element name="markerSize" type="fews:markerSizeIntegerType" minOccurs="0"/>
+			<element name="labelText" type="string" minOccurs="0"/>
+		</sequence>
+	</group>
+	<complexType name="InteractionScatterPlotComplexType">
+		<sequence>
+			<sequence minOccurs="0">
+				<element name="xAxisParameterId" type="fews:idStringType"/>
+				<element name="yAxisParameterId" type="fews:idStringType"/>
+			</sequence>
+			<element name="dataLine" type="fews:DataLineComplexType" minOccurs="0"></element>
+			<group ref="fews:ScatterPlotElements"/>
+		</sequence>
+	</complexType>
+	<complexType name="ShowAsScatterPlotComplexType">
+		<sequence>
+			<group ref="fews:ScatterPlotElements"/>
+		</sequence>
+	</complexType>
+	<group name="ScatterPlotElements">
+		<sequence>
+			<element name="chartTitle" type="string" minOccurs="0"/>
+			<choice>
+				<element name="referencePoints" type="fews:ReferencePointsComplexType" minOccurs="0" maxOccurs="unbounded"/>
+				<element name="interactionLine" type="fews:InteractionLineComplexType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2023.02. An interaction line is a line (consiting of pre-defined points insted of a time series) added to the scaterplot chart. Colour, width, style and individual legend label can be configured.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="referencePointsLegendLabel" type="string" minOccurs="0"/>
+			<element name="coloredBackgroundArea" type="fews:ColoredBackgroundAreaComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2020.02</documentation>
+				</annotation>
+			</element>
+			<element name="xAxisRange" type="fews:AxisRangeComplexType" minOccurs="0"/>
+			<element name="xAxisTitle" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02 optional element which can be used to define the title for the x-axis
+					</documentation>
+				</annotation>
+			</element>
+			<element name="yAxisRange" type="fews:AxisRangeComplexType" minOccurs="0"/>
+			<element name="yAxisTitle" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02 optional element which can be used to define the title for the y-axis
+					</documentation>
+				</annotation>
+			</element>
+			<element name="overrulingSeriesLabel" type="string" minOccurs="0" maxOccurs="unbounded"/>
+			<choice minOccurs="0">
+				<element name="createPairsByMatchingParameter" type="boolean" default="true" minOccurs="0">
+					<annotation>
+						<documentation>Since 2017.02 time series which have the same parameter are matched in the scatter plot, if this option is set to false they will be matched by location.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="matchTimeSeriesPair" type="fews:matchTimeSeriesPairBy">
+					<annotation>
+						<documentation>Since 2020.02</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="markerVisibility" type="fews:markerVisibilityEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 Choose whether all, none or only the last data point will have a marker, default all points will have a marker</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="AxisRangeComplexType">
+		<sequence>
+			<element name="min" type="float"/>
+			<element name="max" type="float"/>
+		</sequence>
+	</complexType>
+	<complexType name="ratingAxisComplexType">
+		<sequence>
+			<element name="parameterGroupId" type="fews:fileStringType">
+				<annotation>
+					<documentation>Name of the parameterGroup which will be displayed on the right Axis. The units and name of the group will be used to display a unit name and units on the axis</documentation>
+				</annotation>
+			</element>
+			<element name="transformationType" type="fews:ratingCurveAxisChoice">
+				<annotation>
+					<documentation>This option will determine in which direction the lookup of ticks of the right axis will be performed. For example. Applying true for a plot with Discharge on the right axis will ensure that a Discharge to Stage transformation will be performed.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurve" type="fews:RatingCurveLocationQualifierComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="LookupAxisComplexType">
+		<annotation>
+			<documentation>Since 2017.02 Describes the conversion type, for example "stage to storage"  or "storage to stage" </documentation>
+		</annotation>
+		<sequence>
+			<element name="inputColumnParameterId" type="fews:idStringType">
+				<annotation>
+					<documentation>Lookup table parameter Id  associated with the left axis. For example Stage if the stage ticks should be converted to ticks  (e.g. storage ticks) on the right axis.</documentation>
+				</annotation>
+			</element>
+			<element name="outputColumnParameterId" type="fews:idStringType">
+				<annotation>
+					<documentation>Lookup table parameter Id  associated with the right axis. For example Storage if the storage ticks should be computed from the ticks on the left axis</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Optional,  used to identify the lookup table </documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SubPlotComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="subPlotType" type="fews:subPlotEnumStringType" default="standard" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02       'standard'= default plot type for the configure ttimeSeriesType. 'stack' = time series of this subplot are plotted as stacked areas (if lineStyle is solid) or stacked bars (if lineStyle is bar). "colormapbars"=  time series of this subplot are plotted as stacked bars. Color of the bar matches the paint scale color associated with the bar value. Height of all bars is the same, and equals Y-axis  range / number of series in the plot</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ChartAxisFormatChoice" minOccurs="0"/>
+			<element name="barMarginPercentage" type="fews:percentageType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02. Percentage of the bar width by which the bar width will be reduced, to create space between the bars. Default value is the barMarginPercentage in the generalDisplayConfig of the TimeSeriesDisplayConfig.xml (which is 0 by default). Use the general option to set a barMarginPercentage to be applied to all subplots containing bars. Use this config option to overrule the general barMarginPercentage for a specific subplot.</documentation>
+				</annotation>
+			</element>
+			<element name="inverted" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>This option can be used to invert the y-axis of a plot</documentation>
+				</annotation>
+			</element>
+			<element name="logarithmic" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2020.02 This option can be used to make the y axis logarithmic.</documentation>
+				</annotation>
+			</element>
+			<element name="drawingOrderInverted" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>This option can be used to invert drawing order of the lines. By default the lines are drawn in the same order as shown in the legend : the first line first, the last line last.   The last line is then on top. If drawing order is inverted the last line in the legend is drawn first and the first line last. The first line is then on top.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="splitForDifferentRuns" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>When true, for each time series from a different run a separate subplot is created</documentation>
+				</annotation>
+			</element>
+			<element name="plotWeight" type="fews:positiveInteger" minOccurs="0">
+				<annotation>
+					<documentation>The plot weight is an integer &gt;= 1, default 1. The plotWeight determines how much space is allocated to the subplot relative to all the other subplots.</documentation>
+				</annotation>
+			</element>
+			<element name="plotSeparatorWeight" type="fews:nonNegativeDouble" minOccurs="0">
+				<annotation>
+					<documentation>The plot separator weight is a double >= 0, default 0.1. It determines how much whitespace is allocated above this subplot, relative to all other subplots. Value will be ignored for first subplot. For example, if the first subplot, second subplot and separator of the second subplot are all given equal weight, each will occupy 1/3 of the screen.</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdAxis" type="fews:subPlotChartAxisEnumStringType" default="left" minOccurs="0">
+				<annotation>
+					<documentation>Option to indicate whether to use the left (default), right, or both axes in displaying thresholds. If no thresholds should be shown, use none</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdAxisScaling" type="fews:thresholdAxisScalingEnumStringType" default="two thresholds" minOccurs="0"/>
+			<element name="forecastConfidenceTimeSpan1" type="fews:TimeSpanComplexType" minOccurs="0"/>
+			<element name="forecastConfidenceTimeSpan2" type="fews:TimeSpanComplexType" minOccurs="0"/>
+			<element name="forecastConfidenceTimeSpan3" type="fews:TimeSpanComplexType" minOccurs="0"/>
+			<element name="line" type="fews:SubPlotLineComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Use 'line' to specify time series that should be displayed as a (customized) line.  </documentation>
+				</annotation>
+			</element>
+			<element name="area" type="fews:SubPlotAreaComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Displays the extent of multiple time series as a single area. The area between the max
+                        and min values for each time are filled with a single color. The areas are always displayed behind the other lines.
+                        The area is painted on top of areas already specified, so specify the largest areas first.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="clusteredBars" type="fews:SubPlotClusteredBarsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. The time series are plotted as clustered bars</documentation>
+				</annotation>
+			</element>
+			<element name="variableLineWidth" type="fews:SubPlotVariableLineWidthComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11325. Plot for which lines can have a variable line width over time. A time series set for the normal values is used and a separate time series set for the line width is used. For each value time series a line width time series is needed. Works best to use a value and line width time series set that only differ on parameter</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ClassBreaksChoice" minOccurs="0">
+				<annotation>
+					<documentation>
+						SINCE 2011.02-dec. Class breaks to color the vertical profile or polar plot.
+					</documentation>
+				</annotation>
+			</group>
+			<element name="direction" type="fews:gridPlotDirectionTypeEnumStringType" default="from" minOccurs="0">
+				<annotation>
+					<documentation>Direction of the polar plot (to or from), Default is from (wind)</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Use this sequence to specify time series that should be displayed as a (customized) line.  NOTE: this is a deprecated way of the configuration. Preferably use 'line'  element</documentation>
+				</annotation>
+				<group ref="fews:LineElements"/>
+				<element name="descriptiveFunction" type="fews:DescriptiveStatisticalFunctionComplexType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2013.01, FEWS-8603</documentation>
+					</annotation>
+				</element>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+			</sequence>
+			<element name="additionalTimeSeries" type="fews:AdditionalDisplayGroupsTimeSeriesComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2017.01 Additional time series that are invisible by default and can be made visible via time series visibility dialog. When defining settings for additional time series sets, like label, styling, axis and visibility either specify them for all time series sets or none.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="min" type="double" use="optional">
+			<annotation>
+				<documentation>Minimum value for the y-axis in the subplot. Will be overwritten if there is data available that falls inside the x-range, but is below the minimum value on the y-axis. In this case the y-range will be extended to the lowest y value + 5% of the y-range (autoscaling).
+			</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="max" type="double" use="optional">
+			<annotation>
+				<documentation>Not implemented
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="yAxisScalingType" type="fews:SubplotYAxisScalingTypeEnumStringType" use="optional" default="scaleOutsideMinAndMax">
+			<annotation>
+				<documentation>Available since 2020.02. Default is scaleOutsideMinAndMax. If it is set to scaleOutsideMinAndMax, the y axis will scale to the data available. If it is set to fixedBetweenMinAndMax, the min and max of the y axis will always be the configured values, regardless of the data. This could make the entire data set fall of the visible chart. If all the data is in the middle of min and max withing a small range, the axis will ot scale to the data, it will appear as a small line in the middle. If it is set to scaleBetweenMinAndMax, the min will never be smaller than what is configured, and the max will never be greater than configured, but if the available data falls between these values, the axis will scale so that the data fills the whole area. If the data falls entirely outside of min and max, it will not be visible.   </documentation>
+			</annotation>
+		</attribute>
+		<attribute name="convertDatum" type="boolean" use="optional"/>
+		<attribute name="stackPlot" type="boolean" use="optional">
+			<annotation>
+				<documentation>Deprecated  since 2014.02. If stackPlot is True, time series of this subplot are plotted as stacked areas (if lineStyle is solid) or stacked bars (if lineStyle is bar). </documentation>
+			</annotation>
+		</attribute>
+		<!-- todo add<attribute name="minRange" type="fews:nonNegativeDouble" use="optional"/>-->
+	</complexType>
+	<simpleType name="SubplotYAxisScalingTypeEnumStringType">
+		<annotation>
+			<documentation>Default value is scaleOutsideMinAndMax. If a different type of scaling is desired, the attributes min and max need to be configured in subplot.</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="fixedBetweenMinAndMax"/>
+			<enumeration value="scaleBetweenMinAndMax"/>
+			<enumeration value="scaleOutsideMinAndMax"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ProfilePositionMarkerLineComplexType">
+		<sequence>
+			<element name="lineColor" type="fews:colorStringType"/>
+			<element name="lineWidth" type="fews:nonNegativeDouble" minOccurs="0"/>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="SubPlotAreaComplexType">
+		<sequence>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>set a permission to control who can view this line</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityGroup" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.01. When configured the user can easily switch between different visibility profiles and to quickly turn-on and turn-off groups of time series
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:FillLineElements" minOccurs="0"/>
+			<element name="visibleInTable" type="boolean" default="true" minOccurs="0"/>
+			<element name="visibleInPlot" type="boolean" default="true" minOccurs="0"/>
+			<element name="color" type="fews:colorStringType" minOccurs="0"/>
+			<element name="opaquenessPercentage" type="fews:percentageType" minOccurs="0"/>
+			<element name="defaultReferenceValue" type="float" minOccurs="0">
+				<annotation>
+					<documentation>This option  is only relevant if  the subPlotArea has uneven number of series (e.g. one series) Then the  area for the last series is  drawn between the last series and this reference value.  If the reference value is not configured, 0.0 is used.</documentation>
+				</annotation>
+			</element>
+			<element name="includesZeros" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated option. Remove this option from your configuration (usage of this option has no effect)</documentation>
+				</annotation>
+			</element>
+			<element name="label" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since stable build 2014.01. Optional time series label in legend that overrules the default legend label. This can contain location attribute ids, e.g. "@BASIN@", where tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute is missing for a location, then an error is logged and the default legend label will be used for that location. If required to use a "@" sign in this element without using locationAttributes, then need to add an extra escape character "@" before each "@" sign. In other words "@@" is replaced with a single "@" sign.</documentation>
+				</annotation>
+			</element>
+			<element name="descriptiveFunction" type="fews:DescriptiveStatisticalFunctionComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2013.01, FEWS-8603</documentation>
+				</annotation>
+			</element>
+			<element name="statisticsEnsemble" type="fews:StatisticsEnsembleFunctionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.02. Only for WebOC!! Define a statistical function which will be applied to the ensemble time series. </documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="SubPlotClusteredBarsComplexType">
+		<sequence>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>set a permission to control who can view this line</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityGroup" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.01. When configured the user can easily switch between different visibility profiles and to quickly turn-on and turn-off groups of time series
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="bar" type="fews:SubPlotClusteredBarComplexType" minOccurs="2" maxOccurs="unbounded"/>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Deprecated. Use 'bar' instead</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="axis" type="fews:chartAxisEnumStringType"/>
+	</complexType>
+	<complexType name="SubPlotClusteredBarComplexType">
+		<sequence>
+			<group ref="fews:ClusteredBarElements"/>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+		</sequence>
+	</complexType>
+	<group name="ClusteredBarElements">
+		<sequence>
+			<element name="color" type="fews:colorStringType" minOccurs="0">
+				<annotation>
+					<documentation>Specify the color that overrules the color as specified with ParameterDisplayOptions.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingAxis" type="fews:ratingAxisComplexType" minOccurs="0"/>
+			<element name="visibleInLegend" type="boolean" default="true" minOccurs="0"/>
+			<element name="visibleInTable" type="boolean" default="true" minOccurs="0"/>
+			<element name="visibleInPlot" type="boolean" default="true" minOccurs="0"/>
+			<element name="label" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional time series label in legend that overrules the default legend label. Since stable build 2014.01 this can contain location attribute ids, e.g. "@BASIN@",
+						where tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute
+						values can be different for different locations. If an attribute is missing for a location, then an error is logged and the default legend label will be used for that location.
+						If required to use a "@" sign in this element without using locationAttributes, then need to add an extra escape character "@" before each "@" sign. In other words "@@" is
+						replaced with a single "@" sign.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="SubPlotVariableLineWidthComplexType">
+		<sequence>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>set a permission to control who can view this line</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityGroup" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.01. When configured the user can easily switch between different visibility profiles and to quickly turn-on and turn-off groups of time series
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:LineElements"/>
+			<element name="markerColor" type="fews:colorStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11325. Option to set marker color different from line color</documentation>
+				</annotation>
+			</element>
+			<element name="lineWidthScaleFactor" type="int">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11325. Factor to increase or decrease the line width</documentation>
+				</annotation>
+			</element>
+			<element name="valueTimeSeriesSet" type="fews:TimeSeriesSetComplexType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11325. Time series for XY values in line plot</documentation>
+				</annotation>
+			</element>
+			<element name="lineWidthTimeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11325. Time series for line width of the XY plot lines</documentation>
+				</annotation>
+			</element>
+			<element name="lineColorTimeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. FEWS-26172. Time series for line color of the XY plot lines</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="SubPlotLineComplexType">
+		<sequence>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>set a permission to control who can view this line</documentation>
+				</annotation>
+			</element>
+			<element name="visibilityGroup" type="fews:nonEmptyStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.01. When configured the user can easily switch between different visibility profiles and to quickly turn-on and turn-off groups of time series
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:LineElements"/>
+			<element name="descriptiveFunction" type="fews:DescriptiveStatisticalFunctionComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2013.01, FEWS-8603</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<group name="RightAxisElements">
+		<choice>
+			<element name="ratingAxis" type="fews:ratingAxisComplexType"/>
+			<element name="lookupAxis" type="fews:LookupAxisComplexType">
+				<annotation>
+					<documentation>Since 2017.02  LookupAxis   is an axis on the right side of the subplot. The ticks on this lookupAxis are created by the conversion of the left axis ticks, using the lookup tables (for example stage – storage  table) </documentation>
+				</annotation>
+			</element>
+			<element name="datumAxis" type="boolean">
+				<annotation>
+					<documentation>Since 2017.01 Datum axis  is an axis on the right side of the subplot, and it shows left axis ticks in  another datum :  if left axis shows local datum then datum axis shows global datum and vice versa. To convert to global datum the location altitude (z) of the first location in the subplot is used.  </documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<group name="LineElements">
+		<sequence>
+			<element name="color" type="fews:colorStringType" minOccurs="0">
+				<annotation>
+					<documentation>Specify the color that overrules the color as specified with ParameterDisplayOptions.                        </documentation>
+				</annotation>
+			</element>
+			<element name="lineStyle" type="fews:chartLineStyleEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Specify the line style that overrules the lineStyle as specified with ParameterDisplayOptions.
+            				 </documentation>
+				</annotation>
+			</element>
+			<group ref="fews:MarkerElements" minOccurs="0"/>
+			<element name="axis" type="fews:chartAxisEnumStringType" minOccurs="0"/>
+			<group ref="fews:RightAxisElements" minOccurs="0">
+				<annotation>
+					<documentation>If  ratingAxis or datumAxis  is configured, and element 'axis' is set to 'right' or to 'both', then this 'axis' setting is ignored and all series are attached to the left axis</documentation>
+				</annotation>
+			</group>
+			<element name="visibleInLegend" type="boolean" default="true" minOccurs="0"/>
+			<element name="label" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional time series label in legend that overrules the default legend label. Since stable build 2014.01 this can contain location attribute ids, e.g. "@BASIN@", where tags between "@" signs refer to location attributes that are defined in the locationSets config file. The tags are replaced by actual attribute values. These attribute values can be different for different locations. If an attribute is missing for a location, then an error is logged and the default legend label will be used for that location. If required to use a "@" sign in this element without using locationAttributes, then need to add an extra escape character "@" before each "@" sign. In other words "@@" is replaced with a single "@" sign.</documentation>
+				</annotation>
+			</element>
+			<element name="visibleInTable" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If a time series is marked with visibleInTable=false, the time series can be shown on the plot area, but will never show in the table. Not implemented for special plots
+					Since stable build 2018.02. Because of a bug in an external library this should never be configured outside of a line, clusteredBars or area element. </documentation>
+				</annotation>
+			</element>
+			<element name="visibleInPlot" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If a time series is marked with visibleInPlot=false, the time series can be shown on the table, but will never show in the plot. Not implemented for special plots
+					Since stable build 2019.02. Because of a bug in an external library this should never be configured outside of a line, clusteredBars or area element. </documentation>
+				</annotation>
+			</element>
+			<element name="statisticsEnsemble" type="fews:StatisticsEnsembleFunctionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.02. Only for WebOC!! Define a statistical function which will be applied to the ensemble time series. </documentation>
+				</annotation>
+			</element>
+			<element name="includeInStackPlot" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Available since 2026.02. This config option is only meant for subPlotType stack. If it's set to false, the line won't be added to the stack, but drawn as a simple line on top of the stack. Lines that are excluded from the stack have to be configured as last lines in the plot.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="StatisticsEnsembleFunctionComplexType">
+		<sequence>
+			<choice>
+				<element name="percentileExceedance" type="fews:PercentileExceedanceComplexType"/>
+				<element name="eventProbability" type="fews:EventProbabilityComplexType"/>
+				<element name="function" type="fews:StatisticsFunctionEnumStringType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<simpleType name="StatisticsFunctionEnumStringType">
+		<restriction base="string">
+			<enumeration value="sum"/>
+			<enumeration value="max"/>
+			<enumeration value="count"/>
+			<enumeration value="countFlags"/>
+			<enumeration value="kurtosis"/>
+			<enumeration value="mean"/>
+			<enumeration value="median"/>
+			<enumeration value="min"/>
+			<enumeration value="skewness"/>
+			<enumeration value="standardDeviation"/>
+			<enumeration value="rsquared"/>
+			<enumeration value="quartile"/>
+			<enumeration value="variance"/>
+		</restriction>
+	</simpleType>
+	<complexType name="PercentileExceedanceComplexType">
+		<sequence>
+			<element name="percentile" type="fews:percentageType"/>
+			<element name="adjustable" type="boolean"/>
+		</sequence>
+	</complexType>
+	<complexType name="EventProbabilityComplexType">
+		<sequence>
+			<element name="eventLowerValue" type="float"/>
+			<element name="eventUpperValue" type="float"/>
+			<element name="adjustable" type="boolean"/>
+		</sequence>
+	</complexType>
+	<group name="MarkerElements">
+		<sequence>
+			<choice>
+				<element name="markerStyle" type="fews:markerStyleEnumStringType"/>
+				<element name="markerText" type="string"/>
+			</choice>
+			<element name="markerSize" type="fews:markerSizeIntegerType" minOccurs="0"/>
+		</sequence>
+	</group>
+	<group name="FillLineElements">
+		<annotation>
+			<documentation>The area is filled with vertical lines. The configured lineStyle is used. The line filled area is displayed always behind the other lines that do not belong to any areas</documentation>
+		</annotation>
+		<sequence>
+			<element name="lineStyle" type="fews:chartLineStyleEnumStringType"/>
+			<element name="lineWidth" type="fews:nonNegativeDouble" minOccurs="0"/>
+		</sequence>
+	</group>
+	<simpleType name="subPlotEnumStringType">
+		<restriction base="string">
+			<enumeration value="standard">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11331</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="stack">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11331</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="colorMapBars">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11331:</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="horizontalColorCode">
+				<annotation>
+					<documentation>Since 2018.02</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<complexType name="LocationLoopComplexType">
+		<sequence>
+			<element name="locationSetId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2015.01. Id of location set which locations will be looped over</documentation>
+				</annotation>
+			</element>
+			<element name="includeChildren" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. Include child locations of loop location</documentation>
+				</annotation>
+			</element>
+			<element name="locationRelationId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.01. Include all locations that have one of the specified relations to or from the loop location</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="AdditionalDisplayGroupsTimeSeriesComplexType">
+		<sequence>
+			<element name="locationFunctionEquals" type="fews:AdditionalTimeSeriesFunctionEquals">
+				<annotation>
+					<documentation>Element to define 2 attribute functions for the selected time series from the "normal" time series set and for the time series sets from the additional time series. When the attribute functions evaluate to the same value the additional time series are added as invisible by default. When additional time series are available the icon of the visibility dialog will change which shows that invisible time series are available and can be made visible. When it is desired that the additional time series are added only for the same locations then all locations should have an attribute that is equal to their id for example LOC_ID and the locationFunctionEquals element can be used as follows: selected="@LOC_ID@" additional="@LOC_ID@". If a different attribute is used for example additional="@XXX@" all timeseries from the additional time series set where the location has an attribute value of XXX which equals the LOC_ID attribute of the location of the normal time series set will be shown, this can be multiple or even 0.</documentation>
+				</annotation>
+			</element>
+			<sequence maxOccurs="unbounded">
+				<group ref="fews:LineElements">
+					<annotation>
+						<documentation>Elements to define settings for additional time series sets, like label, styling, axis and visibility. Either specify them for all time series sets or none.</documentation>
+					</annotation>
+				</group>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType"/>
+			</sequence>
+		</sequence>
+		<attribute name="name" type="string"/>
+		<attribute name="separateSubPlot" type="boolean" default="false"/>
+	</complexType>
+	<simpleType name="markerVisibilityEnumStringType">
+		<restriction base="string">
+			<enumeration value="all"/>
+			<enumeration value="none"/>
+			<enumeration value="onlyLast"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="matchTimeSeriesPairBy">
+		<restriction base="string">
+			<enumeration value="location"/>
+			<enumeration value="parameter"/>
+			<enumeration value="timeSeriesOrder"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="subPlotChartAxisEnumStringType">
+		<restriction base="string">
+			<enumeration value="left"/>
+			<enumeration value="right"/>
+			<enumeration value="both"/>
+			<enumeration value="none"/>
+		</restriction>
+	</simpleType>
+	<complexType name="ColoredBackgroundAreaComplexType">
+		<sequence>
+			<element name="label" type="string"/>
+			<element name="color" type="fews:colorEnumStringType"/>
+			<element name="opaquenessPercentage" type="fews:percentageType"/>
+			<choice>
+				<element name="point" type="fews:ReferencePointComplexType" minOccurs="3" maxOccurs="unbounded"/>
+				<sequence>
+					<element name="xAttributeId" type="fews:nonEmptyStringType">
+						<annotation>
+							<documentation>Since 2023.02. Instead of predefined reference points, the x-coordinate of the points can be configured as values of a multi-value location attribute.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="yAttributeId" type="fews:nonEmptyStringType">
+						<annotation>
+							<documentation>Since 2023.02. Instead of predefined reference points, the y-coordinate of the points can be configured as values of a multi-value location attribute.
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+	</complexType>
+	<group name="ChartAxisFormatChoice">
+		<choice>
+			<group ref="fews:AxisFormatSequence"/>
+			<group ref="fews:AxesSequence"/>
+		</choice>
+	</group>
+	<group name="AxesSequence">
+		<sequence>
+			<element name="leftAxis" type="fews:ChartAxisComplexType"/>
+			<element name="rightAxis" type="fews:ChartAxisComplexType" minOccurs="0"/>
+		</sequence>
+	</group>
+	<complexType name="ChartAxisComplexType">
+		<group ref="fews:AxisFormatSequence"/>
+		<attribute name="min" type="double" use="optional"/>
+		<attribute name="max" type="double" use="optional"/>
+	</complexType>
+	<group name="AxisFormatSequence">
+		<sequence>
+			<element name="axisLabel" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02   value axis label</documentation>
+				</annotation>
+			</element>
+			<element name="axisScaleUnit" type="double" minOccurs="0">
+				<annotation>
+					<documentation>Unit used for rounding the min and max value of the axis. If scale unit = 1 then a range of -3.8 to 4.9 will be rounded to a range of -4 to 5</documentation>
+				</annotation>
+			</element>
+			<element name="lowerMarginPercentage" type="fews:percentageType" minOccurs="0"/>
+			<element name="upperMarginPercentage" type="fews:percentageType" minOccurs="0"/>
+			</sequence>
+	</group>
+</schema>

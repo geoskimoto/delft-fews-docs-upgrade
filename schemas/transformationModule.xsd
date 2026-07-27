@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2008 Deltares (Delft Hydraulics)) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="transformationTypes.xsd"/>
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="transformationModule" type="fews:TransformationModuleComplexType">
+		<annotation>
+			<documentation>Contains a list of transformations.</documentation>
+		</annotation>
+	</element>
+	<complexType name="TransformationModuleComplexType">
+		<annotation>
+			<documentation>Contains one or more transformations that will be carried out one by one.</documentation>
+		</annotation>
+		<sequence>
+			<element name="timeZone" type="fews:timeZoneStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional time zone for dates and times defined in this configuration file. If no time zone is defined, then dates and times are in GMT.</documentation>
+				</annotation>
+			</element>
+			<element name="writeMissingsOutsideRangeLimits" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 added for backwards compatibility. Default true. When true values outside limits for range transformations will be explicitly set to missing. When false values outside limits for range transformations will remain untouched</documentation>
+				</annotation>
+			</element>
+			<element name="preserveManualEdits" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02 . Default false. When true the transformation module will not overwrite any manual corrected edited values.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="variable" type="fews:VariableDefinitionComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Definitions of variables that can be used as input, output or limit variable in the transformations. The output variable of one transformation can be used as input variable for another transformation. A variable is always a time series. Alternatively variable definitions can be embedded in a transformation.</documentation>
+				</annotation>
+			</element>
+			<element name="transformation" type="fews:TransformationFunctionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more transformations that will be carried out one by one.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0">
+			<annotation>
+				<documentation>Schema version.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

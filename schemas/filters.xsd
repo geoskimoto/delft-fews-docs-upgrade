@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="filters" type="fews:FiltersComplexType"/>
+	<!--    -->
+	<complexType name="FiltersComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="defaultFilterId" type="fews:idStringType" minOccurs="0"/>
+			<element name="timeSeriesSets" type="fews:FilterTimeSeriesSetsComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>
+						Time series sets that can be referenced by the filters with the id
+					</documentation>
+				</annotation>
+			</element>
+			<element name="filter" type="fews:FilterComplexType" maxOccurs="unbounded">
+				<key name="filter">
+					<selector xpath="."/>
+					<field xpath="@id"/>
+				</key>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!--    -->
+	<complexType name="FilterComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<sequence minOccurs="0">
+				<choice>
+					<element name="validationIconsViewPeriod" type="fews:RelativePeriodComplexType">
+						<annotation>
+							<documentation>Since 2017.01. Calculate validation icons in the specified period. By this you can for example ignore the validation problems for the most recent data. The
+								validation icons are only visible when ALL the selected filters, including there children, have the validation period or validation icons visible configured.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="validationIconsVisible" type="boolean">
+						<annotation>
+							<documentation>Show all the validation icons in the period of the time series sets. The validation icons are only visible when ALL the selected filters, including there
+								children, have the validation period or validation icons visible configured.
+							</documentation>
+						</annotation>
+					</element>
+				</choice>
+				<element name="ignoreDoubtfulAndUnreliableFlagSourceColumnId" type="fews:idStringType" minOccurs="0">
+					<annotation>
+						<documentation>Hide validation icons when this flag source column is filled. Can be used to show all data that still needs to be validated</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="lastValueVisible" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01, FEWS-8568. When this filter is selected the last value is visible in the location label on the map</documentation>
+				</annotation>
+			</element>
+			<element name="ignoreDeletionsOutsideViewPeriod" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02, A light red cross is displayed when there is data available outside the view period. By default for performance reasons a red cross is still displayed when values once exist but are now deleted. When this option is set to false the complete available time series are read to take the deletions outside the view period into account</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdIconsBasedOnLastNonMissingValue" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.01, Only use the last not missing value for calculating the threshold</documentation>
+				</annotation>
+			</element>
+			<element name="mapExtentId" type="string" minOccurs="0"/>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+						set a permission to control who can view this filter
+					</documentation>
+				</annotation>
+			</element>
+			<element name="tableViewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>set a permission to control who can view the time series in this filter in a table view</documentation>
+				</annotation>
+			</element>
+			<element name="editPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Set a permission to control who can edit timeseries enumerated in this filter (only editable timeseries can be editted)</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+					<element name="groupBy" type="fews:GroupByComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2016.01. Automatically build up filters according to their attributes</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<sequence>
+					<choice>
+						<element name="timeSeriesSetsId" type="fews:idStringType" maxOccurs="unbounded">
+							<annotation>
+								<documentation>Reference to a time series set collection defined at the start of this file.
+								</documentation>
+							</annotation>
+						</element>
+						<sequence>
+							<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" minOccurs="0" maxOccurs="unbounded">
+								<annotation>
+									<documentation>Since 2015.02. Instead of time series sets. All time series in the database that match the criteria are included. Similar to the time series used in the modifierTypes.xml
+									</documentation>
+								</annotation>
+							</element>
+							<element name="relativeViewPeriod" type="fews:RelativePeriodComplexType">
+								<annotation>
+									<documentation>Since 2014.02. Instead of time series sets. All parameter, location and qualifier constraints are included in the filter. The view period is used for the icon in the explorer</documentation>
+								</annotation>
+							</element>
+							<element name="editable" type="boolean" minOccurs="0">
+								<annotation>
+									<documentation>Since 2016.01. Used when not using time series sets. In this case it is not possible to configure the readWriteMode of the time series set. When true
+										the time series are editable in the time series dialog.
+									</documentation>
+								</annotation>
+							</element>
+							<element name="locationRelationId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+								<annotation>
+									<documentation>Since 2015.01.  All the related locations when available are added to the time series dialog. The related location are not added to the map and location tree. The warning level and data availability of the related location is merged with the original location</documentation>
+								</annotation>
+							</element>
+							<element name="visibilityControllingFlagSourceColumnId" type="fews:idStringType" minOccurs="0">
+								<annotation>
+									<documentation>Since 2016.01 #66732. Used when not using time series sets. In this case it is not possible to configure the visibilityControllingFlagSourceColumnId of the time series set. All values that not passed this validation step are removed on read. Set to missing for equidistant and removed for non-equidistant
+									</documentation>
+								</annotation>
+							</element>
+							<element name="onlyReliableFlagSourceColumnId" type="fews:idStringType" minOccurs="0">
+								<annotation>
+									<documentation>Since 2022.02. All values that passed this validation step and are reliable will be included other will be set to missing for equidistant and removed for non-equidistant. This will work as an "or" operation together with "visibilityControllingFlagSourceColumnId", so data should either have passed "visibilityControllingFlagSourceColumnId" or "onlyReliableFlagSourceColumnId".</documentation>
+								</annotation>
+							</element>
+						</sequence>
+					</choice>
+					<element name="locationConstraints" type="fews:ConstraintsComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2014.02. Restriction for the locations in the specified time series sets. When no time series sets are specified all the region locations that match the constraints are included
+							</documentation>
+						</annotation>
+					</element>
+					<element name="parameterConstraints" type="fews:ConstraintsComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2014.02. Restriction for the parameters in the specified time series sets. When no time series sets are specified all the region locations that match the constraints are included</documentation>
+						</annotation>
+					</element>
+					<element name="qualifierConstraints" type="fews:ConstraintsComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2014.02. Restriction for the qualifiers in the specified time series sets. When no time series sets are specified all the region qualifiers that match the constraints are included</documentation>
+						</annotation>
+					</element>
+					<element name="groupBy" type="fews:GroupByComplexType" minOccurs="0">
+						<annotation>
+							<documentation>Since 2016.01. Automatically build up filters according to their attributes</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<element name="child" type="fews:ChildComplexType" maxOccurs="unbounded"/>
+			</choice>
+			<element name="additionalTimeSeries" type="fews:AdditionalFilterTimeSeriesComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>
+						Since 2017.01 Additional time series that are invisible by default and can be made visible via time series visibility dialog
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<!---->
+	<complexType name="FilterTimeSeriesSetsComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="string">
+			<annotation>
+				<documentation>Id of the time series set collection.
+				</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="ChildComplexType">
+		<attribute name="foreignKey" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="GroupByComplexType">
+		<annotation>
+			<documentation>Create filters based on the different attribute values, can be nested over multiple different location, parameter and or qualifier attributes.</documentation>
+		</annotation>
+		<choice maxOccurs="unbounded">
+			<element name="locationAttributeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Specifies location attribute items should be grouped by</documentation>
+				</annotation>
+			</element>
+			<element name="parameterAttributeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Specifies parameter attribute items should be grouped by</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierAttributeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Specifies qualifier attribute items should be grouped by</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</complexType>
+	<complexType name="AdditionalFilterTimeSeriesComplexType">
+		<sequence>
+			<element name="locationFunctionEquals" type="fews:AdditionalTimeSeriesFunctionEquals"/>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+				<element name="timeSeriesSetsId" type="fews:idStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Reference to a time series set collection defined at the start of this file.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="name" type="string"/>
+	</complexType>
+</schema>

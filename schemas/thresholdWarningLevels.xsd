@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="thresholdWarningLevels" type="fews:ThresholdWarningLevelsComplexType">
+		<annotation>
+			<documentation>Contains definitions of warning levels ordered from least severe to most severe. These warning levels can be used for thresholds that are defined in the thresholdGroups configuration file. The least severe warning level always corresponds to the state in which no thresholds are crossed.</documentation>
+		</annotation>
+	</element>
+	<complexType name="ThresholdWarningLevelsComplexType">
+		<sequence>
+			<element name="missingDataThreshold" type="fews:ThresholdWarningLevelComplexType" minOccurs="0">
+				<annotation>
+					<documentation>If no data is available, a separate background color can be configured to set it apart from no threshold crossing. Available since 2018.02</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdWarningLevel" type="fews:ThresholdWarningLevelComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>One or more warning levels. These warning levels must be ordered from least severe to most severe. The order is important for situations where only the most severe warning level is displayed. The least severe warning level always corresponds to the state in which no thresholds are crossed.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ThresholdWarningLevelComplexType">
+		<sequence>
+			<element name="color" type="fews:colorStringType">
+				<annotation>
+					<documentation>Color that is used for this warning level.</documentation>
+				</annotation>
+			</element>
+			<element name="opaquenessPercentage" type="fews:percentageType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.02: Opaqueness of the color. If not specified, opaqueness is 100%</documentation>
+				</annotation>
+			</element>
+			<element name="iconName" type="fews:idStringType">
+				<annotation>
+					<documentation>Filename of an image file in the IconFiles config directory (including file extension). This image file will be used as warning level icon for this warning level.</documentation>
+				</annotation>
+			</element>
+			<element name="historicOverlayIconName" type="fews:idStringType">
+				<annotation>
+					<documentation>Filename of an image file in the IconFiles config directory (including file extension). This image file will be used as historic warning level overlay icon for this warning level.</documentation>
+				</annotation>
+			</element>
+			<element name="forecastOverlayIconName" type="fews:idStringType">
+				<annotation>
+					<documentation>Filename of an image file in the IconFiles config directory (including file extension). This image file will be used as forecast warning level overlay icon for this warning level.</documentation>
+				</annotation>
+			</element>
+			<element name="symbolId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of a SVG symbol to display, for use in a Schematic Status (Scada-) Display.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this warning level.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:nameStringType">
+			<annotation>
+				<documentation>Name of this warning level, e.g. "Flood Warning". This name is used when this warning level is displayed. If not specified, then the id is used when this warning level is displayed.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

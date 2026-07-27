@@ -1,0 +1,316 @@
+---
+title: Export data
+description: Push internal FEWS series back out to files, databases, and services — the mirror image of importing, with ID mapping and unit conversion running internal → external on the way out.
+sidebar:
+  order: 10
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Exporting is importing run backwards. Where an [import](/tasks/import-timeseries/)
+reads the outside world and translates it *into* your internal vocabulary, an
+export reads a fully-identified internal [time series](/concepts/glossary/#time-series)
+and translates it back *out* — renaming through the same [ID map](/tasks/id-mapping/),
+converting units, and writing the result to a file, database, or service. This is
+[hop ⑤](/concepts/data-flow/), the reverse of the import boundary: internal names
+and units go in, the outside world's names and units come out. This guide covers
+the config file that drives it: `timeSeriesExportRun`.
+
+<Aside type="note" title="Prerequisites">
+An export reads series that already exist in the data store, so the pipeline that
+produced them must have run first — an [import](/tasks/import-timeseries/), a
+[transformation](/tasks/transformations/), or a [model run](/tasks/general-adapter/).
+You also need the [ID map](/tasks/id-mapping/) that names your series in the
+*receiver's* vocabulary, and (if units differ) a unit conversion.
+</Aside>
+
+## Anatomy of an export file
+
+The skeleton mirrors the import file element for element. A `general` block says
+*where the data goes and how to write it*, followed by one or more `timeSeriesSet`
+blocks that say *which internal series to read out*.
+
+<div class="diagram">
+
+```text
+timeSeriesExportRun
+└─ export
+   ├─ general          ← the destination + the writer + the mappings
+   │    ├─ exportType / exportTypeStandard   (which writer/serializer)
+   │    ├─ folder + exportFileName           (where the file goes)
+   │    │    …or serverUrl                    (a service instead of a file)
+   │    ├─ idMapId                            (internal → external names)
+   │    ├─ unitConversionsId / flagConversionsId   (optional)
+   │    └─ exportTimeZone                     (how to write timestamps)
+   └─ timeSeriesSet(s)  ← the INTERNAL series to READ (uses internal ids)
+        moduleInstanceId · parameterId · locationId/locationSetId
+        · timeSeriesType · timeStep
+```
+
+</div>
+
+The same mental split as import, pointed the other way: **`timeSeriesSet` speaks
+your language; `general` produces the outside world's.** The `idMap` is again the
+bridge — only now it runs internal → external. Compare this tree with the
+[import anatomy](/tasks/import-timeseries/#anatomy-of-an-import-file); the shape is
+identical, `import`/`general`/`timeSeriesSet` becoming `export`/`general`/`timeSeriesSet`.
+
+## Choosing a writer
+
+Where import picks a *reader*, export picks a *writer* (also called a serializer).
+The `general` block starts with three mutually exclusive ways to choose one — pick
+exactly one:
+
+| Element | Use when | Example value |
+| --- | --- | --- |
+| `exportTypeStandard` | The destination is one of FEWS's built-in serializers. | `pi`, `csv`, `netcdf` |
+| `exportType` | You're using a general/named serializer that isn't in the standard enum (the general tabular/CSV writer lives here). | `generalCsv` |
+| `serializerClassName` (+ `binDir`) | You have a custom Java serializer. | `com.example.MyWriter` |
+
+<Aside type="tip">
+Reach for `exportTypeStandard` first. If the receiver expects a known format — the
+FEWS **Published Interface** XML (`pi`), NetCDF, or plain CSV — there's a built-in
+serializer for it. Use `exportType` (e.g. `generalCsv`) for a generic tabular
+layout you describe yourself.
+</Aside>
+
+## Walkthrough: export a CSV of observations
+
+We'll write out the hourly discharge we imported in the
+[import walkthrough](/tasks/import-timeseries/#walkthrough-import-a-csv-of-observations)
+— the same `RiverGauge_01` / `Q.obs` series, now leaving FEWS. Every step is the
+mirror of an import step.
+
+<Steps>
+
+1. ### Point at the destination and pick the writer
+
+   ```xml
+   <general>
+     <exportType>generalCsv</exportType>
+     <folder>$EXPORT_FOLDER$/discharge</folder>
+     <exportFileName>
+       <name>discharge.csv</name>
+     </exportFileName>
+   ```
+
+   Where import had `folder` + `fileNamePatternFilter` (*which files to read*),
+   export has `folder` + `exportFileName` (*what file to write*). `$EXPORT_FOLDER$`
+   is a **global property** (in `global.properties`) so the path isn't hard-coded
+   per machine. Instead of a plain `name` you can build the filename from a
+   `prefix`/`suffix`, or set `useExternalLocationIdAsName` to write one file per
+   location.
+
+2. ### Tell FEWS how to write the timestamps
+
+   ```xml
+     <exportTimeZone>
+       <timeZoneName>GMT</timeZoneName>
+     </exportTimeZone>
+   ```
+
+   The mirror of `importTimeZone`. Internally every value carries an explicit time,
+   but the file needs a zone to render into — declare the zone the receiver expects
+   with `<timeZoneName>` (e.g. `GMT`) or a `<timeZoneOffset>` like `+01:00`. Get it
+   wrong and every timestamp in the output is shifted.
+
+3. ### Wire the ID map (and any conversions)
+
+   ```xml
+     <idMapId>IdExportObservations</idMapId>
+     <!-- optional: <unitConversionsId>ExportUnits</unitConversionsId> -->
+     <!-- optional: <flagConversionsId>ExportFlags</flagConversionsId> -->
+   </general>
+   ```
+
+   `idMapId` names the [ID map](/tasks/id-mapping/) — but here it runs the *other*
+   direction, turning `RiverGauge_01` / `Q.obs` back into whatever the receiver
+   calls them (say `GAUGE-A` / `discharge`). Add `unitConversionsId` to convert
+   from your stored unit to the receiver's on the way out, and `flagConversionsId`
+   to translate FEWS quality flags into the receiver's scheme.
+
+4. ### Describe the internal series to read
+
+   ```xml
+   <timeSeriesSet>
+     <moduleInstanceId>ImportObservations</moduleInstanceId>
+     <valueType>scalar</valueType>
+     <parameterId>Q.obs</parameterId>
+     <locationId>RiverGauge_01</locationId>
+     <timeSeriesType>external historical</timeSeriesType>
+     <timeStep unit="hour" multiplier="1"/>
+     <readWriteMode>read only</readWriteMode>
+   </timeSeriesSet>
+   ```
+
+   Identical in form to the import's `timeSeriesSet`, and that's the point: it must
+   reconstruct the **same [header](/concepts/glossary/#time-series-header)** the
+   producer wrote, or it reads nothing. `moduleInstanceId` here is
+   `ImportObservations` — the module that *created* the series — not the export's
+   own instance. This is the read side of the header-matching rule the
+   [import guide warns about](/tasks/import-timeseries/#gotchas).
+
+</Steps>
+
+Put together, the complete file:
+
+```xml title="Config/ModuleConfigFiles/ExportDischarge 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<timeSeriesExportRun xmlns="http://www.wldelft.nl/fews">
+  <export>
+    <general>
+      <exportType>generalCsv</exportType>
+      <folder>$EXPORT_FOLDER$/discharge</folder>
+      <exportFileName>
+        <name>discharge.csv</name>
+      </exportFileName>
+      <idMapId>IdExportObservations</idMapId>
+      <exportTimeZone>
+        <timeZoneName>GMT</timeZoneName>
+      </exportTimeZone>
+    </general>
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationId>RiverGauge_01</locationId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>read only</readWriteMode>
+    </timeSeriesSet>
+  </export>
+</timeSeriesExportRun>
+```
+
+<Aside type="caution" title="CSV column layout is writer-specific">
+Just as the import's column layout depends on the reader, the `generalCsv`
+serializer needs a `<table>` block in `general` describing which column is which
+(the order of the listed columns sets their positions). It's omitted above because
+its exact contents are format- and version-dependent; define it per
+[`timeSeriesExportRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/timeSeriesExportRun.xsd).
+The structure and flow here are the stable part; the column mapping is the
+version-sensitive detail.
+</Aside>
+
+## Export many locations at once
+
+As with import, you rarely write one `timeSeriesSet` per gauge. Swap `locationId`
+for a `locationSetId` and a single set exports the whole group, each member renamed
+through the same ID map:
+
+```xml
+<timeSeriesSet>
+  <moduleInstanceId>ImportObservations</moduleInstanceId>
+  <valueType>scalar</valueType>
+  <parameterId>Q.obs</parameterId>
+  <locationSetId>AllDischargeGauges</locationSetId>
+  <timeSeriesType>external historical</timeSeriesType>
+  <timeStep unit="hour" multiplier="1"/>
+  <readWriteMode>read only</readWriteMode>
+</timeSeriesSet>
+```
+
+Combined with `<exportFileName><useExternalLocationIdAsName>true</useExternalLocationIdAsName></exportFileName>`,
+that writes one file per location in the [set](/tasks/locations/).
+
+## Common patterns
+
+- **Export to a service instead of a file.** Replace the `folder` +
+  `exportFileName` pair with a `serverUrl` (with optional `backupServerUrl` and
+  `connectionTimeOutMillis`, plus `user` / `password` for protected servers). The
+  chosen serializer talks to that endpoint rather than writing to disk.
+- **Different units for the receiver.** Add `unitConversionsId`; FEWS converts from
+  your stored unit to the receiver's on the way out — the exact mirror of a unit
+  conversion on import.
+- **Exporting forecasts.** Set `timeSeriesType` to `external forecasting` (or read
+  a simulated series), and use `forecastSelectionPeriod` to pick which forecasts to
+  write. Everything else is the same pipeline — see
+  [the lifecycle](/concepts/lifecycle/#observed-vs-forecast-the-same-pipeline-twice).
+- **Marking missing values.** By default gaps export as `NaN`; set
+  `exportMissingValue` (numeric) or `exportMissingValueString` (text) to match what
+  the receiver expects, or `omitMissingValues` to leave gaps out entirely.
+- **Controlling precision and separators.** `precision` fixes the number of
+  fraction digits; `columnSeparator` / `decimalSeparator` tune tabular formats like
+  `generalCsv` (e.g. `;` and `,` for European CSVs).
+
+## Key fields at a glance
+
+The most-used fields; the full element list lives in
+[`timeSeriesExportRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/timeSeriesExportRun.xsd).
+
+**`general`**
+
+| Field | Meaning |
+| --- | --- |
+| `exportType` / `exportTypeStandard` / `serializerClassName` | Which writer (pick one). |
+| `folder` + `exportFileName` | Where the file goes and what it's called. |
+| `serverUrl` | A service destination *instead of* folder/file. |
+| `idMapId` | The internal→external [ID map](/tasks/id-mapping/). |
+| `unitConversionsId`, `flagConversionsId` | Optional unit / flag conversion, outward. |
+| `exportTimeZone` | The zone to render timestamps into. |
+| `exportMissingValue`, `omitMissingValues` | How to represent gaps. |
+| `precision`, `columnSeparator`, `decimalSeparator` | Numeric and tabular formatting. |
+
+**`timeSeriesSet`** (the internal series to read)
+
+| Field | Meaning |
+| --- | --- |
+| `moduleInstanceId` | The module that *produced* the series; must match its stored header. |
+| `valueType` | `scalar`, `grid`, … (usually `scalar`). |
+| `parameterId` | Internal parameter id (pre-mapping). |
+| `locationId` / `locationSetId` | Internal location, or a whole set. |
+| `timeSeriesType` | `external historical`, `external forecasting`, or a simulated type. |
+| `timeStep` | e.g. `unit="hour" multiplier="1"`, or `unit="nonequidistant"`. |
+
+## Gotchas
+
+- **Nothing exports → the `timeSeriesSet` didn't match a stored series.** The read
+  side must reconstruct the exact [header](/concepts/glossary/#time-series-header)
+  the producer wrote — same `moduleInstanceId`, `parameterId`, `locationId`,
+  `timeSeriesType`, and `timeStep`. A single mismatched field reads an empty series
+  and writes an empty (or missing) file. This is the mirror of the import's
+  "imports but doesn't display" trap.
+- **External names look wrong → the ID map, read backwards.** The same map that
+  renamed data on import now renames it on export, internal → external. A map built
+  only with import in mind can produce surprising output names — see the
+  [bidirectional note](/tasks/id-mapping/) on ID mapping. Once any location is
+  mapped, the map also *filters*: unmapped series are silently dropped from the
+  export too.
+- **Values off by a constant factor → missing `unitConversionsId`.** Without an
+  outward unit conversion, values are written in their stored unit, which may not be
+  what the receiver expects.
+- **`readWriteMode` is required, but inert here.** The schema requires it on every
+  `timeSeriesSet`, so include it (`read only` is sensible for an export, which only
+  reads). Its semantics are honoured only by the Time Series Display; it does not
+  make the export module behave differently, so don't rely on it to.
+- **A change has no effect → a higher-versioned file wins.** Check for a sibling
+  like `ExportDischarge 1.01 default.xml`. See
+  [how FEWS finds a file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Run the export** (via a [workflow](/tasks/workflows/), the same way you run an
+   import) and read the log. An empty read — no series matched the `timeSeriesSet`
+   — shows up here.
+2. **Open the output.** Look in `$EXPORT_FOLDER$/discharge/` for `discharge.csv`
+   (or the file the serializer produced) and confirm it exists and has rows.
+3. **Confirm the external names and units.** The location and parameter columns
+   should show the *receiver's* names (e.g. `GAUGE-A` / `discharge`), not your
+   internal `RiverGauge_01` / `Q.obs` — that proves the ID map ran outward. Check
+   the magnitudes match the expected unit, and the timestamps the expected
+   `exportTimeZone`.
+
+</Steps>
+
+## See also
+
+<Card title="The pieces this guide leans on" icon="right-arrow">
+- [Import time series](/tasks/import-timeseries/) — the mirror image, read closely
+- [ID mapping](/tasks/id-mapping/) — the translation table, run internal → external here
+- [Define locations](/tasks/locations/) and [parameters](/tasks/parameters/) — the internal ids you export
+- [Workflows](/tasks/workflows/) — how an export gets run
+- Concept: [How data flows through FEWS](/concepts/data-flow/) (hop ⑤)
+- Schema: [`timeSeriesExportRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/timeSeriesExportRun.xsd)
+</Card>

@@ -1,0 +1,711 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="timeSeriesExportRun">
+		<complexType>
+			<sequence>
+				<element name="export" type="fews:TimeSeriesExportRunComplexType" maxOccurs="unbounded"/>
+			</sequence>
+		</complexType>
+	</element>
+	<!---->
+	<complexType name="TimeSeriesExportRunComplexType">
+		<sequence>
+			<element name="general" type="fews:TimeSeriesExportGeneralComplexType">
+				<annotation>
+					<documentation>groups a number of general export properties</documentation>
+				</annotation>
+			</element>
+			<element name="properties" type="fews:PropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2010.02, Properties that are passed to the serializer. Very few external third party serializer need additional configuration. See documentation of the external third party serializer you are using.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="metadata" type="fews:TimeSeriesExportMetadataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional metadata that is written in the exported file. The options netcdfMapDPhase and alertMapDPhase are deprecated (do not use these). For the other options it is possible to use the following tags: %TIME_ZERO% the T0 of this time series export run. %CURRENT_TIME% the current time. %MODULE_INSTANCE_ID% the id of this module instance. %MODULE_INSTANCE_NAME% the name of this module instance. %MODULE_INSTANCE_DESCRIPTION% the configured description of this module instance. %WORKFLOW_ID% the id of the workflow in which this export runs. %WORKFLOW_NAME% the name of the workflow in which this export runs. %WORKFLOW_DESCRIPTION% the configured description of the workflow in which this export runs. %TASK_DESCRIPTION% user description of the forecast in which this export runs. %WHAT_IF_NAME% name of the what-if used in the forecast in which this export runs. %USER_ID% the id of the user by which this export run is executed.</documentation>
+				</annotation>
+			</element>
+			<element name="exportAttribute" type="fews:ExportAttributeType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2015.01 Id of attribute that can be used for export. Specification is needed to include it in the data available for export</documentation>
+				</annotation>
+			</element>
+			<element name="exportLocationAttributeAsNetCDFVariable" type="fews:ExportLocationAttributeAsNetCDFVariableComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2021.01. Adds a new variable to the NetCdf export for locations. The value of the attributes is a location attribute.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="exportArchiveMetadata" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01 Adds archive meta data to the netcdf-file during export. The harvester of the netcdf-storage uses this metadata to build the catalogue.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" minOccurs="0" maxOccurs="unbounded"/>
+				<element name="timeSeriesSets" type="fews:ZLayersTimeSeriesSetsComplexType" minOccurs="0" maxOccurs="unbounded"/>
+				<element name="filterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Since 2018.02 Id of filter from Filters.xml, time series from that filter will be used for export.</documentation>
+					</annotation>
+				</element>
+				<element name="annotationLocationSetId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2021.01 Id of the location set for which annotations should be exported</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<!---->
+	<!-- TimeSeriesSetsComplexType -->
+	<complexType name="ZLayersTimeSeriesSetsComplexType">
+		<sequence>
+			<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+			<element name="zParameter" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2020.01. Z layer parameter</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="TimeSeriesExportGeneralComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<choice>
+				<annotation>
+					<documentation>Choice between standard export types (specified by enumeration) or another export types.</documentation>
+				</annotation>
+				<element name="exportTypeStandard" type="fews:exportTypeEnumStringType">
+					<annotation>
+						<documentation>This type specifies which writer should be used to write the file. The type must be one from the enumeration</documentation>
+					</annotation>
+				</element>
+				<element name="exportType" type="string">
+					<annotation>
+						<documentation>This type specifies which writer should be used to write the file. It may be any string as long as this type is supported by the TimeSeriesExport module </documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="serializerClassName" type="string">
+						<annotation>
+							<documentation>Fully qualifying name of a Java class that implements a time series
+								serializer interface.
+							</documentation>
+						</annotation>
+					</element>
+					<element name="binDir" type="string" minOccurs="0">
+						<annotation>
+							<documentation>Directory with jar files and optionally native dlls. When not specified the
+								bin dir and class loader of FEWS is used.
+								When specified the java class is executed in a private class loader, it will not use any
+								jar in the FEWS bin dir. Only one class loader is created per binDir
+								, adapters should still not use static variables
+							</documentation>
+						</annotation>
+					</element>
+					<element name="moduleDataSetName" type="string" minOccurs="0">
+						<annotation>
+							<documentation>Name of dataset file containing the binaries located in the 'binDir'. Use this to update 'binDir' through configuration changes.
+                            </documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<choice>
+				<sequence>
+					<element name="folder" type="fews:directoryStringType">
+						<annotation>
+							<documentation>Folder in which export files are located</documentation>
+						</annotation>
+					</element>
+					<element name="exportFileName" type="fews:ExportFileNameComplexType"/>
+					<element name="validate" type="boolean" nillable="false" minOccurs="0">
+						<annotation>
+							<documentation>Only applicable if the data are exported to the xml-file. This option activates the validation of the exported file against a XML schema.  </documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<!--server -->
+				<sequence>
+					<element name="serverUrl" type="string">
+						<annotation>
+							<documentation>(Internet) Url to a time series server. The specified time series serializer communicates with this server.</documentation>
+						</annotation>
+					</element>
+					<element name="backupServerUrl" type="string" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Optional Url's to define backup import locations.</documentation>
+						</annotation>
+					</element>
+					<element name="connectionTimeOutMillis" type="int" minOccurs="0">
+						<annotation>
+							<documentation>Optional timeout in milliseconds before a connection is deemed as unavailable. </documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<sequence minOccurs="0">
+				<annotation>
+					<documentation>
+						User name and password, required for protected servers
+					</documentation>
+				</annotation>
+				<element name="user" type="string">
+					<annotation>
+						<documentation>User name</documentation>
+					</annotation>
+				</element>
+				<choice>
+					<element name="password" type="string">
+						<annotation>
+							<documentation>Password for user</documentation>
+						</annotation>
+					</element>
+					<element name="encryptedPassword" type="string">
+						<annotation>
+							<documentation>Encrypted password for user</documentation>
+						</annotation>
+					</element>
+				</choice>
+			</sequence>
+			<element name="table" type="fews:TableMetadataComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10153 . Currently the generalCsv export requires a table layout description configured by the user. The order of the listed columns determines the column indices.</documentation>
+				</annotation>
+			</element>
+			<element name="idMapId" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of IdMap to be used for parameterId mapping</documentation>
+				</annotation>
+			</element>
+			<element name="externalLocationNameFunction" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Location dependent external location name by using a function with location attributes. An example: @EXTERNAL_NAME@</documentation>
+				</annotation>
+			</element>
+			<element name="unitConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of UnitConversions to be used for unit mapping</documentation>
+				</annotation>
+			</element>
+			<element name="flagConversionsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Id of flagConversions to be used for flag mapping</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="exportMissingValue" type="double">
+					<annotation>
+						<documentation>Missing value definition for this time series. Defaults to NaN if not defined.  An exception applies to NetCdf files:  if exportMissingValue is not configured, then  9.96921e+036f  is  used </documentation>
+					</annotation>
+				</element>
+				<element name="exportMissingValueString" type="string"/>
+			</choice>
+			<element name="omitMissingValues" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Are missing values to be written to the export file or should they be left out.</documentation>
+				</annotation>
+			</element>
+			<element name="precision" type="fews:nonNegativeIntegerStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02. Number of fraction digits that are always shown. By default the parameters valueResolution will be used to determine the maximum number of digits instead. The configured number of digits should always be smaller than or equal to the valueResolution.</documentation>
+				</annotation>
+			</element>
+			<element name="exportTimeZone" type="fews:TimeZoneComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Time zone of the export data.</documentation>
+				</annotation>
+			</element>
+			<element name="geoDatum" type="fews:geoDatumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Type of coordinate system</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2023.02. Optional choice for storing export status in the database (table ExportStatus). If this choice is omitted, export status will be stored in database using the
+						export folder name as dataFeedId.
+					</documentation>
+				</annotation>
+				<element name="dataFeedId" type="fews:idStringType">
+					<annotation>
+						<documentation>Id for data feed. Export status will be stored in database using this id</documentation>
+					</annotation>
+				</element>
+				<element name="disableDataFeedInfo" type="fews:emptyElement">
+					<annotation>
+						<documentation>Option disableDataFeedInfo indicates that no export status should be stored in database</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="convertDatum" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Convert datum to local datum during import. The conversion wil be done for all parameters which use datum (as configured Parameters.xsd)</documentation>
+				</annotation>
+			</element>
+			<element name="ensembleMemberFormat" type="fews:ensembleMemberFormatEnumStringType" default="index" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02  Use option 'name' to write ensemble member id. By default the ensemble member index is written</documentation>
+				</annotation>
+			</element>
+			<element name="convertValuesToEnumerationLabels" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01  Applies only to time series that are  associated with a time series value enumeration (see Parameters.xsd). If this option is true, then the enumeration label is written to the file, and not the numerical value .   Please note that  this option is only applicable to those file formats where  time series values can be  stored as strings, for example CSV formats</documentation>
+				</annotation>
+			</element>
+			<element name="convertAnnotationEnumerationPropertyValuesToLabels" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01 Applies only to textual time series that have properties connected to value enumeration (see AnnotationMetaDataSchema.xsd). If this option is true, then the enumeration label is written to the file, and not the numerical code.</documentation>
+				</annotation>
+			</element>
+			<element name="forecastSelectionPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>If configured all forecasts with a forecast time within the configured period will be exported. Since 2020.01 all forecasts will be exported to the same file. When also configuring timeZeroFormattingString in the 'prefix' of the 'exportFileName', each forecast will be exported to a separate file</documentation>
+				</annotation>
+			</element>
+			<element name="externalForecastTimeId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01. Use this external forecast time id as forecast time in the exported files. The forecast time should be defined in the forecast length estimator</documentation>
+				</annotation>
+			</element>
+ 	  	    <group ref="fews:ExportChangesChoice"/>
+			<element name="exportLastValue" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. Use this boolean switch to only export the last value.</documentation>
+				</annotation>
+			</element>
+			<element name="coldStartDataExportRelativeStartTime" type="fews:RelativeTimeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional. If this is specified, then the period for which data is exported will be truncated for simulated data that was created in a run that started with a cold state. In other words for this type of data, any data before the specified start time will not be exported. This start time is relative to the time zero of the run in which the data was created. This can be used to avoid exporting data that was created during the warm-up period of a model run after a cold start. Note: this option only works when the default state selection was configured to be warm state for the run in which the data was created.</documentation>
+				</annotation>
+			</element>
+			<element name="creationTime" type="fews:creationTimeEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional. Set the creation time of the exported timeseries equal to the time of export. If omitted or none then no creation time value set.</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="columnSeparator" type="fews:columnSeparatorEnumStringType">
+					<annotation>
+						<documentation>Since 2016.01 User defined column separator used for specific serializers like generalCsvSerializer</documentation>
+					</annotation>
+				</element>
+				<element name="decimalSeparator" type="fews:decimalSeparatorEnumStringType">
+					<annotation>
+						<documentation>Since 2016.01 User defined decimal separator used for specific serializers like generalCsvSerializer</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. For formats that supports a custom date time pattern. e.g. yyyy/MM/dd HH:mm:ss</documentation>
+				</annotation>
+			</element>
+			<element name="exportThresholds" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02 Optional element which specifies that thresholds should be exported, so far this is available for the netcdf scalar export and PI version 1.14</documentation>
+				</annotation>
+			</element>
+			<element name="flagSourceColumnFilter" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. This flagSourceColumn can be used to keep record of what entries are already exported.</documentation>
+				</annotation>
+			</element>
+			<element name="exportedFlagSource" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. This flag source can be used to mark entries as exported.</documentation>
+				</annotation>
+			</element>
+			<element name="exclusiveFlagSourceColumn" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. Use this boolean switch to determine whether the flagSourceColumn will be used for exclusive or inclusive filtering. True means entries that are not
+						flagged will be filtered away.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<group name="ExportChangesChoice">
+		<choice>
+		    <element name="exportChanges" type="fews:ExportChangesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. Use this option to only export changes in the configured period</documentation>
+				</annotation>
+			</element>
+			<element name="exportManualChanges" type="fews:ExportManualChangesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8798. use this to only export manual changes</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="ExportManualChangesComplexType">
+		<annotation>
+			<documentation>If included, only manual changes will be exported.</documentation>
+		</annotation>
+		<sequence>
+			<!--todo names can be shorter -->
+			<element name="manualDbChangeViewPeriod" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Edits should be conducted (time stamped) within this view period to be included in the export.
+					ViewPeriod is calculated relative to the dispatch time and NOT T0.
+
+Since 2016.02 When this element isn't used, the relativeViewPeriod from the associated timeSeriesSet is used</documentation>
+				</annotation>
+			</element>
+			<element name="exportNewManualEntries" type="boolean">
+				<annotation>
+					<documentation>Export entries that are manual entered</documentation>
+				</annotation>
+			</element>
+			<element name="exportManualFlagChanges" type="boolean">
+				<annotation>
+					<documentation>Export entries where at least flags are changed manually. i.e. A entry that is manually set to doubtful.
+						New entries are not included.</documentation>
+				</annotation>
+			</element>
+			<element name="exportManualValueChanges" type="boolean">
+				<annotation>
+					<documentation>Export entries where at least values are changed manually. i.e. A value is manually correct to 1.0.
+						New entries are not included.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ExportChangesComplexType">
+		<sequence>
+			<element name="dbChangeViewPeriod" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Only the values created within this view period will be exported. NOTE: the view period is calculated relative to the dispatch time and not T0</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="ExportFileNameComplexType">
+		<annotation>
+			<documentation>Defines how the export filename must be composed. If no of the elements name, prefix and suffix is specified, the file name is not valid (is checked in the source code).</documentation>
+		</annotation>
+		<sequence>
+			<choice minOccurs="0">
+				<element name="name" type="string"/>
+				<element name="useExternalLocationIdAsName" type="boolean">
+					<annotation>
+						<documentation>Since 2014.02 FEWS-12229. When true every location is written to a different file</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="prefix" type="fews:AdditionComplexType" minOccurs="0"/>
+			<element name="suffix" type="fews:AdditionComplexType" minOccurs="0"/>
+			<element name="temporaryPrefix" type="fews:AdditionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>prefix for the file that is in process of being written</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<simpleType name="exportTypeEnumStringType">
+		<annotation>
+			<documentation>Overview of supported serializers</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="alert"/>
+			<enumeration value="asciigrid"/>
+			<enumeration value="bfg"/>
+			<enumeration value="BigModCsv"/>
+			<enumeration value="correlationEventSets"/>
+			<enumeration value="csv">
+				<annotation>
+					<documentation>CSV file format.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="csvdutch">
+				<annotation>
+					<documentation>CSV file format where values have a "," as decimal separator and columns are separated by a ";".</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="csvdutchwithquality">
+				<annotation>
+					<documentation>CSV file format where values have a "," as decimal separator and columns are separated by a ";". This includes a quality flag for each value.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="csvensemble">
+				<annotation>
+					<documentation>CSV file format where an extra header line is added that specifies the ensembles</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="csvwithflagsource">
+				<annotation>
+					<documentation>CSV file format. This includes a flag source for each value.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="csvwithouttimezone"/>
+			<enumeration value="csvwithquality">
+				<annotation>
+					<documentation>CSV file format. This includes a quality flag for each value.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="DdscExport"/>
+			<enumeration value="dinotuf"/>
+			<enumeration value="EA"/>
+			<enumeration value="fliwas"/>
+			<enumeration value="generalCsv">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-11939. Flexible CSV file format where the columns have to be specified in the 'table' element. This export type is available for and can be used multiple times as interactive time series export format</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="GIN_Export"/>
+			<enumeration value="GINUpdate_Export"/>
+			<enumeration value="grdc"/>
+			<enumeration value="grid2shp"/>
+			<enumeration value="HecDss">
+				<annotation>
+					<documentation>Since 2017.02. "Hydrologic Engineering Center Data Storage System" Specific database format from U.S. Army Corps of Engineers, see http://www.hec.usace.army.mil/software/hec-dss/</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="hhrr"/>
+			<enumeration value="HYDAMS-ASCII"/>
+			<enumeration value="iBever"/>
+			<enumeration value="IQM">
+				<annotation>
+					<documentation>Since 2024.01: Export created alarms in JSON format to new alarm module.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="itaipuForecast"/>
+			<enumeration value="itaipuObservedValidated"/>
+			<enumeration value="kwaliteit_csv"/>
+			<enumeration value="LHP"/>
+			<enumeration value="LILA"/>
+			<enumeration value="lmw"/>
+			<enumeration value="lmw_wnt"/>
+			<enumeration value="mam"/>
+			<enumeration value="mapdphase"/>
+			<enumeration value="menyanthes">
+				<annotation>
+					<documentation>Special CSV ASCII format that can be imported by Menyanthes http://www.waterware.nl/Menyanthes</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="MeteoAlarm"/>
+			<enumeration value="MeteoAlarmCap"/>
+			<enumeration value="netcdf"/>
+			<enumeration value="netcdf-cf"/>
+			<enumeration value="NETCDF-CF_DOMAIN"/>
+			<enumeration value="NETCDF-CF_GRID"/>
+			<enumeration value="NETCDF-CF_GRID_MATROOS"/>
+			<enumeration value="NETCDF-CF_PROFILE"/>
+			<enumeration value="NETCDF-CF_PROFILE_MATROOS"/>
+			<enumeration value="NETCDF-CF_SPECTRUM"/>
+			<enumeration value="NETCDF-CF_TIMESERIES"/>
+			<enumeration value="NETCDF-CF_TIMESERIES_MATROOS"/>
+			<enumeration value="NETCDF-CF_ZLAYERS"/>
+			<enumeration value="netcdf-stf"/>
+			<enumeration value="NETCDF-STF_TIMESERIES"/>
+			<enumeration value="NETCDF-TIDAL_TIMESERIES"/>
+			<enumeration value="netcdf-vertical-profile"/>
+			<enumeration value="NETCDF-VERTICAL_PROFILE"/>
+			<enumeration value="noos_timeseries"/>
+			<enumeration value="pi">
+				<annotation>
+					<documentation>
+						initial version, 1.2.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.2">
+				<annotation>
+					<documentation>
+						initial version.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.3">
+				<annotation>
+					<documentation>
+						comment added to pi_timeseries.xsd
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.4">
+				<annotation>
+					<documentation>
+						qualifierId, ensembleId, ensembleMemberIndex added to pi_timeseries.xsd
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.5">
+				<annotation>
+					<documentation>
+						forecastTime added to pi_timeseries.xsd
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.10">
+				<annotation>
+					<documentation>
+						user added to pi_timeseries.xsd
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.11">
+				<annotation>
+					<documentation>
+						Since 2013.01. FEWS-8624. Added flag source to pi_timeseries.xsd
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.12">
+				<annotation>
+					<documentation>
+						Since 2013.02. FEWS-8876/FEWS-8821 Added comments and flags to pi_ratingcurves.xsd
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.13">
+				<annotation>
+					<documentation>
+						Since 2014.01. FEWS-10013. Added time series properties
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.14"/>
+			<enumeration value="pi 1.19">
+				<annotation>
+					<documentation>
+						Since 2015.02. FEWS-13603. Export flag source columns.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.23">
+				<annotation>
+					<documentation>Since 2017.01. Export time value ranges (event startTime, endTime, minValue, maxValue).
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.24">
+				<annotation>
+					<documentation>Since 2017.02. Since PI version 1.24, it is possible to add minutes attribute to time steps, as well as attributes to locations. It is also possible to add qualifiers.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.25">
+				<annotation>
+					<documentation>Since 2018.01 added parameter group, date time attribute type and attributes to time series parameters.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.26">
+				<annotation>
+					<documentation>Since 2019.02 added product to header.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.27">
+				<annotation>
+					<documentation>Since 2020.02 Since PI version 1.27, it is possible to add threshold label, description and comments to time steps.
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi 1.31">
+				<annotation>
+					<documentation>Since 2021.02 added value source to pi time series</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi_ascii_map_stack"/>
+			<enumeration value="pi_pcr_map_stack"/>
+			<enumeration value="pi_server">
+				<annotation>
+					<documentation>Since 2017.02. Export to FewsPiServer.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi_server_SOAP">
+				<annotation>
+					<documentation>Since 2021.02. Export to FewsPiServer SOAP service. Deprecated, please use pi_server instead if possible.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="pi_tables"/>
+			<enumeration value="pi_usgs_map_stack"/>
+			<enumeration value="ram"/>
+			<enumeration value="SHEF"/>
+			<enumeration value="UM-Aquo-2009">
+				<annotation>
+					<documentation> Dutch standard for exchange of measurements in water management, see http://www.idsw.nl/aquo-standaard/um-aquo/um-aquo</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="uvf"/>
+			<enumeration value="wiski_zrxp">
+				<annotation>
+					<documentation>Since 2019.01: Export wiski_zrxp files</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="wml2">
+				<annotation>
+					<documentation>Since 2017.01: Export WML2 files</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<complexType name="TimeSeriesExportMetadataComplexType">
+		<choice minOccurs="0">
+			<element name="netcdfMapDPhase" type="fews:NetcdfMapDPhaseMetadataComplexType">
+				<annotation>
+					<documentation>Deprecated. Do not use.</documentation>
+				</annotation>
+			</element>
+			<element name="alertMapDPhase" type="fews:AlertMapDPhaseMetadataComplexType">
+				<annotation>
+					<documentation>Deprecated. Do not use.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:MetadataGroup"/>
+		</choice>
+	</complexType>
+	<complexType name="HeaderItemComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="value" type="string" use="required"/>
+	</complexType>
+	<complexType name="NetcdfMapDPhaseMetadataComplexType">
+		<annotation>
+			<documentation>Deprecated. Do not use.</documentation>
+		</annotation>
+		<sequence>
+			<element name="attribute" type="fews:HeaderItemComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated. Do not use.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="AlertMapDPhaseMetadataComplexType">
+		<annotation>
+			<documentation>Deprecated. Do not use.</documentation>
+		</annotation>
+		<sequence>
+			<element name="attribute" type="fews:HeaderItemComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Deprecated. Do not use.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="creationTimeEnumStringType">
+		<restriction base="string">
+			<enumeration value="none"/>
+			<enumeration value="currentTime"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="ensembleMemberFormatEnumStringType">
+		<restriction base="string">
+			<enumeration value="index"/>
+			<enumeration value="name"/>
+		</restriction>
+	</simpleType>
+</schema>

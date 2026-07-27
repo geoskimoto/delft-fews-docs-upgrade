@@ -1,0 +1,373 @@
+---
+title: Run a model (General Adapter)
+description: FEWS's standard bridge to an external model executable — the export → run → import cycle, mapping FEWS series to model files, cold vs warm states, and diagnosing a run that produces nothing.
+sidebar:
+  order: 8
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Most real models — HBV, Sacramento, a hydraulic engine, a rainfall-runoff binary
+— are **external programs** that know nothing about FEWS. The General Adapter is
+the module that lets FEWS drive one anyway. It sits at [hop
+④](/concepts/data-flow/) (process), the same processing slot as a
+[transformation](/tasks/transformations/), but instead of computing a new series
+itself it hands data *out* to a model, runs it, and reads the results *back in*.
+It's the config file that turns "run the model" in a
+[workflow](/tasks/workflows/) into an actual subprocess call.
+
+<Aside type="note" title="Prerequisites">
+The General Adapter moves [time series](/concepts/glossary/#time-series) between
+FEWS and a model, so both ends must already exist. Declare the
+[parameters](/tasks/parameters/) and [locations](/tasks/locations/) involved, make
+sure the input series (e.g. observed discharge) has been
+[imported](/tasks/import-timeseries/), and have the model executable installed on
+the machine that runs FEWS. If the model speaks different id or unit names than
+FEWS, you'll also want an [ID map](/tasks/id-mapping/) for the boundary.
+</Aside>
+
+## The one idea: export → run → import
+
+A model can't read the FEWS data store, and FEWS can't read the model's memory.
+The General Adapter bridges that gap with a fixed three-beat cycle:
+
+1. **Export** — write the FEWS series the model needs into files, in the model's
+   input folder, using names the model understands.
+2. **Execute** — launch the model binary and wait for it to finish.
+3. **Import** — read the files the model wrote back into FEWS as brand-new
+   internal series.
+
+Everything else in the schema is refinement around those three beats. FEWS calls
+each beat a group of **activities**, and they run top-to-bottom in exactly that
+order.
+
+## Anatomy of a General Adapter file
+
+The root element is `generalAdapterRun`: a `general` block of paths and settings,
+then an `activities` block holding the ordered activity groups.
+
+<div class="diagram">
+
+```text
+generalAdapterRun
+├─ general            ← paths + shared settings for the whole run
+│    ├─ rootDir, workDir            (where the model lives / scratch space)
+│    ├─ exportDir, importDir        (the swap folders FEWS ⇄ model)
+│    ├─ dumpFileDir, dumpDir        (what to save if the run crashes)
+│    ├─ diagnosticFile              (the model's log, read back by FEWS)
+│    └─ exportIdMap / importIdMap   (optional name translation at the boundary)
+├─ burnInProfile(s)   ← optional, for cold-state starts
+└─ activities
+     ├─ startUpActivities   (purge/makeDir/unzip — clean the slate)
+     ├─ exportActivities    (write FEWS series → model input files)
+     ├─ waitActivities      (optional: wait for a file, for parallel runs)
+     ├─ executeActivities   (run the model binary or a Java adapter)
+     ├─ importActivities    (read model output files → new FEWS series)
+     └─ shutDownActivities   (zip/purge — tidy up)
+```
+
+</div>
+
+Every group is optional (`minOccurs="0"`), but a useful run always has at least
+`exportActivities`, `executeActivities`, and `importActivities` — the three
+beats. The mental split mirrors the [import module](/tasks/import-timeseries/):
+the **`exportActivities` and `importActivities` speak in FEWS `timeSeriesSet`s**,
+while the model only ever sees **files** in `exportDir` / `importDir`.
+
+## Minimal example
+
+A rainfall-runoff model that takes observed discharge as input and produces a
+simulated discharge series. Input is `Q.obs` at every gauge in
+`AllDischargeGauges`; output is `Q.sim` at the same locations.
+
+```xml title="Config/ModuleConfigFiles/RainfallRunoffModel 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<generalAdapterRun xmlns="http://www.wldelft.nl/fews">
+  <general>
+    <rootDir>%REGION_HOME%/Modules/rrmodel</rootDir>
+    <workDir>%ROOT_DIR%/work</workDir>
+    <exportDir>%ROOT_DIR%/input</exportDir>
+    <importDir>%ROOT_DIR%/output</importDir>
+    <dumpFileDir>%ROOT_DIR%/dump</dumpFileDir>
+    <dumpDir>%ROOT_DIR%</dumpDir>
+    <diagnosticFile>%ROOT_DIR%/output/diagnostics.xml</diagnosticFile>
+    <missVal>-999</missVal>
+  </general>
+
+  <activities>
+
+    <!-- 1. EXPORT: write the FEWS input series to a model input file -->
+    <exportActivities>
+      <exportTimeSeriesActivity>
+        <exportFile>discharge_in.xml</exportFile>
+        <timeSeriesSets>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationSetId>AllDischargeGauges</locationSetId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </timeSeriesSets>
+      </exportTimeSeriesActivity>
+    </exportActivities>
+
+    <!-- 2. EXECUTE: run the model binary -->
+    <executeActivities>
+      <executeActivity>
+        <command>
+          <executable>%ROOT_DIR%/bin/rrmodel.exe</executable>
+        </command>
+        <arguments>
+          <argument>%ROOT_DIR%</argument>
+        </arguments>
+        <timeOut>600000</timeOut>
+      </executeActivity>
+    </executeActivities>
+
+    <!-- 3. IMPORT: read the model's output file back as a new FEWS series -->
+    <importActivities>
+      <importTimeSeriesActivity>
+        <importFile>discharge_out.xml</importFile>
+        <timeSeriesSets>
+          <timeSeriesSet>
+            <moduleInstanceId>RainfallRunoffModel</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.sim</parameterId>
+            <locationSetId>AllDischargeGauges</locationSetId>
+            <timeSeriesType>simulated forecasting</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </timeSeriesSets>
+      </importTimeSeriesActivity>
+    </importActivities>
+
+  </activities>
+</generalAdapterRun>
+```
+
+<Aside type="caution" title="No version attribute on this root element">
+Unlike `timeSeriesImportRun` or `idMap`, the `generalAdapterRun` root element has
+**no `version` attribute** in the schema — `GeneralAdapterRunComplexType` declares
+none. Don't add one expecting it to be honoured. The version-like knob here is
+`piVersion` *inside* `<general>` (the [Published Interface](/concepts/glossary/)
+format version, default `1.2`), which controls the PI-XML dialect FEWS writes for
+the model. Confirm against
+[`generalAdapterRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/generalAdapterRun.xsd).
+</Aside>
+
+## Reading the three beats
+
+### Export: FEWS series → model input files
+
+An `exportTimeSeriesActivity` names an `exportFile` (always written into
+`exportDir`) and one or more `timeSeriesSet`s describing **which internal series
+to pull from the data store**. This is the *read* side, so the sets use the
+header of data that already exists — here `ImportObservations` / `Q.obs`, the
+series the [import guide](/tasks/import-timeseries/) produced. FEWS looks that
+series up, extracts the run period, and serialises it to `discharge_in.xml` in
+the PI-XML format the model's adapter expects.
+
+If the model uses different names than FEWS, set `exportIdMap` in `<general>`;
+FEWS translates internal → external on the way out, exactly like an
+[export](/tasks/export/). Different units? `exportUnitConversionsId`.
+
+### Execute: run the model binary
+
+`executeActivity` is the subprocess. Its `command` is a `<choice>` — pick one:
+
+| Form | Use when |
+| --- | --- |
+| `<executable>` | You're launching a native binary (`.exe`, a shell script, a Fortran/C model). |
+| `<className>` (+ optional `<binDir>`) | You're calling a Java **model adapter** — the pre/post-adapter pattern that converts PI-XML ⇆ the model's native format. |
+
+`arguments` (a list of `<argument>` elements) are passed on the command line;
+`timeOut` (milliseconds, required) is the kill-switch if the model hangs. FEWS
+waits for the process to exit before moving to the import beat.
+
+<Aside type="tip">
+Many models can't read PI-XML directly. The common pattern is **three execute
+activities**: a *pre-adapter* (PI-XML → native input), the *model* itself, and a
+*post-adapter* (native output → PI-XML). FEWS exports PI-XML, the pre-adapter
+reshapes it, the model runs, the post-adapter reshapes the results, and FEWS
+imports PI-XML. The General Adapter doesn't care what runs in between — it only
+cares that the right files land in `exportDir` and `importDir`.
+</Aside>
+
+### Import: model output files → new FEWS series
+
+An `importTimeSeriesActivity` mirrors the export: an `importFile` (always read
+from `importDir`) and `timeSeriesSet`s describing **the new internal series to
+create** from it. This is the *write* side. Here the set uses a *fresh* header —
+`moduleInstanceId` is `RainfallRunoffModel` (the model, not the import) and
+`timeSeriesType` is `simulated forecasting`, because this is model output running
+into the future. That header is how everything downstream — a
+[display](/tasks/filters-displays/), a [threshold](/tasks/thresholds/) check, an
+[export](/tasks/export/) — will find the model result.
+
+<Aside type="caution" title="The whole schema is much larger than three activities">
+`exportActivities` and `importActivities` each offer a dozen-plus activity types
+beyond time series — `exportStateActivity`, `exportMapStacksActivity`,
+`exportNetcdfActivity`, `exportRatingCurveActivity`, `importNetcdfActivity`,
+`importShapeFileActivity`, and more — and each has many options. This guide
+covers the load-bearing cycle only. For grids, NetCDF, custom serialisers, and
+the full option list, go to
+[`generalAdapterRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/generalAdapterRun.xsd).
+</Aside>
+
+## Cold vs warm states
+
+A model like a rainfall-runoff engine doesn't start from nothing — it needs an
+**initial state** (soil moisture, storages, reservoir levels) to begin the run.
+The General Adapter handles state with two dedicated activities, and which one
+you use is the [cold-start vs
+warm-start](/concepts/lifecycle/#cold-start-vs-warm-start) choice made concrete:
+
+<Tabs>
+<TabItem label="Cold start">
+
+Begin from a fixed, pre-defined state. FEWS ships the cold state to the model's
+input folder as part of the export beat. The optional `burnInProfile` blocks at
+the top of `generalAdapterRun` exist specifically to smooth over cold starts by
+defining a burn-in period. Simple and reproducible, but the state may not reflect
+recent conditions — the usual choice while **developing and testing**.
+
+</TabItem>
+<TabItem label="Warm start">
+
+Begin from the state a *previous* run saved. Add an `exportStateActivity` (writes
+the stored state out to where the model expects it, via `stateExportDir` and a
+`stateSelection` relative to T0) and, after the run, an `importStateActivity`
+(reads the model's resulting end-state back and stores it as a new warm state for
+next time). This carries real recent history forward and is what **operational**
+systems run.
+
+</TabItem>
+</Tabs>
+
+The state activities live in the same `exportActivities` / `importActivities`
+groups as the time-series ones and run in the same order — state out with the
+inputs, state back in with the outputs.
+
+## Common patterns
+
+- **Pre-/post-adapter sandwich.** Three `executeActivity` blocks (convert in, run,
+  convert out) is the norm for any model that doesn't natively speak PI-XML. See
+  the tip above.
+- **Placeholder input files.** Set `exportPlaceholderFile` to `true` on an export
+  activity to write the file's *headers only*, with no data — a way to tell the
+  model which series it should expect to fill in.
+- **Boundary translation.** Reach for `exportIdMap` / `importIdMap` and the
+  `…UnitConversionsId` fields when the model's vocabulary differs from FEWS's —
+  same two-way [ID mapping](/tasks/id-mapping/) idea as import/export.
+- **Loud model logs.** Point `diagnosticFile` at the log the model (or its
+  adapter) writes; FEWS reads it back and surfaces the model's own warnings and
+  errors in the FEWS log, so a model failure isn't a black box.
+- **Warm-state loop.** Pair `exportStateActivity` + `importStateActivity` so each
+  run both consumes and produces a state — the backbone of an operational
+  forecast chain.
+
+## Key fields at a glance
+
+**`general`** (paths and shared settings)
+
+| Field | Meaning |
+| --- | --- |
+| `rootDir` | Root of the model instance; anchors `%ROOT_DIR%` in the paths below. |
+| `workDir` | Scratch/working directory (often `%TEMP_DIR%`). |
+| `exportDir` | Folder FEWS writes model **inputs** into. |
+| `importDir` | Folder FEWS reads model **outputs** from. |
+| `dumpFileDir`, `dumpDir` | Where to save a binary dump if the run fails, for debugging. |
+| `diagnosticFile` | The model/adapter log FEWS reads back (always in `importDir`). |
+| `exportIdMap` / `importIdMap` | Optional internal ⇄ external name translation at the model boundary. |
+| `exportUnitConversionsId` / `importUnitConversionsId` | Optional unit conversion at the boundary. |
+| `missVal` | Missing-value marker written to/read from model files (default `-999`). |
+| `piVersion` | PI-XML format version FEWS writes (default `1.2`). |
+
+**`activities`** (the ordered groups)
+
+| Group | What it does |
+| --- | --- |
+| `startUpActivities` | `purgeActivity`, `makeDir`, `unzipActivity` — prepare a clean folder. |
+| `exportActivities` | Write FEWS data out — `exportTimeSeriesActivity`, `exportStateActivity`, and many more. |
+| `waitActivities` | `waitForFileCreation` — wait for a file before executing (parallel runs). |
+| `executeActivities` | `executeActivity` — run the binary/adapter; attribute `executeImportActivitiesOnError`. |
+| `importActivities` | Read model results in — `importTimeSeriesActivity`, `importStateActivity`, `importNetcdfActivity`, … |
+| `shutDownActivities` | `zipActivity`, `purgeActivity` — tidy up afterward. |
+
+**`executeActivity`** (the model call)
+
+| Field | Meaning |
+| --- | --- |
+| `command` → `executable` \| `className` | The binary to run, or a Java adapter class. |
+| `arguments` → `argument` | Command-line arguments (repeatable). |
+| `timeOut` | Milliseconds before FEWS kills a hung run (**required**). |
+| `ignoreExitCode` | Don't fail on a non-zero exit code (useful when the log is more descriptive). |
+| `environmentVariables` | Env vars passed to the process. |
+
+## Gotchas: diagnosing a failed or empty run
+
+- **Model runs but imports nothing → the output file or its header didn't match.**
+  The `importTimeSeriesActivity`'s `timeSeriesSet` must describe exactly what the
+  model wrote — right `parameterId`, `locationSetId`, `timeStep`, and
+  `timeSeriesType`. If any field is off, FEWS reads the file but stores an empty
+  series. Check the file in `importDir` by hand, then line the set up against it.
+- **Export writes an empty input file → the source series doesn't exist yet.** The
+  export set reads from the data store; if the [import](/tasks/import-timeseries/)
+  that fills `Q.obs` hasn't run earlier in the [workflow](/tasks/workflows/), or
+  its header doesn't match your export set, there's nothing to export and the
+  model gets empty inputs. Order matters — import before model in the workflow.
+- **Names don't line up at the boundary → wrong or missing id map.** The model
+  writes files under *its* names; FEWS reads under *yours*. Without an
+  `importIdMap`, an external location the model calls `STN01` won't resolve to
+  `RiverGauge_01`. Silent, exactly like [ID mapping](/tasks/id-mapping/) drops on
+  import.
+- **The model log is your first stop.** A non-zero exit code or errors in
+  `diagnosticFile` mean the model itself failed — read that log before touching
+  the FEWS config. When the model reports errors via its log rather than its exit
+  code, `ignoreExitCode` lets the post-adapter still run.
+- **The run hangs → `timeOut` too short (or the model is waiting on input).** FEWS
+  kills the process at `timeOut` milliseconds. A model that blocks on missing
+  input, or one that legitimately takes longer than the limit, both surface here.
+- **`readWriteMode` won't rescue a mismatch.** As on
+  [import](/tasks/import-timeseries/#gotchas), `readWriteMode` is honoured only by
+  the Time Series Display; it doesn't change how the General Adapter reads or
+  writes series. Fix the header, not the mode.
+- **A change has no effect → a higher-versioned file wins.** Check for a sibling
+  like `RainfallRunoffModel 1.01 default.xml`. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Run the module inside a [workflow](/tasks/workflows/)** (model *after* the
+   import that supplies its inputs) and read the FEWS log. The General Adapter
+   reports each activity — export, execute, import — and echoes the model's own
+   `diagnosticFile` messages.
+2. **Peek at the swap folders.** Confirm a non-empty input file landed in
+   `exportDir` before the run, and a non-empty output file in `importDir` after.
+   Empty files pinpoint which beat failed.
+3. **Browse the result.** Add a [filter](/tasks/filters-displays/) whose
+   `timeSeriesSet` matches the import header (`RainfallRunoffModel` / `Q.sim` /
+   `simulated forecasting`) and confirm the simulated series appears, running past
+   [T0](/concepts/lifecycle/#t0-the-concept-everything-pivots-on) into the future.
+4. **Sanity-check the state.** For a warm-start chain, confirm a new state was
+   written (the `importStateActivity`) so the *next* run has something to start
+   from.
+
+</Steps>
+
+## See also
+
+<Card title="Where the General Adapter sits" icon="right-arrow">
+- [The forecasting lifecycle](/concepts/lifecycle/) — the model run is step 4, and where [cold vs warm start](/concepts/lifecycle/#cold-start-vs-warm-start) is decided
+- [Workflows](/tasks/workflows/) — what orders the import, model, and export
+- [Import time series](/tasks/import-timeseries/) and [Export](/tasks/export/) — the same PI-XML + [ID mapping](/tasks/id-mapping/) boundary, one hop earlier and later
+- [Transformations](/tasks/transformations/) — the *internal* alternative to an external model at hop ④
+- Concept: [How data flows through FEWS](/concepts/data-flow/) (hop ④) and the [glossary entry](/concepts/glossary/#general-adapter)
+- Schema: [`generalAdapterRun.xsd`](https://fews.wldelft.nl/schemas/version1.0/generalAdapterRun.xsd)
+</Card>

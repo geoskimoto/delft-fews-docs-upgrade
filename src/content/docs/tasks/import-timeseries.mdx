@@ -130,6 +130,7 @@ GAUGE-A,discharge,2026-07-27 01:00:00,12.9
      <locationId>RiverGauge_01</locationId>
      <timeSeriesType>external historical</timeSeriesType>
      <timeStep unit="hour" multiplier="1"/>
+     <readWriteMode>add originals</readWriteMode>
    </timeSeriesSet>
    ```
 
@@ -138,7 +139,9 @@ GAUGE-A,discharge,2026-07-27 01:00:00,12.9
    outside. The `moduleInstanceId` becomes part of the stored series'
    [header](/concepts/glossary/#time-series-header) — remember it, because your
    [filter or display](/tasks/filters-displays/) must ask for the data under the
-   *same* id.
+   *same* id. `readWriteMode` is required on every `timeSeriesSet`; `add
+   originals` is the conventional value for imports (its semantics only matter to
+   the display — see [Gotchas](#gotchas)).
 
 </Steps>
 
@@ -146,7 +149,7 @@ Put together, the complete file:
 
 ```xml title="Config/ModuleConfigFiles/ImportObservations 1.00 default.xml"
 <?xml version="1.0" encoding="UTF-8"?>
-<timeSeriesImportRun xmlns="http://www.wldelft.nl/fews" version="1.1">
+<timeSeriesImportRun xmlns="http://www.wldelft.nl/fews">
   <import>
     <general>
       <importType>generalCsv</importType>
@@ -164,10 +167,19 @@ Put together, the complete file:
       <locationId>RiverGauge_01</locationId>
       <timeSeriesType>external historical</timeSeriesType>
       <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>add originals</readWriteMode>
     </timeSeriesSet>
   </import>
 </timeSeriesImportRun>
 ```
+
+<Aside type="note" title="No version attribute here">
+Unlike region-config files ([`Locations`](/tasks/locations/),
+[`Parameters`](/tasks/parameters/), filters), the module-run schema
+`timeSeriesImportRun` declares **no** `version` attribute on its root — so don't
+add one. It's a real difference between the declaration files and the module-run
+files, not an oversight.
+</Aside>
 
 <Aside type="caution" title="CSV column layout is reader-specific">
 The exact elements that describe *which column is which* (a `<table>` block for
@@ -192,6 +204,7 @@ set, mapped through the same ID map:
   <locationSetId>AllDischargeGauges</locationSetId>
   <timeSeriesType>external historical</timeSeriesType>
   <timeStep unit="hour" multiplier="1"/>
+  <readWriteMode>add originals</readWriteMode>
 </timeSeriesSet>
 ```
 
@@ -255,9 +268,11 @@ The most-used fields; the full element list will live on the (generated)
   [filter/display](/tasks/filters-displays/) `timeSeriesSet` must reconstruct the
   same header the import wrote — same `moduleInstanceId`, `parameterId`,
   `locationId`, `timeSeriesType`, and `timeStep`. Line them up field by field.
-- **`readWriteMode` does nothing here.** Per the schema, it's used only by the
-  Time Series Display; the import module ignores it. Don't add it to an import
-  expecting it to control write behavior.
+- **`readWriteMode` is required, but inert on import.** The schema requires a
+  `readWriteMode` on *every* `timeSeriesSet`, so include it — `add originals` is
+  the conventional value for imports. Its read-only-vs-editable *semantics*,
+  though, only affect the Time Series Display; on import the value doesn't change
+  how data is written, so don't rely on it to.
 - **Every value is time-shifted → wrong `importTimeZone`.** The source timestamps
   are interpreted in the zone you declare; declare the wrong one and the whole
   series slides.

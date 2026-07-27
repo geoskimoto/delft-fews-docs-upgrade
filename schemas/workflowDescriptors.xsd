@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="workflowDescriptors" type="fews:WorkflowDescriptorsComplexType">
+		<annotation>
+			<documentation>Schema for Workflows.xml</documentation>
+		</annotation>
+	</element>
+	<complexType name="WorkflowDescriptorsComplexType">
+		<sequence>
+			<element name="workflowDescriptor" type="fews:WorkflowDescriptorComplexType" maxOccurs="unbounded"/>
+			<element name="rootNode" type="fews:RootNodeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.01  Configuration of the workflow tree. This tree is displayed in ManualForecast dialog. If no tree is configured, ManualForecast shows  the workflows in a simple list</documentation>
+				</annotation>
+			</element>
+			<element name="node" type="fews:GroupNodeComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2019.01 Nodes  than  can be referenced  with nodeId in the  tree configured with rootNode</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<complexType name="WorkflowDescriptorComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="workflowFileName" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Defines the root workflow config file that should be started. By default, the config file name equals the workflow id. Multiple descriptors can share the same config file by using properties. The config file is used as template and the $key$ are replaced by the property values. The properties are replaced in all references found in the config files of child workflows and modules.</documentation>
+				</annotation>
+			</element>
+			<element name="inputWorkflowId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.02  Id of the workflow that delivers input time series for this workflow. Input workflow Id's are used to provide an overview of the interconnection between the various workflows </documentation>
+				</annotation>
+			</element>
+			<element name="timeZone" type="fews:timeZoneGmtStringType" minOccurs="0">
+				<annotation>
+					<documentation>TimeZone used for all time steps without time zone referenced in this workflow. It is also used to generate threshold event log messages. It is not used when importing or exporting time series.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="allowSelection" type="boolean" minOccurs="0"/>
+			<element name="cardinalTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Specifies the time step for entering the date/time for the specific workflow.  If omitted, the default cardinalTimeStep as specified in Explorer.xml will be used</documentation>
+				</annotation>
+			</element>
+			<element name="minForecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Minimum forecast length that can be specified by the user</documentation>
+				</annotation>
+			</element>
+			<element name="maxForecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02. Maximum forecast length that can be specified by the user</documentation>
+				</annotation>
+			</element>
+			<element name="stateSelection" type="fews:StateSelectionComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Default state selection used in the general adapter. Configuration in general adapter is ignored. This state selection can be overruled by task properties (manual forecast dialog)
+					</documentation>
+				</annotation>
+			</element>
+			<element name="shiftAllExportedStatesToTime0" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Forces that all models within this workflow start at time0</documentation>
+				</annotation>
+			</element>
+			<element name="runExpiryTime" type="fews:CalendarTimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Used for runs of simulated timeseries to override expiry time from global properties DEFAULT_EXPIRY_DAYS. When timeseriesets expirytime is also configured, the minimum of runExpiryTime and the timeSeriesSets expirytime is used. Obsolete for import data since 2017.01. </documentation>
+				</annotation>
+			</element>
+			<element name="schedulingAllowed" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Option that indicates if OC can schedule this workflow</documentation>
+				</annotation>
+			</element>
+			<element name="maxSchedulingPeriod" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Maximum allowed scheduling period</documentation>
+				</annotation>
+			</element>
+			<element name="defaultSchedulingPeriod" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Default scheduling period</documentation>
+				</annotation>
+			</element>
+			<element name="minSchedulingInterval" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Minimum allowed scheduling interval</documentation>
+				</annotation>
+			</element>
+			<element name="maxNumberRuns" type="int" minOccurs="0">
+				<annotation>
+					<documentation>Maximum number of runs allowed to be scheduled</documentation>
+				</annotation>
+			</element>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+Set a permission to control who can view this workflow.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="runPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+Set a permission to control who can run this workflow
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="approvePermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Set a permission to control who can approve this workflow
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="deletePermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>DeletePermission determines which users have permission to delete taskRuns from this workflow in the ForecastDialog. DeletePermission also determines which users have permission to change the expiry times of taskRuns from this workflow in the ForecastDialog.</documentation>
+				</annotation>
+			</element>
+			<element name="deleteByCreatorAllowed" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>DeleteByCreatorAllowed determines if the user who created a taskRun from this workflow can delete it in the ForecastDialog. Also determines which users have permission to change the expiry times of taskRuns from this workflow in the ForecastDialog.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<group ref="fews:EditablePropertiesGroup"/>
+				<element name="moduleConfigProperties" type="fews:PropertiesComplexType">
+					<annotation>
+						<documentation>Same as properties, but element name is deprecated and obsolete since properties are also applied in workflow config files and not only in module config files</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="enabledModifierGroups" type="fews:EnabledModifierGroups" minOccurs="0"/>
+			<element name="maxEnsembleParts" type="positiveInteger" minOccurs="0">
+				<annotation>
+					<documentation>Determines in how many parts at most the workflow can be split up to run in parallel for ensembles. Ensembles will only be split up if this element is specified and the  number specified is larger than 1.
+						</documentation>
+				</annotation>
+			</element>
+			<element name="waterCoachDelay" type="fews:CalendarTimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Prevents simulated forecasts becoming available too early in water coach mode. The forecasts are finished in real life at time zero plus delay. The delay includes the run time and the time0 shift. When a forecast is scheduled at 7:00 am with a time0 of 0:00 am and the runs takes approximately an hour you should specify an delay of 8 hours. For external forecasts the delay is configured in the moduleInstanceDescriptors.xml</documentation>
+				</annotation>
+			</element>
+			<element name="timeOut" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Timeout for a workflow on the ForecastingShell. Default is 4 hours. Since 2018.02 this option is to be used instead of the master-controller chaser grace time which was removed.</documentation>
+				</annotation>
+			</element>
+			<element name="approvalEventCode" type="fews:logEventCodeStringType" minOccurs="0">
+				<annotation>
+					<documentation>approvalEventCode  is  user configured  event code that is logged upon approving a forecast, instead of default event code “DataStore.NewCurrentRun”
+						approvalEventCode  make it possible to log different approval  event codes  per workflow, so that different actions can be triggered by Master-Controller after approving particular forecast(s)
+				</documentation>
+				</annotation>
+			</element>
+			<element name="whatIfTemplateId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01. Id of the whatIfTemplate which is connected to this node</documentation>
+				</annotation>
+			</element>
+			<element name="whatIfScenarioRequired" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2025.01. If this option is set to true, the user can only start a workflow if a what-if scenario is defined.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="stateWorkflowId" type="fews:idStringType" use="optional">
+			<annotation>
+				<documentation>Deprecated and obsolete since 2016.01, the general adapter export state activity is resolved in the workflow. The workflow that is delivering the states. </documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+		<attribute name="visible" type="boolean" use="optional" default="true"/>
+		<attribute name="forecast" type="boolean" use="optional" default="true"/>
+		<attribute name="waitWhenAlreadyRunning" type="boolean" default="false">
+			<annotation>
+				<documentation>Prevents two tasks running this workflow at the same time</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="allowApprove" type="boolean" use="optional" default="true">
+			<annotation>
+				<documentation>Indication whether the Approve-flag in ManualForecastDialog  must be enabled or disabled. In Operator-Client system is this flag always disabled and unchecked.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="allowEnsembleMemberSelection" type="boolean" default="false">
+			<annotation>
+				<documentation>Indication whether an ensemble selection can be made in ManualForecastDialog. An ensemble selection will run the workflow only for the specified ensemble member indices</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="autoApprove" type="boolean" use="optional" default="false">
+			<annotation>
+				<documentation>Indication whether the Approve-flag in ManualForecastDialog  must be checked or unchecked, when selecting a workflow. In Operator-Client system this flag is always disabled and unchecked.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="autoSetSystemTime" type="boolean" default="false">
+			<annotation>
+				<documentation>When a workflow is finished, the system time is automatically set to the T0 of that workflow.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="showWarningInLogCompletion" type="boolean" default="false">
+			<annotation>
+				<documentation>Report whether warning messages were logged during the execution of the workflow</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="onlyCheckThresholdsOfChangedSeries" type="boolean" default="false">
+			<annotation>
+				<documentation>Indicate if threshold check should only be performed on series that where changed during current workflow.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<group name="EditablePropertiesGroup">
+		<sequence>
+			<element name="properties" type="fews:PropertiesComplexType">
+				<annotation>
+					<documentation>These properties can be referenced in workflow and module config files with $key$, similar to global properties. $key$ is resolved by first searching in the
+						properties defined in the workflow files defined and than in the workflow descriptor of the running task and after that in the moduleConfigFileProperties defined in the the
+						region config and at last in the global properties in the region home
+					</documentation>
+				</annotation>
+			</element>
+			<element name="editableProperty" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 202401 (WebOC only). List of properties which are editable in the WebOc</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="RootNodeComplexType">
+		<sequence>
+			<element name="node" type="fews:TreeNodeComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Nodes  that wil be shown as top level nodes in the ManualForecast dialog</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="GroupNodeComplexType">
+		<complexContent>
+			<extension base="fews:WorkflowNodeComplexType">
+				<attribute name="id" type="fews:idStringType" use="required">
+					<annotation>
+						<documentation>Id of the  node</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TreeNodeComplexType">
+		<complexContent>
+			<extension base="fews:WorkflowNodeComplexType">
+				<attribute name="name" type="fews:nameStringType" use="required">
+					<annotation>
+						<documentation>Name of the node</documentation>
+					</annotation>
+				</attribute>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="WorkflowNodeComplexType">
+		<group ref="fews:NodeElements"/>
+	</complexType>
+	<group name="NodeElements">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Long descriptive name of the node</documentation>
+				</annotation>
+			</element>
+			<choice maxOccurs="unbounded">
+				<group ref="fews:WorkflowElements"/>
+				<element name="node" type="fews:TreeNodeComplexType">
+					<annotation>
+						<documentation>Child  node</documentation>
+					</annotation>
+				</element>
+				<element name="nodeId" type="fews:idStringType">
+					<annotation>
+						<documentation>Reference to a node.  Also nodes   from  multiple workflowDescriptors files  can be referenced here</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<group name="WorkflowElements">
+		<choice>
+			<element name="workflowId" type="fews:idStringType">
+				<annotation>
+					<documentation>Reference to a  workflow descriptor</documentation>
+				</annotation>
+			</element>
+			<element name="workflowIdPattern" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2020.02. Reference to a  workflow descriptor. Characters * and ? can be used, eg *_process_Observed</documentation>
+				</annotation>
+			</element>
+			<element name="workflowDescriptor" type="fews:WorkflowDescriptorComplexType">
+				<annotation>
+					<documentation>Definition of the workflowDescriptor</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+</schema>

@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<!-- ============================================================================== -->
+	<!-- Schema for describing a workflow. The schema does not validate the uniqueness  -->
+	<!-- of module instance ids and workflow ids. This is because XML schema does not   -->
+	<!-- allow us to validate the uniqueness of element contents. Using attributes      -->
+	<!-- instead of arguments, however, would lead to an inconsistent style w.r.t.      -->
+	<!-- other schemas of Delft FEWS.                                                   -->
+	<!-- ============================================================================== -->
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="workflow" type="fews:workflowComplexType">
+		<annotation>
+			<documentation>
+                Schema for defining a workflow file.
+            </documentation>
+		</annotation>
+	</element>
+	<complexType name="workflowComplexType">
+		<sequence>
+			<element name="properties" type="fews:WorkflowPropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>These properties can be referenced in nested workflow files and module config file with $key$, similar to global properties. These properties are overruling the properties defined at a higher level. The property $MODULE_INSTANCE_ID$ is added automatically and should not be added manually.
+					</documentation>
+				</annotation>
+			</element>
+			<choice maxOccurs="unbounded">
+				<element name="activity" type="fews:ActivityComplexType"/>
+				<element name="parallel" type="fews:ParallelComplexType">
+                    <annotation>
+                        <documentation>
+                            Runs multiple activities at the same time
+                        </documentation>
+                    </annotation>
+				</element>
+				<element name="sequence" type="fews:SequenceComplexType">
+					<annotation>
+						<documentation>
+							Runs multiple activities in one by one.  Allow you to group activities and to apply properties to all activities in the sequence.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="completed" type="fews:CompletedComplexType">
+					<annotation>
+						<documentation>Mark one or module instances as completed for the running workflow. The module instances become read-only for the rest of the workflow. When auto approve is configured for the workflow the simulated database becomes visible for other workflows and users before the complete workflow completes. The workflow can continue on a different forecasting shell if needed. See deleteTemporary if you want to transfer temporary data to the next partition forecasting shell			</documentation>
+					</annotation>
+				</element>
+				<element name="deleteTemporary" type="fews:DeleteTemporaryComplexType">
+					<annotation>
+						<documentation>Explicit deletes temporary series. At the end workflow partition or the end of the workflow temporary series are automatically deleted. Deleting specified module 	instances earlier prevents the temporary series are flushed to disk for no use when they are still in the memory buffer. Time series that are explicitly deleted in another workflow partition then the partition were they were created are always flushed to the database. This makes it possible to use temporary time series even when the workflows 	continues on a different forecasting shell. When the workflow terminates or completes all temporary series for the run are deleted from the database 			</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required"/>
+	</complexType>
+
+	<complexType name="ParallelComplexType">
+		<sequence>
+			<element name="properties" type="fews:WorkflowPropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>These properties can be referenced in nested workflow files and module config file with $key$, similar to global properties. These properties are overruling the properties defined at a higher level. The property $MODULE_INSTANCE_ID$ is added automatically and should not be added manually.
+					</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="multipleForecastingShells" type="boolean" minOccurs="0">
+						<annotation>
+							<documentation>Run on multiple forecasting shells</documentation>
+						</annotation>
+					</element>
+					<group ref="fews:activityOrSequenceChoice" minOccurs="2" maxOccurs="unbounded"/>
+				</sequence>
+				<sequence>
+					<element name="forecastingShellCount" type="fews:twoOrMoreIntStringType">
+						<annotation>
+							<documentation>Run on multiple forecasting shells. Only allowed when all sub tasks are ensemble loops or location loops. Since 2024.01 this element can reference a (global) property.  This element
+								should not reference a task or what-if property. The encoded partition sequences are only re-generated after a config change. The generation is done on a random forecasting-shell. All forecasting shells should use the same global property value referenced by this element.</documentation>
+						</annotation>
+					</element>
+					<group ref="fews:activityOrSequenceChoice"/>
+				</sequence>
+			</choice>
+		</sequence>
+	</complexType>
+	<group name="activityOrSequenceChoice">
+		<choice>
+			<element name="activity" type="fews:ActivityComplexType"/>
+			<element name="sequence" type="fews:SequenceComplexType">
+				<annotation>
+					<documentation>
+						Runs activities one by one
+					</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="SequenceComplexType">
+		<sequence>
+			<element name="properties" type="fews:WorkflowPropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>These properties can be referenced in nested workflow files and module config file with $key$, similar to global properties. These properties are overruling the properties defined at a higher level. The property $MODULE_INSTANCE_ID$ is added automatically and should not be added manually.
+					</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="2" maxOccurs="unbounded">
+				<element name="activity" type="fews:ActivityComplexType"/>
+				<element name="parallel" type="fews:ParallelComplexType"/>
+				<element name="completed" type="fews:CompletedComplexType">
+					<annotation>
+						<documentation>Mark one or module instances as completed for the running workflow. The module instances become read-only for the rest of the workflow. When auto approve is configured for the workflow the simulated database becomes visible for other workflows and users before the complete workflow completes. The workflow can continue on a different forecasting shell if needed. See deleteTemporary if you want to transfer temporary data to the next partition forecasting shell.</documentation>
+					</annotation>
+				</element>
+				<element name="deleteTemporary" type="fews:DeleteTemporaryComplexType">
+					<annotation>
+						<documentation>Explicit deletes temporary series. At the end workflow partition or the end of the workflow temporary series are automatically deleted. Deleting specified module
+							instances earlier prevents the temporary series are flushed to disk for no use when they are still in the memory buffer. Time series that are explicitly deleted in another
+							workflow partition then the partition were they were created are always flushed to the database. This makes it possible to use temporary time series even when the workflows
+							continues on a different forecasting shell. When the workflow terminates or completes all temporary series for the run are deleted from the database
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="CompletedComplexType">
+		<sequence>
+			<group ref="fews:ModuleInstanceIdsChoice"/>
+		</sequence>
+	</complexType>
+	<complexType name="DeleteTemporaryComplexType">
+		<sequence>
+			<group ref="fews:ModuleInstanceIdsChoice"/>
+		</sequence>
+	</complexType>
+	<complexType name="ActivityComplexType">
+		<annotation>
+			<documentation>
+                Defines an activity of a workflow. Activities are executed
+                in the same order as defined in the workflow XML file.
+            </documentation>
+		</annotation>
+		<sequence>
+			<element name="properties" type="fews:WorkflowPropertiesComplexType" minOccurs="0">
+				<annotation>
+					<documentation>These properties can be referenced in nested workflow files and module config file with $key$, similar to global properties. These properties are overruling the properties defined at a higher level. The property $MODULE_INSTANCE_ID$ is added automatically and should not be added manually.
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:enabledChoice" minOccurs="0"/>
+			<element name="runIndependent" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>
+                        If present, the workflow will continue with the next
+                        activity even if this activity fails. The default is to
+                        stop with the workflow as soon as an activity fails.
+                    </documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="downloadMissingDataFromArchive" type="boolean">
+					<annotation>
+						<documentation>
+					Since 2017.02. If this option is set to true the data will be downloaded from the archive if the data is expired from FEWS.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="downloadMissingDataFromArchiveForManualTasksOnly" type="boolean" minOccurs="0" default="false">
+					<annotation>
+						<documentation>
+							Since 2024.02. Toggle that limits the scope of the downloadMissingDataFromArchive boolean to manual tasks.
+						</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="downloadMissingStatesFromArchive" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. If this option is set to true the missing states will be downloaded from the archive if the states were expired from FEWS.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="defaultFlagSource" type="string" minOccurs="0">
+						<annotation>
+							<documentation>Flag source that is used for non missing values without flag source</documentation>
+						</annotation>
+					</element>
+					<element name="flagSourceColumnId" type="fews:idStringType" minOccurs="0">
+						<annotation>
+							<documentation>The flag sources are also written to the specified flag source column</documentation>
+						</annotation>
+					</element>
+					<element name="moduleInstanceId" type="fews:idStringType">
+						<annotation>
+							<documentation>
+								Defines the id to the module instance to run for this activity. Each module instance may occur only once in a workflow (including nested workflows).
+							</documentation>
+						</annotation>
+					</element>
+					<element name="moduleConfigFileName" type="fews:idStringType" minOccurs="0">
+						<annotation>
+							<documentation>
+								Defines the config file that should be used. By default the config file name equals the module instance id. Multiple module instances can share the same config file by using properties. The config file is used as template and the $key$ are replaced by the property values.   The xml file should use one of the following xsd-s: amalgamateModule.xsd (obsolete), archiveRun.xsd (Deprecated and obsolete since 2013.02), configUpdateScriptConfig.xsd, correlationSets.xsd, decisionModule.xsd, errorModelSets.xsd, exportArchiveModule.xsd, exportRun.xsd, forecastLengthEstimator.xsd, generalAdapterRun.xsd, hymosTransferDbImportRun.xsd (obsolete), importAmalgamate.xsd, importArchiveModule.xsd, importRun.xsd (obsolete), interpolationSets.xsd (obsolete), lookupSets.xsd, massBalance.xsd, pcrTransformationSets.xsd, performanceIndicatorSets.xsd, rdbmsExport.xsd (obsolete), reportExport.xsd, reports.xsd, scenarios.xsd, secondaryValidation.xsd, supportStationSets.xsd, timeSeriesExportRun.xsd, timeSeriesImportRun.xsd, transformationModule.xsd, transformationSets.xsd (obsolete), workflowLoopRunner.xsd
+							</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<element name="workflowId" type="fews:idStringType">
+					<annotation>
+						<documentation>Workflow file name to run</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="predefinedActivity" type="fews:predefinedActivity">
+						<annotation>
+							<documentation>Some activities don't require a config file and module instance</documentation>
+						</annotation>
+					</element>
+					<element name="moduleInstanceId" type="fews:idStringType" minOccurs="0">
+						<annotation>
+							<documentation>Use to record the progress of this activity while running. See "updateModuleRunTimesOnCompletion" in the module instance descriptors.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+			<element name="fallbackActivity" type="fews:ActivityComplexType" minOccurs="0">
+				<annotation>
+					<documentation>
+                        Fallback activity to execute in case the activity fails.
+                        The fallback activity is optional.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="ensemble" type="fews:EnsembleComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional field for running ensembles. Ensemble id's in a sub workflow will override this ensembleId. A sub workflow without an ensembleId will make use of this ensembleId.</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<element name="loopLocationSetId" type="fews:idStringType">
+					<annotation>
+						<documentation>Since 2015.01 FEWS-11030. Location set containing all locations for which the activity must be ran, refer to these locations by using $LOOP_LOCATION_ID$. Not
+							supported in combination with Run in Ensemble loop
+						</documentation>
+					</annotation>
+				</element>
+				<element name="skipNonExistingLoopLocationSet" type="boolean" minOccurs="0">
+					<annotation>
+						<documentation>Since 2021.01, skip the activity when the location set does not exist</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+						Available since 2019.02. Text will be displayed in workflow navigator as a mouse over label
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="logStartedAsDebug" type="boolean" default="false">
+			<annotation>
+				<documentation>Since 2014.03 FEWS-11844 Log info messages for start of an activity as debug</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="logFinishedAsDebug" type="boolean" default="false">
+			<annotation>
+				<documentation>Since 2014.03 FEWS-11844 Log info messages for finish of an activity as debug</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="EnsembleComplexType">
+		<annotation>
+			<documentation>Defines ensemble</documentation>
+		</annotation>
+		<sequence>
+			<element name="ensembleId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id of ensemble. Ensemble id's in a sub workflow will override this ensembleId. A sub workflow without an ensembleId will make use of this ensembleId. </documentation>
+				</annotation>
+			</element>
+            <choice minOccurs="0">
+				<element name="ensembleMemberId" type="string">
+					<annotation>
+						<documentation>Since 2018.01 (in older versions use ensembleMemberIdRegularExpression instead). Optional field to only run one particular ensemble member</documentation>
+					</annotation>
+				</element>
+                <element name="ensembleMemberIndex" type="nonNegativeInteger">
+                    <annotation>
+                        <documentation>Optional field to only run one particular ensemble member
+                        </documentation>
+                    </annotation>
+                </element>
+                <element name="ensembleMemberIndexRange" type="fews:EnsembleMemberIndexRangeComplexType">
+                    <annotation>
+                        <documentation>Optional field to run a particular range of ensemble members
+                        </documentation>
+                    </annotation>
+                </element>
+				<element name="ensembleMemberIdRegularExpression" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>Runs all members which id matches the specified expression  e.g specify ^Q.* to loop over all members that start with Q
+						</documentation>
+					</annotation>
+				</element>
+            </choice>
+            <element name="runInLoop" type="boolean" default="true">
+				<annotation>
+					<documentation>When 'true' then run each member of the ensemble separately. When 'false' then whole ensemble is run in one go.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="enabledChoice">
+		<choice>
+			<element name="enable" type="fews:booleanStringType">
+				<annotation>
+					<documentation>Since 2024.01. Plain eg $ENABLE_EXPORT$</documentation>
+				</annotation>
+			</element>
+			<element name="enabled" type="fews:EnabledComplexType">
+				<annotation>
+					<documentation>Since 2017.02. If this option is present and the location attribute, specified with attributeId, has value FALSE, then the activity will be excluded from the
+						workflow run
+					</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="EnabledComplexType">
+		<attribute name="locationId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of the location the workflow looks at to determine whether the activity should be excluded or not. The location should have attribute referenced with attributeId</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="attributeId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Id of the boolean attribute. If this attribute has value False then the activity will be excluded from the workflow run </documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<simpleType name="predefinedActivity">
+		<restriction base="string">
+			<enumeration value="threshold event crossing">
+				<annotation>
+					<documentation>
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="compact cache files">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2018.02. Index files are shared by all FSS/OC and automatically compacted</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="validate cache files">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2018.02.  Index files are shared by all FSS/OC and automatically validated. In the AI is it is possible to rebuild the index file</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="repair and defrag local data store">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2018.02. Local data store no longer allowed at FSS</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="time series status snap shot update">
+				<annotation>
+					<documentation>
+					</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="import status checker">
+				<annotation>
+					<documentation>Logs message with event code when data feed has not been receiving new data for an in SystemMonitorDisplay configured period.</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="revalidation module">
+				<annotation>
+					<documentation>Revalidates all time series connected to validation rule sets</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+</schema>
