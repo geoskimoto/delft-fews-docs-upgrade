@@ -9,6 +9,8 @@ const TARGETS = [
   { schema: 'locations.xsd', element: 'locations' },
   { schema: 'parameters.xsd', element: 'parameters' },
   { schema: 'idMap.xsd', element: 'idMap' },
+  { schema: 'filters.xsd', element: 'filters' },
+  { schema: 'thresholdValueSets.xsd', element: 'thresholdValueSets' },
 ];
 
 let failed = 0;

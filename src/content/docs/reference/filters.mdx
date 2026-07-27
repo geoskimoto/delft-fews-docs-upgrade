@@ -1,0 +1,81 @@
+---
+title: Filters file
+description: Reference for the Filters config file — build the browsable data tree in the FEWS Explorer. Field reference auto-generated from the schema.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/filters.json';
+
+The schema-companion to the [Filters & display groups](/tasks/filters-displays/)
+task guide. That guide covers the filter-vs-display distinction, nesting, and the
+header-matching that decides whether data appears; this page is the generated
+field list.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Builds the browsable tree in the FEWS Explorer — *what data a user can reach
+and how it's grouped* ([hop ⑤](/concepts/data-flow/)).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<filters>` (`version="1.1"`, required)
+
+**Depends on**
+: The [locations](/tasks/locations/), [parameters](/tasks/parameters/), and stored
+series its `timeSeriesSet` queries refer to.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Filters 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<filters xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <defaultFilterId>Discharge</defaultFilterId>
+  <filter id="Discharge" name="Discharge observations">
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationSetId>AllDischargeGauges</locationSetId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>read only</readWriteMode>
+    </timeSeriesSet>
+  </filter>
+</filters>
+```
+
+<Aside type="caution">
+A `<filter>` is **either** a leaf (carries `timeSeriesSet` queries) **or** a
+branch (carries `<child foreignKey="…">` references) — a schema `<choice>`, not
+both. And a leaf's `timeSeriesSet` must match the stored
+[header](/concepts/glossary/#time-series-header) exactly, or the node is silently
+empty. See the [task guide](/tasks/filters-displays/).
+</Aside>
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+The task guide covers the important ones: [header
+mismatch](/tasks/filters-displays/#gotchas) (imported-but-won't-display), a
+mistyped `foreignKey` giving an empty branch, and referencing undeclared
+locations/parameters. The version-suffix trap applies — see [how FEWS finds a
+file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## See also
+
+- Task guide: [Filters & display groups](/tasks/filters-displays/)
+- [Import time series](/tasks/import-timeseries/) — writes the header a filter must match
+- Schema: [`filters.xsd`]({data.schemaUrl})

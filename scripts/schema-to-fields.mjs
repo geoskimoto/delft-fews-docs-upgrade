@@ -149,6 +149,17 @@ function collectAttributes(reg, ct, acc = []) {
   return acc;
 }
 
+// A complexType is worth its own table if it carries child elements OR
+// attributes. The attribute-only case matters for types like idMap's <map>
+// (ParameterLocationIdMapComplexType) or DateTimeComplexType, whose entire
+// content lives in attributes — previously these were mis-rendered as scalars.
+function typeIsComplex(ct) {
+  if (!ct) return false;
+  if (ct.sequence || ct.choice || ct.all || ct.complexContent) return true;
+  if (ct.attribute || ct.attributeGroup) return true; // attribute-only type
+  return false;
+}
+
 // ---- Build ONE field (no recursion). Complex fields carry a `typeRef` that
 //      links to that type's own table, so every table stays shallow. --------
 function buildField(reg, el) {
@@ -178,7 +189,7 @@ function buildField(reg, el) {
   }
 
   const ct = reg.complexTypes.get(shortType) || el.complexType;
-  const isComplex = !!ct && (ct.sequence || ct.choice || ct.all || ct.complexContent);
+  const isComplex = typeIsComplex(ct);
   if (isComplex) {
     field.kind = 'complex';
     // Anonymous inline complexType → synthesise a stable name for its table.

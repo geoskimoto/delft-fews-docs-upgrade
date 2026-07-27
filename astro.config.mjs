@@ -51,6 +51,10 @@ export default defineConfig({
           items: [
             { label: 'How to read a reference page', slug: 'reference/how-to-read' },
             { label: 'Locations file', slug: 'reference/locations' },
+            { label: 'Parameters file', slug: 'reference/parameters' },
+            { label: 'ID map file', slug: 'reference/idmap' },
+            { label: 'Filters file', slug: 'reference/filters' },
+            { label: 'Threshold value sets file', slug: 'reference/thresholdvaluesets' },
           ],
         },
         {

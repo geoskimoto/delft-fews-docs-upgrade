@@ -1,0 +1,80 @@
+---
+title: Parameters file
+description: Reference for the Parameters config file — declare the quantities FEWS measures and computes. Field reference auto-generated from the schema.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/parameters.json';
+
+The schema-companion to the [Define parameters & units](/tasks/parameters/) task
+guide. For the *why* and the common patterns, read that; this page is the
+exhaustive field list, generated from the schema.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Declares the **parameters** — discharge, water level, precipitation — that
+every time series is measured in. The "what" of your [data
+model](/concepts/data-flow/).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<parameters>` (`version="1.0"`, optional)
+
+**Depends on**
+: Nothing — parameters are foundational nouns referenced by id from imports,
+filters, and models.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Parameters 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<parameters xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <parameterGroups>
+    <parameterGroup id="Q">
+      <parameterType>instantaneous</parameterType>
+      <unit>m3/s</unit>
+      <valueResolution>0.001</valueResolution>
+      <usesDatum>false</usesDatum>
+      <parameter id="Q.obs">
+        <shortName>Q.obs</shortName>
+        <description>Observed discharge</description>
+      </parameter>
+    </parameterGroup>
+  </parameterGroups>
+</parameters>
+```
+
+<Aside type="tip">
+The `parameterGroup` carries the shared `parameterType`/`unit`/`valueResolution`;
+the `parameter` inside is the id you reference elsewhere. See the [task
+guide](/tasks/parameters/#anatomy-groups-vs-parameters) for why the split matters
+and how `parameterType` affects aggregation.
+</Aside>
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+The consequential ones are covered in the task guide: [wrong `parameterType`
+silently corrupts aggregation](/tasks/parameters/#gotchas), unit mismatches on
+import, and confusing the **group** id with the **parameter** id. The
+version-suffix trap applies here too — see [how FEWS finds a
+file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## See also
+
+- Task guide: [Define parameters & units](/tasks/parameters/)
+- Reference: [Locations file](/reference/locations/) — the other foundational noun
+- Schema: [`parameters.xsd`]({data.schemaUrl})

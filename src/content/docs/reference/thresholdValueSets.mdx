@@ -1,0 +1,83 @@
+---
+title: Threshold value sets file
+description: Reference for the ThresholdValueSets config file — assign warning-level values to a location/parameter series. Field reference auto-generated from the schema.
+sidebar:
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/thresholdValueSets.json';
+
+The schema-companion to the [Thresholds & warnings](/tasks/thresholds/) task
+guide. Thresholds span three files; this one — where the *numbers* live and bind
+to real data — is the one you edit most. This page is the generated field list.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Assigns threshold **values** (e.g. minor/major flood levels) to a specific
+location/parameter series, referencing the warning levels and threshold slots
+defined in the other threshold files.
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<thresholdValueSets>` (**no** `version` attribute — unlike most region-config
+files)
+
+**Depends on**
+: The `Thresholds` and `ThresholdWarningLevels` files (for the ids it references)
+and the stored series its `timeSeriesSet` binds to.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/ThresholdValueSets 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdValueSets xmlns="http://www.wldelft.nl/fews">
+  <thresholdValueSet id="Flood_Discharge" name="Discharge flood levels">
+    <levelThresholdValue>
+      <levelThresholdId>MinorFlood</levelThresholdId>
+      <value>250</value>
+      <label>Minor flood</label>
+    </levelThresholdValue>
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationSetId>AllDischargeGauges</locationSetId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>read only</readWriteMode>
+    </timeSeriesSet>
+  </thresholdValueSet>
+</thresholdValueSets>
+```
+
+<Aside type="tip">
+`levelThresholdId` points back to a slot defined in the `Thresholds` file; `value`
+is in the parameter's **stored** unit; the `timeSeriesSet` says *which* series the
+values apply to. See the [task guide](/tasks/thresholds/) for the three-file
+split.
+</Aside>
+
+## Field reference
+
+<Aside type="note">
+This is a large type — threshold value sets support many value kinds (level, rate,
+max, event, rating-curve-derived, aggregation). The full graph is below; in
+practice you use a small subset (usually `levelThresholdValue` + `timeSeriesSet`).
+</Aside>
+
+<FieldReference data={data} />
+
+## See also
+
+- Task guide: [Thresholds & warnings](/tasks/thresholds/)
+- [Filters & display groups](/tasks/filters-displays/) — thresholds are drawn on these displays
+- Schema: [`thresholdValueSets.xsd`]({data.schemaUrl})
