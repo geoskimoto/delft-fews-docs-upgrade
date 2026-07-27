@@ -6,11 +6,28 @@
 import { generateToFile } from './schema-to-fields.mjs';
 
 const TARGETS = [
+  // Region-config vocabulary
   { schema: 'locations.xsd', element: 'locations' },
+  { schema: 'locationSets.xsd', element: 'locationSets' },
   { schema: 'parameters.xsd', element: 'parameters' },
   { schema: 'idMap.xsd', element: 'idMap' },
   { schema: 'filters.xsd', element: 'filters' },
+  // Thresholds (three related files)
+  { schema: 'thresholds.xsd', element: 'thresholdGroups' },
   { schema: 'thresholdValueSets.xsd', element: 'thresholdValueSets' },
+  { schema: 'thresholdWarningLevels.xsd', element: 'thresholdWarningLevels' },
+  // Displays
+  { schema: 'displayGroups.xsd', element: 'displayGroups' },
+  // Module-run files
+  { schema: 'timeSeriesImportRun.xsd', element: 'timeSeriesImportRun' },
+  { schema: 'timeSeriesExportRun.xsd', element: 'timeSeriesExportRun' },
+  { schema: 'generalAdapterRun.xsd', element: 'generalAdapterRun' },
+  // Workflows
+  { schema: 'workflow.xsd', element: 'workflow' },
+  { schema: 'workflowDescriptors.xsd', element: 'workflowDescriptors' },
+  // NB: transformationModule.xsd is intentionally omitted — its type graph is
+  // ~400 types / ~3000 fields, too large for one readable page. The
+  // Transformations task guide defers the full catalogue to the schema instead.
 ];
 
 let failed = 0;

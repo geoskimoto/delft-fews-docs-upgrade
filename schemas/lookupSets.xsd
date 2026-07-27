@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!-- -->
+	<!-- Top-level element Declaration -->
+	<element name="LookUpSets" type="fews:LookUpSetsComplexType"/>
+	<!-- -->
+	<!--complexType Definitions -->
+	<!-- -->
+	<complexType name="LookUpSetsComplexType">
+		<sequence>
+			<element name="lookupSet" type="fews:LookUpSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!-- -->
+	<complexType name="LookUpSetComplexType">
+		<sequence>
+			<element name="inputVariable" type="fews:VariableComplexType" maxOccurs="unbounded"/>
+			<choice>
+				<element name="criticalConditionLookup" type="fews:CriticalConditionLookUpComplexType"/>
+				<element name="simpleTableLookup" type="fews:TableLookUpComplexType"/>
+				<element name="multiDimensionalTableLookup" type="fews:MultiDimensionalTableLookUpComplexType"/>
+			</choice>
+			<element name="defaultValue" type="fews:RuleCriteriasComplexType" minOccurs="0"/>
+			<element name="outputVariable" type="fews:VariableComplexType" maxOccurs="unbounded"/>
+			<element name="comment" type="string" minOccurs="0">
+				<annotation>
+					<documentation>use this field as a notebook to add comments, suggestions
+                        description of data entered etc.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="lookupSetId" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<!-- -->
+	<!--One Dimensional Simple Lookup Table Complex Type-->
+	<complexType name="TableLookUpComplexType">
+		<annotation>
+			<documentation>To relate 2 or three parameters (e.g. stage height to discharge) lookup tables are used.
+             This can be used also to describe level-area curves for off-line storage areas</documentation>
+		</annotation>
+		<sequence>
+			<element name="LookUpData" type="fews:ListComplexType"/>
+			<choice>
+				<element name="rowwise" type="fews:ListComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>entering data row wise i.e. data element contains data per row for all columns</documentation>
+					</annotation>
+				</element>
+				<element name="columnwise" type="fews:ListComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>entering data column wise i.e. data element contains data per column for all rows</documentation>
+					</annotation>
+				</element>
+				<element name="rowdata" type="fews:ColumnDataComplexType" maxOccurs="unbounded"/>
+			</choice>
+			<element name="info" type="fews:InfoComplexType" minOccurs="0"/>
+		</sequence>
+		<attribute name="lookUpVariableId" type="fews:idStringType" use="required"/>
+		<attribute name="outputVariableId" type="fews:idStringType" use="required"/>
+		<attribute name="rows" type="int" use="required">
+			<annotation>
+				<documentation>number of rows</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="columns" type="int" use="required">
+			<annotation>
+				<documentation>number of columns</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="type" type="fews:dataTypeEnumStringType" use="optional" default="float"/>
+	</complexType>
+	<!--Multi-Dimensional Lookup Table Complex Type-->
+	<complexType name="MultiDimensionalTableLookUpComplexType">
+		<sequence>
+			<element name="LookUpColData" type="fews:ListComplexType"/>
+			<element name="LookUpRowData" type="fews:ListComplexType"/>
+			<choice>
+				<element name="rowwise" type="fews:ListComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>entering data rowwise i.e. data element contains data per row for all columns</documentation>
+					</annotation>
+				</element>
+				<element name="columnwise" type="fews:ListComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>entering data columnwise i.e. data element contains data per column for all rows</documentation>
+					</annotation>
+				</element>
+				<element name="rowdata" type="fews:ColumnDataComplexType" maxOccurs="unbounded"/>
+			</choice>
+			<element name="info" type="fews:InfoComplexType" minOccurs="0"/>
+		</sequence>
+		<attribute name="lookUpColVariableId" type="fews:idStringType" use="optional"/>
+		<attribute name="lookUpRowVariableId" type="fews:idStringType" use="optional"/>
+		<attribute name="outputVariableId" type="fews:idStringType" use="required"/>
+		<attribute name="rows" type="int" use="required">
+			<annotation>
+				<documentation>number of rows</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="columns" type="int" use="required">
+			<annotation>
+				<documentation>number of columns</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="type" type="fews:dataTypeEnumStringType" use="optional" default="float"/>
+	</complexType>
+	<!--Critical Conditional Look Up Complex Type-->
+	<complexType name="CriticalConditionLookUpComplexType">
+		<sequence>
+			<element name="criticalCondition" type="fews:RuleCriteriasComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<!-- -->
+	<complexType name="InfoComplexType">
+		<sequence>
+			<element name="extrapolation" type="fews:extrapolationType" minOccurs="0">
+				<annotation>
+					<documentation>type of extrapolation if outside the range:
+                        non = not allowed, critical stop
+                        maxmin = stays fixed at max (or) min level in table
+                        linear = linear extrapolation</documentation>
+				</annotation>
+			</element>
+			<element name="interpolation" type="fews:interpolationType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="ColumnDataComplexType">
+		<annotation>
+			<documentation>complex type to define the variable type data (similar to PI lookup table from PI interface)</documentation>
+		</annotation>
+		<sequence>
+			<element name="columndata" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The total number of items MUST match rows*cols. Items are processes from top left to bottom right, row by row</documentation>
+				</annotation>
+				<complexType>
+					<attribute name="columnnumber" type="int" use="optional"/>
+					<attribute name="type" type="fews:dataTypeEnumStringType" use="required"/>
+					<attribute name="value" type="string" use="required"/>
+				</complexType>
+			</element>
+		</sequence>
+		<attribute name="rownumber" type="int" use="optional"/>
+	</complexType>
+	<!--defines the critical condition rule criteria-->
+	<complexType name="RuleCriteriasComplexType">
+		<sequence maxOccurs="unbounded">
+			<element name="ruleCriteria" type="fews:RuleCriteriaComplexType"/>
+			<element name="ruleCriteriaLogicalOperator" type="fews:logicalOperatorEnumStringType" minOccurs="0"/>
+		</sequence>
+		<attribute name="rule" type="string" use="required">
+			<annotation>
+				<documentation>rule name or rule result e.g. RED, WARNING, INFO etc.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="ruleIndex" type="string" use="required">
+			<annotation>
+				<documentation>rule index is a value which is written to timeseries arrays</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="rulePreferredColor" type="fews:colorStringType" use="optional"/>
+		<attribute name="valuetype" type="fews:dataTypeEnumStringType" use="optional" default="float"/>
+		<attribute name="indextype" type="fews:dataTypeEnumStringType" use="optional" default="long"/>
+	</complexType>
+	<!-- -->
+	<complexType name="RuleCriteriaComplexType">
+		<annotation>
+			<documentation>complex type to define rule criteria</documentation>
+		</annotation>
+		<sequence maxOccurs="unbounded">
+			<choice>
+				<element name="rule" type="fews:ConditionComplexType"/>
+				<element name="ruleGroup" type="fews:ConditionGroupComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="ConditionGroupComplexType">
+		<sequence maxOccurs="unbounded">
+			<element name="rule" type="fews:ConditionComplexType"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="ConditionComplexType">
+		<attribute name="variable" type="fews:idStringType" use="required"/>
+		<attribute name="operator" type="fews:conditionalOperatorEnumStringType" use="required"/>
+		<attribute name="value" type="string" use="required"/>
+		<attribute name="logical" type="fews:logicalOperatorEnumStringType" use="optional"/>
+	</complexType>
+	<!--Complex Type which defines an id for a TimeSeriesSet-->
+	<complexType name="FileComplexType">
+		<attribute name="name" type="fews:fileStringType" use="required"/>
+		<attribute name="seperator" type="fews:seperaterEnumStringType" use="optional" default="space"/>
+	</complexType>
+	<!--Simple Types Definitions -->
+	<simpleType name="conditionalOperatorEnumStringType">
+		<restriction base="string">
+			<enumeration value="notequal"/>
+			<enumeration value="equal"/>
+			<enumeration value="greaterthan"/>
+			<enumeration value="greaterorequalthan"/>
+			<enumeration value="lessthan"/>
+			<enumeration value="lessorequalthan"/>
+			<enumeration value="ne"/>
+			<enumeration value="eq"/>
+			<enumeration value="gt"/>
+			<enumeration value="ge"/>
+			<enumeration value="lt"/>
+			<enumeration value="le"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<simpleType name="logicalOperatorEnumStringType">
+		<restriction base="string">
+			<enumeration value="and"/>
+			<enumeration value="or"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<simpleType name="groupEnumStringType">
+		<restriction base="string">
+			<enumeration value="begin"/>
+			<enumeration value="end"/>
+			<enumeration value="("/>
+			<enumeration value=")"/>
+		</restriction>
+	</simpleType>
+	<!-- -->
+	<!-- List Complex Type for storing data in a string of type defined by dataTypeEnumStringType and separator -->
+	<!--todo replace by w3c xsd:list never ever store lists in a string type-->
+	<complexType name="ListComplexType">
+		<annotation>
+			<documentation>complex type to enter the data per row or per column</documentation>
+		</annotation>
+		<sequence>
+			<element name="data" type="string"/>
+		</sequence>
+		<attribute name="number" type="int" use="optional">
+			<annotation>
+				<documentation>row/column number</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="type" type="fews:dataTypeEnumStringType" use="optional" default="float"/>
+		<attribute name="seperator" type="fews:seperaterEnumStringType" use="optional" default="space"/>
+	</complexType>
+	<!--defines the type of delimirter in the data string-->
+	<simpleType name="seperaterEnumStringType">
+		<annotation>
+			<documentation>to define the delimiter type</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="space"/>
+			<enumeration value="lineseperater"/>
+			<enumeration value="doublequote"/>
+			<enumeration value="singlequote"/>
+		</restriction>
+	</simpleType>
+</schema>

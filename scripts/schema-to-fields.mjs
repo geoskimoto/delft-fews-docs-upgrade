@@ -28,9 +28,13 @@ const parser = new XMLParser({
   parseTagValue: false,
   parseAttributeValue: false,
   trimValues: true,
+  // NB: complexType/simpleType are intentionally NOT forced to arrays — an
+  // element's *inline* complexType/simpleType must stay an object so buildField
+  // can read it. Top-level siblings are still arrays (multiple same-name tags),
+  // and loadSchema normalises with arr() either way.
   isArray: (name) =>
-    ['element', 'complexType', 'simpleType', 'attribute', 'attributeGroup',
-     'group', 'enumeration', 'include'].includes(name),
+    ['element', 'attribute', 'attributeGroup', 'group', 'enumeration', 'include']
+      .includes(name),
 });
 
 const arr = (x) => (Array.isArray(x) ? x : x == null ? [] : [x]);
@@ -57,13 +61,25 @@ function loadSchema(file, reg, seen) {
   for (const ag of arr(root.attributeGroup)) if (ag['@_name']) reg.attrGroups.set(ag['@_name'], ag);
   for (const g of arr(root.group)) if (g['@_name']) reg.groups.set(g['@_name'], g);
   for (const el of arr(root.element)) if (el['@_name']) reg.elements.set(el['@_name'], el);
-  for (const inc of arr(root.include)) if (inc['@_schemaLocation']) loadSchema(inc['@_schemaLocation'], reg, seen);
+  for (const inc of arr(root.include)) {
+    const loc = inc['@_schemaLocation'];
+    if (!loc) continue;
+    try {
+      loadSchema(loc, reg, seen);
+    } catch (e) {
+      // A missing peripheral include shouldn't sink the whole generation —
+      // record it (types it defined resolve as scalars) and carry on.
+      if (e.code === 'ENOENT') reg.missing.add(loc);
+      else throw e;
+    }
+  }
 }
 
 function newRegistry() {
   return {
     complexTypes: new Map(), simpleTypes: new Map(),
     attrGroups: new Map(), groups: new Map(), elements: new Map(),
+    missing: new Set(),
   };
 }
 
@@ -224,8 +240,16 @@ export function generate(schemaFile, rootElementName) {
 
   const rootEl = reg.elements.get(rootElementName);
   if (!rootEl) throw new Error(`Root element <${rootElementName}> not found in ${schemaFile}`);
-  const rootType = stripNs(rootEl['@_type']);
-  if (!reg.complexTypes.get(rootType)) throw new Error(`Type ${rootEl['@_type']} not found`);
+  // Root may reference a named type, or (e.g. timeSeriesImportRun) declare an
+  // inline complexType. Register the inline one under a synthetic name.
+  let rootType = stripNs(rootEl['@_type']);
+  if (!rootType && rootEl.complexType) {
+    rootType = `${rootElementName}_root`;
+    reg.complexTypes.set(rootType, rootEl.complexType);
+  }
+  if (!reg.complexTypes.get(rootType)) {
+    throw new Error(`Type for <${rootElementName}> not found (type="${rootEl['@_type']}")`);
+  }
 
   const types = {};
   const queue = [rootType];
@@ -247,6 +271,7 @@ export function generate(schemaFile, rootElementName) {
     schemaUrl: `https://fews.wldelft.nl/schemas/version1.0/${schemaFile}`,
     doc: docOf(rootEl) || docOf(reg.complexTypes.get(rootType)),
     types,
+    missingIncludes: [...reg.missing],
   };
 }
 
@@ -262,6 +287,10 @@ export function generateToFile(schemaFile, rootElement, outFile) {
   const totalFields = typeNames.reduce((n, t) => n + result.types[t].fields.length, 0);
   console.log(`✓ ${rootElement}: ${typeNames.length} types, ${totalFields} fields total ` +
     `(root <${rootElement}> → ${result.types[result.rootType].fields.length} fields) → ${out}`);
+  if (result.missingIncludes.length) {
+    console.log(`  ⚠ skipped missing includes: ${result.missingIncludes.join(', ')} ` +
+      `(types they define resolve as scalars)`);
+  }
   return result;
 }
 

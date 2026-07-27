@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp2 (http://www.altova.com) by WL | Delft Hydraulics (WL | Delft Hydraulics) -->
+<!-- edited with XMLSPY v2004 rel. 3 U (http://www.xmlspy.com) by tacoma (WL | Delft Hydraulics) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!--top level element declaration-->
+	<element name="thresholds" type="fews:DeprecatedThresholdsComplexType">
+		<annotation>
+			<documentation>Comment describing  root element</documentation>
+		</annotation>
+	</element>
+	<!---->
+	<!--complex type definitions-->
+	<!---->
+	<complexType name="DeprecatedThresholdsComplexType">
+		<annotation>
+			<documentation>contains definitions of level, rate and max thresholds </documentation>
+		</annotation>
+		<sequence>
+			<group ref="fews:DeprecatedThresholdChoiceGroup">
+				<annotation>
+					<documentation>Specify thresholds.</documentation>
+				</annotation>
+			</group>
+			<element name="forecastAvailableThreshold" type="fews:DeprecatedForecastAvailableThresholdComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Optional threshold that triggers forecast available threshold events. If this is specified, then forecast available events will be logged and these events can then be used in the SkillScoreDisplay. A forecast available threshold event indicates if there is a forecast available for a given observed threshold crossing event.</documentation>
+				</annotation>
+			</element>
+			<element name="actionEvents" type="fews:DeprecatedActionEventsComplexType" minOccurs="0"/>
+			<element name="thresholdExpiryTime" type="fews:DeprecatedThresholdExpiryTimeComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!---->
+	<complexType name="DeprecatedLevelThresholdComplexType">
+		<annotation>
+			<documentation>contains definition of level threshold type</documentation>
+		</annotation>
+		<sequence>
+			<element name="upWarningLevel" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional id of a warning level that will be activated for a particular location and parameter if a data value is above this threshold. Warning levels are defined in the thresholdWarningLevels configuration file. If upWarningLevel and downWarningLevel are both not defined, then this threshold will not trigger any warningLevels to be displayed, but it will generate threshold crossing events.</documentation>
+				</annotation>
+			</element>
+			<element name="downWarningLevel" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional id of a warning level that will be activated for a particular location and parameter if a data value is below this threshold. Warning levels are defined in the thresholdWarningLevels configuration file.</documentation>
+				</annotation>
+			</element>
+			<element name="upIntId" type="fews:idIntType">
+				<annotation>
+					<documentation>ID that wil be put to the output time series if a particular threshold value of this type is crossed UP. This ID must be unique through this file.</documentation>
+				</annotation>
+			</element>
+			<element name="downIntId" type="fews:idIntType">
+				<annotation>
+					<documentation>ID that wil be put to the output time series if a particular threshold value of this type is crossed DOWN. This ID must be unique through this file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this threshold.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:nameStringType" use="optional">
+			<annotation>
+				<documentation>Name of this threshold. This name is used when this threshold is displayed (e.g. in the timeSeriesDialog). If not specified, then the id is used when this threshold is displayed.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="DeprecatedRateThresholdComplexType">
+		<annotation>
+			<documentation>contains definition of the rate threshold type</documentation>
+		</annotation>
+		<sequence>
+			<element name="upIntId" type="fews:idIntType">
+				<annotation>
+					<documentation>ID that wil be put to the output time series if a particular threshold value of this type is crossed UP. This ID must be unique through this file.</documentation>
+				</annotation>
+			</element>
+			<element name="downIntId" type="fews:idIntType">
+				<annotation>
+					<documentation>ID that wil be put to the output time series if a particular threshold value of this type is crossed DOWN. This ID must be unique through this file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this threshold.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:nameStringType" use="optional">
+			<annotation>
+				<documentation>Name of this threshold. This name is used when this threshold is displayed (e.g. in the timeSeriesDialog). If not specified, then the id is used when this threshold is displayed.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="DeprecatedMaxThresholdComplexType">
+		<annotation>
+			<documentation>contains definition of the max threshold type</documentation>
+		</annotation>
+		<sequence>
+			<element name="intId" type="fews:idIntType">
+				<annotation>
+					<documentation>ID that wil be put to the output time series if a particular threshold value of this type is exceeded. This ID must be unique through this file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this threshold.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:nameStringType" use="optional">
+			<annotation>
+				<documentation>Name of this threshold. This name is used when this threshold is displayed (e.g. in the timeSeriesDialog). If not specified, then the id is used when this threshold is displayed.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="DeprecatedForecastAvailableThresholdComplexType">
+		<annotation>
+			<documentation>This threshold type is used to log the info that the related forecast run was available within a certain time window when the observed threshold has been crossed.</documentation>
+		</annotation>
+		<sequence>
+			<element name="intId" type="fews:idIntType">
+				<annotation>
+					<documentation>ID that wil be logged as a part of the ThresholdEvent to the table ThresholdEvents This ID must be unique through this file.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Identifier of this threshold.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="name" type="fews:nameStringType" use="optional">
+			<annotation>
+				<documentation>Name of this threshold. This name is used when this threshold is displayed (e.g. in the SkillScoreDialog). If not specified, then the id is used when this threshold is displayed.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!---->
+	<complexType name="DeprecatedActionEventsComplexType">
+		<annotation>
+			<documentation>contains options concerning the handling of actionEvents </documentation>
+		</annotation>
+		<sequence>
+			<element name="maxDuration" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>maximum duration of the Up (enhance) action events</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<!---->
+	<complexType name="DeprecatedThresholdExpiryTimeComplexType">
+		<annotation>
+			<documentation>Option for configuring thresholds expiry times </documentation>
+		</annotation>
+		<sequence>
+			<element name="thresholdExpiryTime" type="fews:CalendarTimeSpanComplexType">
+				<annotation>
+					<documentation>Expiry time for threshold events</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!---->
+	<group name="DeprecatedThresholdChoiceGroup">
+		<annotation>
+			<documentation>Groups all types of thresholds.</documentation>
+		</annotation>
+		<sequence>
+			<element name="levelThreshold" type="fews:DeprecatedLevelThresholdComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A threshold that triggers a threshold event if a certain level is crossed upwards or downwards.</documentation>
+				</annotation>
+			</element>
+			<element name="rateThreshold" type="fews:DeprecatedRateThresholdComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>A threshold that triggers a threshold event if the rate of change of data values becomes higher or lower than a certain rate, e.g. -0.1 m per hour.</documentation>
+				</annotation>
+			</element>
+			<element name="maxThreshold" type="fews:DeprecatedMaxThresholdComplexType" minOccurs="0">
+				<annotation>
+					<documentation>A threshold that triggers a threshold event if there is a peak (maximum) in the data. The peak has to be higher than a certain level and has to be the maximum within a certain time window. If a maximum is at the end of a time series, then it does not count as a peak.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+</schema>
