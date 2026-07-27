@@ -1,0 +1,244 @@
+---
+title: Map external IDs (ID mapping)
+description: Translate an external system's names into FEWS internal names — compact vs full maps, pattern mapping, and the filter behavior that makes unmapped data silently disappear.
+sidebar:
+  order: 4
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+An ID map is the translation table at the boundary of FEWS ([hop
+②](/concepts/data-flow/)). It answers one question in both directions: *this
+external name — what do we call it internally, and vice versa?* Every
+[import](/tasks/import-timeseries/) and every export names an ID map, and the map
+is what lets a gauge the source calls `GAUGE-A` live inside FEWS as
+`RiverGauge_01`.
+
+<Aside type="note" title="It works both ways">
+The same map is used on the way **in** (external → internal, during import) and on
+the way **out** (internal → external, during export). Write it once, thinking of
+it as a two-way dictionary, and both directions follow.
+</Aside>
+
+## The core idea
+
+An ID map file is a list of correspondences between **external** ids (what the
+outside world uses) and **internal** ids (your FEWS vocabulary). It lives in
+`Config/IdMapFiles/` and is referenced by base name from an import or export via
+`idMapId`.
+
+<div class="diagram">
+
+```text
+   EXTERNAL (the file/service)          INTERNAL (FEWS)
+   ─────────────────────────           ────────────────
+   location  "GAUGE-A"      ⇆      location  "RiverGauge_01"
+   parameter "discharge"    ⇆      parameter "Q.obs"
+                     └──────── idMap ────────┘
+```
+
+</div>
+
+## Two ways to write a map: full vs compact
+
+There are two styles, and choosing the right one saves a lot of repetition.
+
+<Tabs>
+<TabItem label="Full (<map>)">
+
+A `<map>` element binds **location and parameter together** in one line — all
+four ids at once:
+
+```xml title="Config/IdMapFiles/IdImportObservations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<idMap xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <map internalLocation="RiverGauge_01" internalParameter="Q.obs"
+       externalLocation="GAUGE-A"        externalParameter="discharge"/>
+  <map internalLocation="RiverGauge_02" internalParameter="Q.obs"
+       externalLocation="GAUGE-B"        externalParameter="discharge"/>
+</idMap>
+```
+
+**Use when** an external name only makes sense as a location+parameter pair — for
+example when the same external parameter string means different things at
+different stations.
+
+</TabItem>
+<TabItem label="Compact (<parameter> + <location>)">
+
+Map parameter names **once** and location names **once**; FEWS combines them
+(every mapped parameter applies at every mapped location):
+
+```xml title="Config/IdMapFiles/IdImportObservations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<idMap xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <parameter internal="Q.obs" external="discharge"/>
+  <location  internal="RiverGauge_01" external="GAUGE-A"/>
+  <location  internal="RiverGauge_02" external="GAUGE-B"/>
+</idMap>
+```
+
+**Use when** the external naming is consistent across locations (the usual case).
+Two locations sharing one parameter needs 3 lines here vs 2 `<map>` lines — but at
+50 gauges it's 51 lines vs 50, *and* adding a second parameter is one line, not
+50.
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+Prefer **compact** when your external parameter names are uniform across
+stations — it scales far better and a new parameter or location is a single line.
+Drop to **full `<map>`** only for the specific pairs where the compact
+cross-product would be wrong.
+</Aside>
+
+## The behavior that trips everyone up: the map is also a filter
+
+This is the single most important thing to understand about ID maps, straight
+from the schema's own documentation of `enableOneToOneMapping`:
+
+> When one-to-one mapping is enabled, the internal ids are used as external ids
+> when not mapped explicitly. **When this option is not enabled, the id map also
+> acts as a filter** when at least one location is mapped explicitly — everything
+> that is not mapped is not imported or exported.
+
+In plain terms:
+
+- The moment you map **even one** location explicitly, the map becomes an
+  **allow-list**. Anything not in it is **silently dropped**.
+- That's usually what you want (import only the stations you care about) — but
+  it's also why a typo makes data "disappear": a mismatched entry isn't an error,
+  it just doesn't match, so the series is skipped.
+
+If you instead want everything to pass through, mapping only the exceptions, opt
+in explicitly:
+
+```xml
+<idMap xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <enableOneToOneMapping/>
+  <!-- unmapped ids pass through unchanged (internal id == external id);
+       only the entries below are renamed -->
+  <location internal="RiverGauge_01" external="GAUGE-A"/>
+</idMap>
+```
+
+<Aside type="caution">
+Because unmapped data is dropped without error, always test a new map with
+**`failOnUnmappableTimeSeries`** turned on in the [import](/tasks/import-timeseries/#gotchas)
+(or watch `logWarningsForUnmappableTimeSeries`). Turn a silent skip into a loud
+failure while you're still getting the names right.
+</Aside>
+
+## Bulk mapping with patterns
+
+Listing hundreds of gauges by hand is miserable and error-prone. When external
+and internal ids follow a **naming convention**, map them with a pattern instead.
+`locationIdPattern` maps every location in an internal [location
+set](/tasks/locations/) by transforming its id:
+
+```xml
+<locationIdPattern
+    internalLocationSet="AllDischargeGauges"
+    internalLocationPattern="RiverGauge_*"
+    externalLocationPattern="GAUGE-*"/>
+```
+
+Here `*` is the part that varies: internal `RiverGauge_01` ⇆ external `GAUGE-01`,
+and so on for every member of the set. There are `parameterIdFunction`,
+`locationIdFunction`, and `qualifierIdFunction` variants for more elaborate
+transformations — reach for these once explicit lists become unwieldy.
+
+## Configuration flags
+
+Three optional switches, placed at the top of the file, change how matching
+works overall:
+
+| Flag (empty element) | Effect |
+| --- | --- |
+| `<enableOneToOneMapping/>` | Unmapped ids pass through unchanged instead of being filtered out. Good practice to state explicitly even when it would be the default. |
+| `<enableCaseInsensitivity/>` | External→internal matching ignores case on import (so `Discharge` matches `discharge`). |
+| `<ignoreExternalQualifiersWhenMappingToInternal/>` | Ignore external [qualifiers](/concepts/glossary/#qualifier) when resolving to internal ids. |
+
+## Qualifiers and ensembles
+
+For series distinguished by more than location + parameter, both the compact and
+full forms accept `internalQualifier1`…`4` / `externalQualifier1`…`4` (order is
+insignificant) and ensemble attributes (`internalEnsemble`,
+`externalEnsembleMemberIndex`, …). You won't need these on day one; know they
+exist for when a plain location+parameter pair isn't unique enough.
+
+## Worked example, wired to an import
+
+The map from the [getting-started tutorial](/start-here/getting-started/) and the
+[import guide](/tasks/import-timeseries/), shown in context. The import's
+`idMapId` points at this file's base name:
+
+<Steps>
+
+1. **Write the map** in `Config/IdMapFiles/`:
+
+   ```xml title="Config/IdMapFiles/IdImportObservations 1.00 default.xml"
+   <?xml version="1.0" encoding="UTF-8"?>
+   <idMap xmlns="http://www.wldelft.nl/fews" version="1.1">
+     <parameter internal="Q.obs" external="discharge"/>
+     <location  internal="RiverGauge_01" external="GAUGE-A"/>
+   </idMap>
+   ```
+
+2. **Reference it** from the import's `general` block:
+
+   ```xml
+   <idMapId>IdImportObservations</idMapId>
+   ```
+
+   Note the base name only — no version suffix, no `.xml`.
+
+3. **Result:** when the import reads `GAUGE-A` / `discharge` from the file, it
+   stores it internally as `RiverGauge_01` / `Q.obs`. Any other station in the
+   file is dropped (this map explicitly maps a location, so it filters).
+
+</Steps>
+
+## Gotchas
+
+- **Silent drops are the norm, not an error.** Once any location is mapped, the
+  map filters; unmatched series vanish quietly. Develop with
+  `failOnUnmappableTimeSeries` on.
+- **Exact-match by default.** `GAUGE_A` ≠ `GAUGE-A`, and `Discharge` ≠
+  `discharge` unless you add `<enableCaseInsensitivity/>`. Punctuation and case
+  are the usual culprits.
+- **It's bidirectional — mind the direction.** The same map drives exports
+  (internal → external). A map built only with import in mind can produce
+  surprising export names.
+- **Compact cross-product surprises.** In compact form, *every* mapped parameter
+  is assumed valid at *every* mapped location. If some stations lack some
+  parameters, that's fine on import (nothing to match) but can over-generate on
+  export — use `<map>` for the exact pairs when it matters.
+- **A higher-versioned file wins.** As always, check for a sibling like
+  `IdImportObservations 1.01 default.xml`. See [how FEWS finds a
+  file](/concepts/config-directory/#how-fews-finds-a-file).
+
+## Verify it worked
+
+<Steps>
+
+1. **Run the import with mapping failures made loud** (`failOnUnmappableTimeSeries`
+   / `logWarningsForUnmappableTimeSeries`) and read the log — unmapped external
+   ids are listed there.
+2. **Confirm the internal series exists** by browsing it through a
+   [filter](/tasks/filters-displays/) that queries the internal ids
+   (`RiverGauge_01` / `Q.obs`). If it's there, the map matched.
+3. **If nothing appears,** compare the external ids in your source file
+   character-for-character against the map — case and punctuation first.
+
+</Steps>
+
+## See also
+
+<Card title="Related pieces" icon="right-arrow">
+- [Import time series](/tasks/import-timeseries/) — where `idMapId` is set
+- [Define locations](/tasks/locations/) and [parameters](/tasks/parameters/) — the internal ids you map *to*
+- Concept: [How data flows through FEWS](/concepts/data-flow/) (hop ②) and the [glossary entry](/concepts/glossary/#id-mapping)
+- Schema: [`idMap.xsd`](https://fews.wldelft.nl/schemas/version1.0/idMap.xsd)
+</Card>
