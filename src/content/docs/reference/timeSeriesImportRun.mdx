@@ -1,0 +1,80 @@
+---
+title: Import module file
+description: Reference for the timeSeriesImportRun config file — read external data into FEWS. Field reference auto-generated from the schema.
+sidebar:
+  order: 11
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/timeSeriesImportRun.json';
+
+The schema-companion to the [Import time series](/tasks/import-timeseries/) task
+guide, which explains reader selection, the general-vs-timeSeriesSet split, and
+the gotchas. This page is the generated field list.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Reads an external file/service/database and stores it as internal series
+([hops ①–③](/concepts/data-flow/)).
+
+**Folder**
+: `Config/ModuleConfigFiles/`
+
+**Root element**
+: `<timeSeriesImportRun>` (**no** `version` attribute — a module-run file, unlike
+region-config files)
+
+**Depends on**
+: An [`idMap`](/reference/idmap/), plus the [locations](/reference/locations/) and
+[parameters](/reference/parameters/) it writes into.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/ImportObservations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<timeSeriesImportRun xmlns="http://www.wldelft.nl/fews">
+  <import>
+    <general>
+      <importType>generalCsv</importType>
+      <folder>$IMPORT_FOLDER$/discharge</folder>
+      <fileNamePatternFilter>*.csv</fileNamePatternFilter>
+      <idMapId>IdImportObservations</idMapId>
+      <importTimeZone>
+        <timeZoneName>GMT</timeZoneName>
+      </importTimeZone>
+    </general>
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationId>RiverGauge_01</locationId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>add originals</readWriteMode>
+    </timeSeriesSet>
+  </import>
+</timeSeriesImportRun>
+```
+
+<Aside type="caution">
+Choose the reader with **one** of `importTypeStandard`, `importType`, or
+`parserClassName`. `readWriteMode` is required on the `timeSeriesSet` but ignored
+by the import module. See the [task
+guide](/tasks/import-timeseries/#gotchas).
+</Aside>
+
+## Field reference
+
+<FieldReference data={data} />
+
+## See also
+
+- Task guide: [Import time series](/tasks/import-timeseries/)
+- Mirror: [Export module file](/reference/timeseriesexportrun/)
+- Schema: [`timeSeriesImportRun.xsd`]({data.schemaUrl})

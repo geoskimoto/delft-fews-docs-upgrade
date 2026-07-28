@@ -1,0 +1,69 @@
+---
+title: Thresholds file
+description: Reference for the Thresholds config file — define threshold slots and the warning levels they raise. Field reference auto-generated from the schema.
+sidebar:
+  order: 8
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/thresholdGroups.json';
+
+The schema-companion to the [Thresholds & warnings](/tasks/thresholds/) task
+guide. Thresholds span three files; this one defines the **threshold slots** and
+which [warning level](/reference/thresholdwarninglevels/) each raises. This page
+is the generated field list.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Defines named threshold slots (e.g. `MinorFlood`, `MajorFlood`) and the warning
+level each crossing raises. The **values** are assigned separately in
+[threshold value sets](/reference/thresholdvaluesets/).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<thresholdGroups>` (**no** `version` attribute)
+
+**Depends on**
+: The [`ThresholdWarningLevels`](/reference/thresholdwarninglevels/) file (for the
+`upWarningLevelId` / `downWarningLevelId` it references).
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Thresholds 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdGroups xmlns="http://www.wldelft.nl/fews">
+  <thresholdGroup id="Public" name="Public warnings">
+    <defaultThreshold shortName="Normal"/>
+    <levelThreshold id="MinorFlood" name="Minor flood">
+      <upWarningLevelId>Minor</upWarningLevelId>
+    </levelThreshold>
+    <levelThreshold id="MajorFlood" name="Major flood">
+      <upWarningLevelId>Major</upWarningLevelId>
+    </levelThreshold>
+  </thresholdGroup>
+</thresholdGroups>
+```
+
+<Aside type="tip">
+`upWarningLevelId` is raised when a value crosses **upward**; use
+`downWarningLevelId` for low-flow-style limits. The [task
+guide](/tasks/thresholds/) explains the three-file split.
+</Aside>
+
+## Field reference
+
+<FieldReference data={data} />
+
+## See also
+
+- Task guide: [Thresholds & warnings](/tasks/thresholds/)
+- Related references: [Threshold value sets](/reference/thresholdvaluesets/) · [Threshold warning levels](/reference/thresholdwarninglevels/)
+- Schema: [`thresholds.xsd`]({data.schemaUrl})

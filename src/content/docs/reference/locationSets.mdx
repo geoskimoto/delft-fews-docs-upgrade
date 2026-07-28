@@ -1,0 +1,62 @@
+---
+title: Location sets file
+description: Reference for the LocationSets config file — group locations for reuse. Field reference auto-generated from the schema.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/locationSets.json';
+
+The schema-companion to the [Define locations & location
+sets](/tasks/locations/) task guide, which covers the four ways to define set
+membership (explicit list, compose, file, constraint). This page is the generated
+field list.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Groups [locations](/reference/locations/) into named sets so one config line
+can target many places at once.
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<locationSets>` (`version="1.1"`, required)
+
+**Referenced by**
+: `locationSetId` in imports, filters, displays, transformations, and models.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/LocationSets 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<locationSets xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <locationSet id="AllDischargeGauges">
+    <locationId>RiverGauge_01</locationId>
+    <locationId>RiverGauge_02</locationId>
+  </locationSet>
+</locationSets>
+```
+
+<Aside type="tip">
+Members can also come from a `csvFile` / `esriShapeFile` / `geoJsonFile` /
+`geoPackageFile` / `table`, or be selected dynamically with `constraints`. See
+the [task guide](/tasks/locations/#part-2-grouping-with-location-sets).
+</Aside>
+
+## Field reference
+
+<FieldReference data={data} />
+
+## See also
+
+- Task guide: [Define locations & location sets](/tasks/locations/)
+- Reference: [Locations file](/reference/locations/)
+- Schema: [`locationSets.xsd`]({data.schemaUrl})

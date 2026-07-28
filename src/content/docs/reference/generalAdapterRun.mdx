@@ -1,0 +1,109 @@
+---
+title: General Adapter file
+description: Reference for the generalAdapterRun config file — bridge FEWS to an external model. Field reference auto-generated from the schema.
+sidebar:
+  order: 13
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/generalAdapterRun.json';
+
+The schema-companion to the [Run a model (General
+Adapter)](/tasks/general-adapter/) task guide, which walks the export → run →
+import cycle in full. This page is the generated field list.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Bridges FEWS to an external model executable: export inputs → run the model →
+import results ([hop ④](/concepts/data-flow/)).
+
+**Folder**
+: `Config/ModuleConfigFiles/`
+
+**Root element**
+: `<generalAdapterRun>` (**no** `version` attribute — a module-run file; the
+model-format version knob is `piVersion` inside `<general>`)
+
+**Depends on**
+: The series it exports, the model binary, and the parameters/locations it
+imports results into.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/RainfallRunoffModel 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<generalAdapterRun xmlns="http://www.wldelft.nl/fews">
+  <general>
+    <rootDir>%REGION_HOME%/Modules/rrmodel</rootDir>
+    <workDir>%ROOT_DIR%/work</workDir>
+    <exportDir>%ROOT_DIR%/input</exportDir>
+    <importDir>%ROOT_DIR%/output</importDir>
+    <dumpFileDir>%ROOT_DIR%/dump</dumpFileDir>
+    <dumpDir>%ROOT_DIR%</dumpDir>
+    <diagnosticFile>%ROOT_DIR%/output/diagnostics.xml</diagnosticFile>
+  </general>
+  <activities>
+    <exportActivities>
+      <exportTimeSeriesActivity>
+        <exportFile>discharge_in.xml</exportFile>
+        <timeSeriesSets>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationSetId>AllDischargeGauges</locationSetId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </timeSeriesSets>
+      </exportTimeSeriesActivity>
+    </exportActivities>
+    <executeActivities>
+      <executeActivity>
+        <command><executable>%ROOT_DIR%/bin/rrmodel.exe</executable></command>
+        <arguments><argument>%ROOT_DIR%</argument></arguments>
+        <timeOut>600000</timeOut>
+      </executeActivity>
+    </executeActivities>
+    <importActivities>
+      <importTimeSeriesActivity>
+        <importFile>discharge_out.xml</importFile>
+        <timeSeriesSets>
+          <timeSeriesSet>
+            <moduleInstanceId>RainfallRunoffModel</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.sim</parameterId>
+            <locationSetId>AllDischargeGauges</locationSetId>
+            <timeSeriesType>simulated forecasting</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </timeSeriesSets>
+      </importTimeSeriesActivity>
+    </importActivities>
+  </activities>
+</generalAdapterRun>
+```
+
+## Field reference
+
+<Aside type="note">
+This is a large surface — the General Adapter supports many activity and
+serializer options (states, grids, NetCDF, rating curves). The full graph is
+below; the [task guide](/tasks/general-adapter/) covers the common cycle.
+</Aside>
+
+<FieldReference data={data} />
+
+## See also
+
+- Task guide: [Run a model (General Adapter)](/tasks/general-adapter/)
+- Concept: [The forecasting lifecycle](/concepts/lifecycle/) (cold vs. warm state)
+- Schema: [`generalAdapterRun.xsd`]({data.schemaUrl})

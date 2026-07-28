@@ -1,0 +1,70 @@
+---
+title: Threshold warning levels file
+description: Reference for the ThresholdWarningLevels config file — the severity vocabulary (colours, icons). Field reference auto-generated from the schema.
+sidebar:
+  order: 10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/thresholdWarningLevels.json';
+
+The schema-companion to the [Thresholds & warnings](/tasks/thresholds/) task
+guide. This file is the **warning-level vocabulary** — the severities, colours,
+and icons that [thresholds](/reference/thresholdgroups/) refer to. This page is
+the generated field list.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Defines the warning levels (severity, colour, icons) that thresholds raise.
+Ordered least → most severe; there is no numeric rank field.
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<thresholdWarningLevels>` (**no** `version` attribute)
+
+**Referenced by**
+: `upWarningLevelId` / `downWarningLevelId` in the
+[`Thresholds`](/reference/thresholdgroups/) file.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/ThresholdWarningLevels 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<thresholdWarningLevels xmlns="http://www.wldelft.nl/fews">
+  <thresholdWarningLevel id="Normal" name="No warning">
+    <color>00FF00</color>
+    <iconName>normal.png</iconName>
+    <historicOverlayIconName>normal_hist.png</historicOverlayIconName>
+    <forecastOverlayIconName>normal_fc.png</forecastOverlayIconName>
+  </thresholdWarningLevel>
+  <thresholdWarningLevel id="Major" name="Major flood">
+    <color>FF0000</color>
+    <iconName>major.png</iconName>
+    <historicOverlayIconName>major_hist.png</historicOverlayIconName>
+    <forecastOverlayIconName>major_fc.png</forecastOverlayIconName>
+  </thresholdWarningLevel>
+</thresholdWarningLevels>
+```
+
+<Aside type="note">
+Order matters: list levels least → most severe. `color` is hex without `#` (e.g.
+`FF0000`). `color`, `iconName`, and the two overlay icon names are all required.
+</Aside>
+
+## Field reference
+
+<FieldReference data={data} />
+
+## See also
+
+- Task guide: [Thresholds & warnings](/tasks/thresholds/)
+- Related references: [Thresholds](/reference/thresholdgroups/) · [Threshold value sets](/reference/thresholdvaluesets/)
+- Schema: [`thresholdWarningLevels.xsd`]({data.schemaUrl})
