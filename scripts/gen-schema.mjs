@@ -130,6 +130,13 @@ const TARGETS = [
       roots: categoryRoots('interpolationSerial', 'interpolationSpatial', 'altitude', 'rotation', 'multipleLocationAttributes'),
     },
   },
+  {
+    schema: 'transformationTypes.xsd',
+    multiRoot: {
+      pageId: 'transformStatistics',
+      roots: categoryRoots('statisticsSameAttributeValue', 'statisticsChildrenLocations', 'statisticsRelatedLocations', 'statisticsValueProperties', 'statisticsEnsemble', 'statisticsPeriodic', 'statisticsSerial', 'statisticsSummary', 'statisticsVerticalLayers'),
+    },
+  },
 ];
 
 let failed = 0;

@@ -1,0 +1,124 @@
+---
+title: Transformation functions — statistics
+description: Reference for the 9 statistics transformation function families — serial, summary, periodic, ensemble, and location-grouped statistics. Field reference auto-generated from the schema.
+sidebar:
+  order: 31
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/transformStatistics.json';
+
+This page is the generated field list for the **statistics** transformation
+functions — 9 categories that all compute the same kind of thing (mean,
+percentile, count, quartile, …) but differ in *what gets grouped together* to
+compute it: a rolling time window, one summary value, a climatological
+cycle, ensemble members, or locations related/grouped by a shared attribute.
+Part of the [transformation function
+catalogue](/reference/transformationbasics/#function-categories); see that
+page for the shared `<transformationModule>`/`<transformation>` mechanics
+these all sit inside.
+
+## At a glance
+
+<div class="field-list">
+
+**Covers**
+: `statisticsSerial` (per output time, stats over its own aggregation
+period), `statisticsSummary` (one summary value over a view period, stored at
+T0), `statisticsPeriodic` (climatological — e.g. mean January temperature
+over many years), `statisticsEnsemble` (across ensemble members at each time
+step), `statisticsSameAttributeValue` / `statisticsChildrenLocations` /
+`statisticsRelatedLocations` (across multiple *locations*, grouped by shared
+attribute, parent/child, or a location relation), `statisticsValueProperties`
+(over value properties attached to input series), `statisticsVerticalLayers`
+(across z/sigma grid layers, since 2021.01).
+
+**Used inside**
+: A `<transformation>`, `<periodTransformation>`, or `<rangeTransformation>`
+in a [`transformationModule`](/reference/transformationbasics/) file.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/PostProcessForecast 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="DailyMeanFromHourly">
+    <statisticsSerial>
+      <mean>
+        <inputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>T.obs</parameterId>
+            <locationId>WeatherStation_01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariable>
+        <outputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>PostProcessForecast</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>T.mean</parameterId>
+            <locationId>WeatherStation_01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="day" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </outputVariable>
+      </mean>
+    </statisticsSerial>
+  </transformation>
+</transformationModule>
+```
+
+## Field reference
+
+<Aside type="note">
+Within one category, most statistic names (`mean`, `median`, `min`, `max`,
+`standardDeviation`, `variance`, `skewness`, `kurtosis`, `sum`,
+`rootMeanSquareError`, `rsquared`, `geometricMean`, …) share a **single**
+concrete complexType — e.g. every `statisticsSerial` function except `count`,
+`countFlags`, `percentileExceedence`/`percentileNonExceedence`, and
+`quartile` is a `StatisticsSerialComplexType` with the same fields. The field
+reference below reflects that: one table serves many function names, which
+is why the fields list is shorter than "82 types" might suggest.
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **Serial vs. summary is the recurring point of confusion.**
+  `statisticsSerial` produces a full output *series* — one value per output
+  time, each from that time's own aggregation period.
+  `statisticsSummary` produces a **single** value at T0, over the output
+  `timeSeriesSet`'s `relativeViewPeriod`. Reach for summary when you want one
+  headline number (e.g. "peak flow expected this forecast"), serial when you
+  want a resampled series.
+- **`statisticsPeriodic` needs a cyclic output series**, not just a coarser
+  time step — the output variable must have a defined *cycle period*
+  (e.g. one year), and FEWS repeats the aggregation period across every cycle
+  in the input history to compute each output value. Configuring it like a
+  plain aggregation (no cycle) won't do what you expect.
+- **The three location-grouped categories pick the grouping key differently**:
+  `statisticsSameAttributeValue` matches input/output by an *equal* attribute
+  value; `statisticsChildrenLocations` requires output locations to have a
+  configured **parent** (statistics roll up from children); `statisticsRelatedLocations`
+  needs an explicit location **relation**, and the relation direction (input→output
+  or output→input) must be configured on only one side — configuring both
+  directions logs a config error.
+- **`statisticsEnsemble`'s `ignoreMissing`** controls whether one missing
+  ensemble member spoils the whole output value for that time step (default:
+  it does) — set it `true` deliberately if partial-ensemble statistics are
+  acceptable for your use case.
+
+## See also
+
+- Reference: [Transformation functions — basics](/reference/transformationbasics/) · [Temporal reshaping](/reference/transformtemporal/) · [Interpolation & spatial](/reference/transforminterpolation/)
+- Task guide: [Transformations](/tasks/transformations/)
+- Schema: [`transformationTypes.xsd`]({data.schemaUrl})
