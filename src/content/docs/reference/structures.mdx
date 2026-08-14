@@ -1,0 +1,67 @@
+---
+title: Structures file
+description: Reference for the Structures config file — pumps, weirs, and orifices used by hydraulic/reservoir model configuration. Field reference auto-generated from the schema.
+sidebar:
+  order: 27
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/structures.json';
+
+This page is the generated field list for `Structures.xml` — pumps, weirs, and
+orifices, defined with their discharge behavior so a hydraulic or reservoir
+model config can reference them by id. Relevant if your system touches river
+structures or reservoir operations; skip it if you're purely doing
+data-driven forecasting.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Defines a structure's discharge relationship: a **pump**'s capacity
+(constant, or a table by state/head), or a **weir**/**orifice**'s
+discharge-coefficient formula (general, user-defined, broad-crested,
+sharp-crested, triangular variants).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<structures>` (**no** `version` attribute)
+
+**Used by**
+: Model/transformation config that references a structure by `id`.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Structures.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<structures xmlns="http://www.wldelft.nl/fews">
+  <pump id="Pump01" name="Outlet pump 1">
+    <capacityConstant>2.5</capacityConstant>
+  </pump>
+</structures>
+```
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- A `pump` is `capacityConstant` **or** one of the table forms
+  (`capacityStateTable`/`capacityHeadTable`/`capacityStateHeadTable`) — a
+  choice, not a set to combine. Use a table when capacity genuinely varies
+  with reservoir state or head, a constant otherwise.
+- The root `<structures>` element is a repeated choice of `pump`/`weir`/
+  `orifice` entries, each independently keyed by `id` — one file can hold an
+  entire system's structures.
+
+## See also
+
+- Related reference: [Rating curves file](/reference/ratingcurves/) (level/flow relationships for gauged locations, a related but separate concern)
+- Schema: [`structures.xsd`]({data.schemaUrl})

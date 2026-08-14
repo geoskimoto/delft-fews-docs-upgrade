@@ -1,0 +1,361 @@
+<?xml version="1.0"?>
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="grids" type="fews:GridsComplexType"/>
+	<complexType name="GridsComplexType">
+		<choice maxOccurs="unbounded">
+			<element name="regular" type="fews:RegularGridComplexType"/>
+			<element name="irregular" type="fews:IrregularGridComplexType"/>
+			<element name="netcdfFiles" type="fews:GridNetcdfFilesComplexType"/>
+		</choice>
+	</complexType>
+	<complexType name="RegularGridComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="rows" type="int">
+				<annotation>
+					<documentation>Number of rows in grid</documentation>
+				</annotation>
+			</element>
+			<element name="columns" type="int">
+				<annotation>
+					<documentation>Number of columns in grid</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:GridProjection"/>
+			<choice>
+				<group ref="fews:GridFirstCellCenterAndCellSize"/>
+				<element name="gridCorners" type="fews:GridCornersComplexType">
+					<annotation>
+						<documentation>Specify two grid corners instead of cell center and cell size(s). The corners can be specified in a different geo datum as the grid projection</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice>
+				<sequence>
+					<element name="z" type="double" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>elevation of each cell, starting from upper left to bottom right row by row.</documentation>
+						</annotation>
+					</element>
+					<element name="zBottom" type="double" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>elevation of bottom for each cell, starting from upper left to bottom right row by row.</documentation>
+						</annotation>
+					</element>
+					<element name="zTop" type="double" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>elevation of top for each cell, starting from upper left to bottom right row by row.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<sequence>
+					<element name="zMapLayerName" type="fews:nameStringType" minOccurs="0">
+						<annotation>
+							<documentation>map layer with elevations for each cell, *.asc and *.bil files are supported.</documentation>
+						</annotation>
+					</element>
+					<element name="zBottomMapLayerName" type="fews:nameStringType" minOccurs="0">
+						<annotation>
+							<documentation>map layer with elevations of bottom for each cell, *.asc and *.bil files are supported.</documentation>
+						</annotation>
+					</element>
+					<element name="zTopMapLayerName" type="fews:nameStringType" minOccurs="0">
+						<annotation>
+							<documentation>map layer with elevations of top for each cell, *.asc and *.bil files are supported.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+		<attribute name="locationId" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>The grid location id. The grid for a time series is resolved by it's locationId or parent location id. The id is required by FEWS and since 2017.01 this is also required by the schema</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="IrregularGridComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description of the grid. This is never used in the code.</documentation>
+				</annotation>
+			</element>
+			<sequence minOccurs="0">
+				<annotation>
+					<documentation>Optional, when specified the grid cell boundaries can be based on the neighbour cells.</documentation>
+				</annotation>
+				<!--rows== 1 and cols ==1 still allowed for backward compatibility when configuring cell centers-->
+				<element name="rows" type="positiveInteger">
+					<annotation>
+						<documentation>Number of rows in grid, at least two rows, don't configure for scattered points</documentation>
+					</annotation>
+				</element>
+				<element name="columns" type="positiveInteger">
+					<annotation>
+						<documentation>Number of columns in grid, at least two columns, don't configure for scattered points</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<choice>
+				<sequence>
+					<element name="geoDatum" type="fews:geoDatumStringType">
+						<annotation>
+							<documentation>Coordinate system the grid is defined in. This may be a different coordinate system to that used in the main map display. The coordinate system may also differ per grid. A grid may be regular in one coordinate system, but may be irregular in another. Defining the grid in the regular coordinate system is generally easier.</documentation>
+						</annotation>
+					</element>
+					<element name="cellCentre" type="fews:GeoPointComplexType" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Definition of the cell centre points of all cells in the irregular grid. The number of cellCentre points defined must be the same as the number of cells in the grid (rows x columns).</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<element name="esriShapeFile" type="fews:GridShapeFileComplexType">
+					<annotation>
+						<documentation>Shape file with cell polygons, lines and/or cell centers.</documentation>
+					</annotation>
+				</element>
+				<element name="csvFile" type="fews:GridCsvFileComplexType">
+					<annotation>
+						<documentation>Since 2013.01. Csv file with cell centers.</documentation>
+					</annotation>
+				</element>
+				<element name="netcdfFile" type="fews:GridNetcdfFileComplexType">
+					<annotation>
+						<documentation>Since 2015.02. Reference to a UGRID NetCDF file that contains only grid geometry meta data. This only supports mesh topologies (unstructured grids) with 2D coordinates. This can be 1D network, 2D triangular, 2D flexible or 3D layered mesh topologies. This currently only works for files that are compliant to the UGRID 1.0 conventions. For more information see https://github.com/ugrid-conventions/ugrid-conventions</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="locationId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<complexType name="GridShapeFileComplexType">
+		<sequence>
+			<element name="file" type="string">
+				<annotation>
+					<documentation>name of layer in the map layer files or a full absolute path to the shape file (*.shp). Can be a polygon shape file or point shape file.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="geoDatum" type="fews:geoDatumStringType">
+					<annotation>
+						<documentation>Geo datum of the coordinates, default is lat long, WGS 1984</documentation>
+					</annotation>
+				</element>
+				<element name="projectionFileAvailable" type="boolean">
+					<annotation>
+						<documentation>A projection file has the same name as the shp file, only the with extension .prj instead of .shp. A prj file can be used instead of specifying the geo datum in the layer or map. When false the geo datum of the map will be used.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<group ref="fews:GridFileXYSequence" minOccurs="0"/>
+			<group ref="fews:GridFileZAreaLabelSequence"/>
+		</sequence>
+	</complexType>
+	<complexType name="GridCsvFileComplexType">
+		<sequence>
+			<element name="file" type="string">
+				<annotation>
+					<documentation>name of layer in the map layer files or a full absolute path to the csv file.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="geoDatum" type="fews:geoDatumStringType">
+					<annotation>
+						<documentation>Geo datum of the coordinates, default is lat long, WGS 1984</documentation>
+					</annotation>
+				</element>
+				<element name="projectionFileAvailable" type="boolean">
+					<annotation>
+						<documentation>A projection file has the same name as the shp file, only the with extension .prj instead of .csv. A prj file can be used instead of specifying the geo datum in the layer or map. When false the geo datum of the map will be used.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<group ref="fews:GridFileXYSequence"/>
+			<group ref="fews:GridFileZAreaLabelSequence"/>
+		</sequence>
+	</complexType>
+	<group name="GridFileXYSequence">
+		<sequence>
+			<element name="x" type="string">
+				<annotation>
+					<documentation>center X coordinate of the grid cell (Easting). e.g. %X%, put the actual column name between %%. When specified the shape file is optional only and only the dbf is required. When x and y are specified the coordinates are read from the shape file. When the coordinates in dbf file are different from the coordinates in the shape file a new shape file is automatically generated. This makes is possible to view and edit the dbf file with a gis. When the shape file contains polygons the x and y are required.</documentation>
+				</annotation>
+			</element>
+			<element name="y" type="string">
+				<annotation>
+					<documentation>center Y coordinate of the grid cell (Northing) e.g. %Y%, put the actual column name between %%. When x and y are specified the shape file is optional and only the dbf is required. When x and y are not specified the coordinates are read from the shape file. This makes is possible to view and edit the dbf file with a gis. When the shape file contains polygons the x and y are required.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<group name="GridFileZAreaLabelSequence">
+		<sequence>
+			<element name="z" type="string" minOccurs="0">
+				<annotation>
+					<documentation>center Z coordinate of the grid cel (altitude). e.g. %Z%, put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="area" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The area of the grid cell. e.g. %AREA%, put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="label" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Obsolete, no longer used. This is very memory hungry for large grids.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="GridNetcdfFileComplexType">
+		<sequence>
+			<element name="file" type="fews:fileStringType">
+				<annotation>
+					<documentation>Name of a UGRID NetCDF file in the map layer files folder or a full absolute path to a UGRID NetCDF file. The file must have extension ".nc".</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:GridNetcdfFileSequence"/>
+		</sequence>
+	</complexType>
+	<complexType name="GridNetcdfFilesComplexType">
+		<sequence>
+			<element name="fileNameLocationIdPattern" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Iterate over files in the mapLayerFiles and read all netcdf that are matching with pattern. eg (.*)_flowgeom\.nc will match all files that ends with _flowgeom.nc and start with the location id. More complicated expressions can be found at http://en.wikipedia.org/wiki/Regular_expression
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:GridNetcdfFileSequence"/>
+		</sequence>
+	</complexType>
+	<group name="GridNetcdfFileSequence">
+		<sequence>
+			<element name="geoDatum" type="fews:geoDatumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional. If the geoDatum of the coordinates cannot be determined from the infromation in the NetCDF file, then this geoDatum will be used. If this geoDatum is also not specified, then WGS 1984 will be used by default.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="meshTopologyVariableName" type="fews:nonEmptyStringType">
+						<annotation>
+							<documentation>Name of a mesh topology variable in the UGRID NetCDF file that contains the meta-data attributes of the mesh on which the data is defined.</documentation>
+						</annotation>
+					</element>
+					<element name="staggerLocation" type="fews:ugridMeshTopologyStaggerLocationEnumStringType">
+						<annotation>
+							<documentation>The (stagger) location within the mesh at which the data is defined. Only node, edge and face are supported. Data defined at nodes or edges will be handled as points in FEWS. Data defined at faces will be handled as polygons in FEWS. If the mesh in the netcdf file does not contain valid face bound coordinate variables, then data defined at faces will be handled as points in FEWS.</documentation>
+						</annotation>
+					</element>
+					<sequence minOccurs="0">
+						<element name="spatialSubdomainNumberVariable" type="fews:nonEmptyStringType">
+							<annotation>
+								<documentation>Since 2017.01.01. Variable that contains the domain numbers for each cell</documentation>
+							</annotation>
+						</element>
+						<choice>
+							<element name="visibleSpatialSubdomainNumber" type="int">
+								<annotation>
+									<documentation>Since 2017.01.01. Only the cells for this domain are visible.</documentation>
+								</annotation>
+							</element>
+							<element name="visibleSpatialSubdomainNumberFileNamePattern" type="fews:nonEmptyStringType" minOccurs="0">
+								<annotation>
+									<documentation>Since 2023.02. Only the cells for this domain are visible. Parses the number form the filename. Eg for L12_99_flowgeom.nc  use .*_(.*)_.* to get the 99 from the file name. More complicated expressions can be found at http://en.wikipedia.org/wiki/Regular_expression
+									</documentation>
+								</annotation>
+							</element>
+						</choice>
+					</sequence>
+				</sequence>
+				<element name="locationIndexSetVariableName" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>Name of a location index set variable in the UGRID NetCDF file that contains the indices of the locations at which the data is defined. The location index set variable in the NetCDF file should point to a mesh topology variable and a (stagger) location within the mesh. This is only supported if the location index set variable in the NetCDF file contains coordinates (i.e. a coordinates attribute that points to coordinate variables that contain only coordinates for the index set, not for the entire mesh).</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="zVariableName" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2017.01. Optional. Name of a data variable in the netcdf file that contains z coordinates. If this is specified, then the z coordinates in this variable will be used for the grid cells in this grid definition. This can be used e.g. to use bottom levels as z coordinates instead of using the z coordinates of the (3D) cell centers from the mesh itself.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<simpleType name="ugridMeshTopologyStaggerLocationEnumStringType">
+		<restriction base="string">
+			<enumeration value="node"/>
+			<enumeration value="edge"/>
+			<enumeration value="face"/>
+		</restriction>
+	</simpleType>
+	<group name="GridFirstCellCenterAndCellSize">
+		<sequence>
+			<element name="firstCellCenter" type="fews:GeoPointComplexType">
+				<annotation>
+					<documentation>Center of the upper left cell according to geo datum</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="xCellSize" type="double">
+					<annotation>
+						<documentation>Width of the grid cells</documentation>
+					</annotation>
+				</element>
+				<element name="columnWidth" type="double" minOccurs="2" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Column width. Repeat this element for every column</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice>
+				<element name="yCellSize" type="double">
+					<annotation>
+						<documentation>Height of the grid cells</documentation>
+					</annotation>
+				</element>
+				<element name="rowHeight" type="double" minOccurs="2" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Row height. Repeat this element for every row</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<complexType name="GridCornersComplexType">
+		<sequence>
+			<element name="geoDatum" type="fews:geoDatumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Coordinate system in which the grid corners are specified. If this is not configured, then the grid corners are specified in the coordinate system of the grid.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence>
+					<element name="upperLeft" type="fews:GeoPointComplexType">
+						<annotation>
+							<documentation>Upper left corner of the upper left cell.</documentation>
+						</annotation>
+					</element>
+					<element name="lowerRight" type="fews:GeoPointComplexType">
+						<annotation>
+							<documentation>Lower right corner of the lower right cell.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<sequence>
+					<element name="lowerLeft" type="fews:GeoPointComplexType">
+						<annotation>
+							<documentation>Lower left corner of the lower left cell.</documentation>
+						</annotation>
+					</element>
+					<element name="upperRight" type="fews:GeoPointComplexType">
+						<annotation>
+							<documentation>Upper right corner of the upper right cell.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+	</complexType>
+</schema>

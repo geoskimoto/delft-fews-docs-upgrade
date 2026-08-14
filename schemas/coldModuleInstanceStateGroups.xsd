@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema"  elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="coldModuleInstanceStateGroups" type="fews:ColdModuleInstanceStateGroupsComplexType">
+		<annotation>
+			<documentation>Schema for moduleInstanceStateGroups.xml</documentation>
+		</annotation>
+	</element>
+	<complexType name="ColdModuleInstanceStateGroupsComplexType">
+		<sequence>
+            <element name="defaultGroup" type="fews:ColdModuleInstanceStateGroupComplexType"/>
+			<element name="seasonalGroup" type="fews:SeasonalColdModuleInstanceStateGroupComplexType" minOccurs="0"  maxOccurs="unbounded"/>
+			<element name="additionalGroup" type="fews:ColdModuleInstanceStateGroupComplexType" minOccurs="0"  maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<complexType name="ColdModuleInstanceStateGroupComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="SeasonalColdModuleInstanceStateGroupComplexType">
+		<complexContent>
+			<extension base="fews:ColdModuleInstanceStateGroupComplexType">
+				<sequence>
+					<element name="season" type="fews:SeasonConditionComplexType">
+						<annotation>
+							<documentation>Since 2017.02 Season this cold state is valid for</documentation>
+						</annotation>
+					</element>
+				  </sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+</schema>

@@ -1,0 +1,75 @@
+---
+title: Unit conversions file
+description: Reference for the UnitConversions config file — linear formulas for converting between external and internal units. Field reference auto-generated from the schema.
+sidebar:
+  order: 23
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/unitConversions.json';
+
+This page is the generated field list for `UnitConversions.xml` — the linear
+formulas FEWS uses to convert a value from one unit to another, most often at
+the import/export boundary when an external source reports in a unit that
+doesn't match the internal parameter unit.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Defines `output = multiplier * input + incrementer` conversions between a
+named input unit and output unit (e.g. feet → meters, °F → °C).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<unitConversions>` (**no** `version` attribute)
+
+**Used by**
+: Import/export activities and transformations that specify a `unit`
+different from the parameter's internal unit.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/UnitConversions.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<unitConversions xmlns="http://www.wldelft.nl/fews">
+  <addInverses>true</addInverses>
+  <unitConversion>
+    <inputUnitType>ft</inputUnitType>
+    <outputUnitType>m</outputUnitType>
+    <multiplier>0.3048</multiplier>
+    <incrementer>0</incrementer>
+  </unitConversion>
+  <unitConversion>
+    <inputUnitType>degF</inputUnitType>
+    <outputUnitType>degC</outputUnitType>
+    <multiplier>0.5556</multiplier>
+    <incrementer>-17.7778</incrementer>
+  </unitConversion>
+</unitConversions>
+```
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **`addInverses`** generates the reverse conversion (`output` → `input`)
+  automatically for every entry — for a non-zero-offset conversion (like °F/°C)
+  the inverse isn't just `1/multiplier`, so let FEWS derive it rather than
+  hand-writing a second entry and risking a sign error on the incrementer.
+- `convertDatum` is unrelated to unit scale — it's a vertical-datum shift
+  (relative to Ordnance level) applied during import/export, not part of the
+  multiplier/incrementer formula.
+
+## See also
+
+- Task guide: [Define parameters & units](/tasks/parameters/)
+- Schema: [`unitConversions.xsd`]({data.schemaUrl})

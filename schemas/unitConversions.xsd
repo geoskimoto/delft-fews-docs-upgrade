@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="unitConversions" type="fews:UnitConversionsComplexType">
+		<annotation>
+			<documentation>root</documentation>
+		</annotation>
+	</element>
+	<complexType name="UnitConversionsComplexType">
+		<annotation>
+			<documentation>Collection of all unit conversions</documentation>
+		</annotation>
+		<sequence>
+			<element name="addInverses" type="boolean" default="false" minOccurs="0"/>
+			<element name="unitConversion" type="fews:UnitConversionComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="UnitConversionComplexType">
+		<annotation>
+			<documentation>A single unit conversion: 
+output= multiplier*input + increment</documentation>
+		</annotation>
+		<sequence>
+			<element name="inputUnitType" type="fews:unitConversionStringType"/>
+			<element name="outputUnitType" type="fews:unitConversionStringType"/>
+			<element name="multiplier" type="float" default="1"/>
+			<element name="incrementer" type="float" default="0"/>
+			<element name="convertDatum" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Convert datum from Ordnance level during Import.
+Convert datum to Ordnance level during Export.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

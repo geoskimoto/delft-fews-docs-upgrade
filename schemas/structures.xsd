@@ -1,0 +1,602 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<element name="structures" type="fews:StructuresComplexType"/>
+	<complexType name="StructuresComplexType">
+		<choice maxOccurs="unbounded">
+			<element name="pump" type="fews:PumpComplexType"/>
+			<element name="weir" type="fews:WeirComplexType"/>
+			<element name="orifice" type="fews:OrificeComplexType"/>
+		</choice>
+	</complexType>
+	<complexType name="PumpComplexType">
+		<choice>
+			<element name="capacityConstant" type="float">
+				<annotation>
+					<documentation>Constant pump capacity (m3/s)</documentation>
+				</annotation>
+			</element>
+			<element name="capacityStateTable" type="fews:CapacityStateComplexType" maxOccurs="unbounded"/>
+			<element name="capacityHeadTable" type="fews:CapacityHeadComplexType" maxOccurs="unbounded"/>
+			<element name="capacityStateHeadTable" type="fews:CapacityStateHeadComplexType" maxOccurs="unbounded"/>
+		</choice>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="GeneralWeirComplexType">
+		<annotation>
+			<documentation>Free flow weir function:
+
+Q = Cd . b . 2/3 . sqrt( 2/3 . g) (H1)^(3/2)
+
+Drowned flow weir function:
+
+Q = Cd . b . (H1) . sqrt(2g (h1 - h2))
+
+Weir goes from free flowing to drowned under following conditions:
+
+Free weir flow applied when: 
+H2 &gt; freeFlowLimitCoefficient. H1
+
+Drowned weir flow applied when:
+H2 &lt;= freeFlowLimitCoefficient. H1
+</documentation>
+		</annotation>
+		<sequence>
+			<element name="height" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Height of weir (m). 
+Measured from upstream bed level to crest of weir.
+
+If crest level is omitted application assumes that weir is movable and a crest level value is expected as calculation input.</documentation>
+				</annotation>
+			</element>
+			<element name="width" type="float">
+				<annotation>
+					<documentation>width of weir (m)</documentation>
+				</annotation>
+			</element>
+			<element name="freeFlowLimitCoefficient" type="float">
+				<annotation>
+					<documentation>Limit coefficient defines when weir goes from free flowing to drowned flowing.</documentation>
+				</annotation>
+			</element>
+			<element name="freeDischargeCoefficient" type="float">
+				<annotation>
+					<documentation>Discharge coefficient (-) for free flowing weir.</documentation>
+				</annotation>
+			</element>
+			<element name="drownedDischargeCoefficient" type="float">
+				<annotation>
+					<documentation>Discharge coefficient (-) for drowned flowing weir.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="UserDefinedWeirComplexType">
+		<annotation>
+			<documentation>Free flow weir function:
+
+Q = freeFlowExpression
+
+Drowned flow weir function:
+
+Q = drownedFlowExpression
+
+Weir goes from free flowing to drowned under following conditions:
+
+Free weir flow applied when: 
+H2 &gt; freeFlowLimitCoefficient. H1
+
+Drowned weir flow applied when:
+H2 &lt;= freeFlowLimitCoefficient. H1
+
+For the user defined weir functions the following INPUT variables are supported by the UserDefinedWeir.class:
+
+upstream water level = "h1"
+downstream water level = "h2"
+weir height = "hc"
+
+for triangular weirs
+height of vertex above the bottom = "hc"
+height of triangle = "htr"
+
+
+</documentation>
+		</annotation>
+		<sequence>
+			<element name="freeFlowLimitCoefficient" type="float">
+				<annotation>
+					<documentation>Limit coefficient defines when weir goes from free flowing to drowned flowing.</documentation>
+				</annotation>
+			</element>
+			<element name="freeFlowExpression" type="fews:UserDefinedExpressionComplexType"/>
+			<element name="drownedFlowExpression" type="fews:UserDefinedExpressionComplexType"/>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="BroadCrestedWeirComplexType">
+		<sequence>
+			<element name="height" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Height of weir (m). 
+Measured from upstream bed level to crest of weir.
+
+If crest level is omitted application assumes that weir is movable and a crest level value is expected as calculation input.</documentation>
+				</annotation>
+			</element>
+			<element name="width" type="float">
+				<annotation>
+					<documentation>Width of the weir opening (m)</documentation>
+				</annotation>
+			</element>
+			<element name="length" type="float">
+				<annotation>
+					<documentation>Length (m) between front of weir and back of weir. </documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="SharpCrestedWeirComplexType">
+		<sequence>
+			<element name="height" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Height of weir (m). 
+Measured from upstream bed level to crest of weir.
+
+If crest level is omitted application assumes that weir is movable and a crest level value is expected as calculation input.</documentation>
+				</annotation>
+			</element>
+			<element name="width" type="float">
+				<annotation>
+					<documentation>Width of the weir opening (m)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="TriangularBroadCrestedWeirComplexType">
+		<complexContent>
+			<extension base="fews:BroadCrestedWeirComplexType">
+				<sequence>
+					<element name="heightTriangle" type="float">
+						<annotation>
+							<documentation>Height of triangle (m)
+Difference in level between vertex height and top of crest.
+
+Only required for triangular weirs.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="TriangularSharpCrestedWeirComplexType">
+		<complexContent>
+			<extension base="fews:SharpCrestedWeirComplexType">
+				<sequence>
+					<element name="heightTriangle" type="float">
+						<annotation>
+							<documentation>Height of triangle (m)
+Difference in level between vertex height and top of crest.
+
+Only required for triangular weirs.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+	<complexType name="OrificeComplexType">
+		<annotation>
+			<documentation>Free orifice flow function:
+
+flow = contraction coef. * discharge  coef. * width * opening height * sqrt(2*g*(upstream level - (crest level + contraction coef. * opening height)))
+
+Drowned orifice flow function:
+
+flow = contraction coef. * discharge  coef. * width * opening height * sqrt(2*g*(upstream level - downstream level))
+
+Orifice goes from free flowing to drowned under following conditions:
+
+Free orifice flow applied when: 
+upstream level - crest level &gt; flowLimitCoefficient * openings height and
+downstream level &lt; crest level + openings height
+
+Drowned orifice flow applied when:
+upstream level - crest level > flowLimitCoefficient * openings height and
+downstream level > crest level + openings height</documentation>
+		</annotation>
+		<sequence>
+			<element name="gateLevel" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Opening level of gate bottom (m). 
+
+If gate level is omitted application assumes that gate is movable and a gate level value is expected as calculation input. </documentation>
+				</annotation>
+			</element>
+			<element name="freeDischargeCoefficient" type="float">
+				<annotation>
+					<documentation>Discharge coefficient (-) for free flowing orifice.</documentation>
+				</annotation>
+			</element>
+			<element name="freeContractionCoefficient" type="float">
+				<annotation>
+					<documentation>Contraction coefficient (-) for free flowing orifice</documentation>
+				</annotation>
+			</element>
+			<element name="drownedDischargeCoefficient" type="float">
+				<annotation>
+					<documentation>Discharge coefficient (-) for drowned flowing orifice.</documentation>
+				</annotation>
+			</element>
+			<element name="drownedContractionCoefficient" type="float">
+				<annotation>
+					<documentation>Discharge coefficient (-) for drowned flowing orifice</documentation>
+				</annotation>
+			</element>
+			<element name="freeFlowLimitCoefficient"/>
+			<element name="weir" type="fews:WeirComplexType"/>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="CapacityStateComplexType">
+		<sequence>
+			<element name="pumpingState" type="float">
+				<annotation>
+					<documentation>TODO: RENAME
+Percent of the maximum defined pump capacity (-)</documentation>
+				</annotation>
+			</element>
+			<element name="capacity" type="float">
+				<annotation>
+					<documentation>Pumping capacity (m3/s) for given head an factor (optional).</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="CapacityHeadComplexType">
+		<sequence>
+			<element name="head">
+				<annotation>
+					<documentation>Level difference (m) between upstream level and downstream level.
+
+Head is positive in case of pumping from lower level to higher level.</documentation>
+				</annotation>
+			</element>
+			<element name="capacity">
+				<annotation>
+					<documentation>Pumping capacity (m3/s) for given head an factor (optional).</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="CapacityStateHeadComplexType">
+		<sequence>
+			<element name="pumpingState">
+				<annotation>
+					<documentation>TODO: RENAME
+Percent of the maximum defined pump capacity (-)</documentation>
+				</annotation>
+			</element>
+			<element name="head">
+				<annotation>
+					<documentation>Level difference (m) between upstream level and downstream level.
+
+Head is positive in case of pumping from lower level to higher level.</documentation>
+				</annotation>
+			</element>
+			<element name="capacity">
+				<annotation>
+					<documentation>Pumping capacity (m3/s) for given head an factor (optional).</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="CoefficientComplexType">
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="value" type="float" use="required"/>
+	</complexType>
+	<complexType name="WeirComplexType">
+		<annotation>
+			<documentation>Parameters:
+• hr = reference level
+• P = height of weir or height of vertex above bottom
+• L = length of weir
+• b = width of weir opening of width of triangle
+• h1 = upstream water level
+• H1 = upstream energy level
+• H2 = downstream energy level
+• htr = height of triangle
+• B = width of channel
+• ha = height of opening</documentation>
+		</annotation>
+		<choice>
+			<element name="generalWeir" type="fews:GeneralWeirComplexType">
+				<annotation>
+					<documentation>Free flow weir function:
+
+Q = Cg . Cd . b .  H1^3/2
+
+Cg = (2/3)^(3/2) sqrt(g)
+Cd = freeDischargeCoefficient
+
+Drowned flow weir function:
+
+Q = Cg . Cd .  b . H1 . sqrt(h1 - h2)
+
+Cg = sqrt(2g)
+Cd = drownedDischargeCoefficient
+
+Weir goes from free flowing to drowned under following conditions:
+
+Free weir flow applied when: 
+H2 &lt; flowLimitCoefficient . H1
+
+Drowned weir flow applied when:
+H2 &gt; flowLimitCoefficient . H1</documentation>
+				</annotation>
+			</element>
+			<element name="userDefinedWeir" type="fews:UserDefinedWeirComplexType">
+				<annotation>
+					<documentation>Free flow weir function:
+
+Q = freeFlowExpression
+
+Drowned flow weir function:
+
+Q = drownedFlowExpression
+
+Weir goes from free flowing to drowned under following conditions:
+
+Free weir flow applied when: 
+H2 &gt; freeFlowLimitCoefficient. H1
+
+Drowned weir flow applied when:
+H2 &lt;= freeFlowLimitCoefficient. H1
+</documentation>
+				</annotation>
+			</element>
+			<element name="rectangularProfileWeir" type="fews:BroadCrestedWeirComplexType">
+				<annotation>
+					<documentation>Q = Cg . Cd . b .  H1^(3/2)
+
+Cg = (2/3)^(3/2) sqrt(g)
+
+Cd = 0.86 
+for h1/P &lt;= 0.5 	and h1/L &lt;= 0.3
+
+Cd = 0.888 - 0.093(h1/P)   + 0.133(h1/P)^2   - 0.021(h1/P)^3   - 0.151(h1/L) + 0.102(h1/L)(h1/P)   - 0.065(h1/L)(h1/P)^2   + 0.310(h1/L)^2   
++ 0.028(h1/L)^2(h1/P)   - 0.102(h1/L)^3 
+
+The modular limit is obtained from:
+
+H2/H1 = 0.66				for H1/L &lt;= 0.33
+
+H2/H1 = 0.66 - 0.24 (H1/L - 0.33)		for 0.33 &lt; H1/L &lt;= 1.5
+
+H2/H1 = 0.38				for H1/L &lt;= 1.5 
+
+In case the modular limit is exceeded a missing value is entered for the discharge.</documentation>
+				</annotation>
+			</element>
+			<element name="roundNoseHorizontalCrestWeir" type="fews:BroadCrestedWeirComplexType">
+				<annotation>
+					<documentation>Q  = Cg . Cd . b . H1^(3/2)
+
+Cg = (2/3)^(3/2) sqrt(g)
+
+Cd = (1 - 0.0006L/b) (1- 0.003L/h1)^(3/2)
+
+The modular limit is obtained from:
+
+H2/H1 = 0.855 + 0.070 ln (H1/P) 	for H1/P &lt; 2
+H2/H1 = 0.869 + 0.049 ln (H1/P)	for H1/P &gt;= 2
+
+In case the modular limit is exceeded a missing value is entered for the discharge.</documentation>
+				</annotation>
+			</element>
+			<element name="romijnWeir" type="fews:BroadCrestedWeirComplexType">
+				<annotation>
+					<documentation>
+Q  = Cg . Cd . b . H1^(3/2)
+
+Cg = (2/3)^(3/2) sqrt(g)
+
+Cd = 0.9564 + 1.018 (H1/L)  - 3.530(H1/L)^2 + 4.936(H1/L)^3 - 2.302(H1/L)^4  
+
+The validity range for calculating the Cd values is : 0.08 &lt; H1/L  &lt; 0.78
+The modular limit is obtained from:
+
+H2/H1 = 0.30
+
+In case the modular limit is exceeded a missing value is entered for the discharge.
+</documentation>
+				</annotation>
+			</element>
+			<element name="triangularBroadCrestWeir" type="fews:TriangularBroadCrestedWeirComplexType">
+				<annotation>
+					<documentation>Two cases are distinguished:
+
+a. H1 &lt;= 1.25 htr, then:
+
+Q = Cg . Cd . H1^(5/2)
+Cg = 16/25 sqrt(2/5 g) b/2 hrt 
+
+b. H1 &gt; 1.25 htr, then:
+
+Q = Cg . Cd . b . (H1 - hrt/2)^(3/2)
+Cg = (2/3)^(3/2) sqrt(g)
+ 
+Cd = 0.764 + 1.895 (H1/L)  - 6.204 (H1/L)^2  + 6.944 (H1/L)^3
+for   H1/L &lt;= 0.25
+
+Cd = 0.937 + 0.089 (H1/L)
+for  H1/L &gt; 0.25
+
+The modular limit is obtained from:
+
+for H1 &lt;= 1.25 htr : H2/H1 = 0.80
+for H1 &gt; 1.25 htr  : equations for the round nose horizontal crest weir with
+ P replaced by P + 1/2 htr
+
+In case the modular limit is exceeded a missing value is entered for the discharge.</documentation>
+				</annotation>
+			</element>
+			<element name="faiyumWeir" type="fews:BroadCrestedWeirComplexType">
+				<annotation>
+					<documentation>
+Q  = Cg . Cd . b . H1^(3/2)
+
+Cg = (2/3)^(3/2) sqrt(g)
+
+Cd = 0.848
+for h1/L &lt; 0.43
+
+Cd = 0.765 + 0.194(h1/L) - 0.0003(h1/L)^2
+for h1/L &gt;= 0.43 
+
+The modular limit is given by equations of the rectangular profile weir. In case the modular limit is exceeded a missing value is entered for the discharge.</documentation>
+				</annotation>
+			</element>
+			<element name="rectangularThinPlateWeir" type="fews:SharpCrestedWeirComplexType">
+				<annotation>
+					<documentation>
+Q = Cg . Cd . be .  he^(3/2)
+
+Cg = 2/3 sqrt( 2 g )
+Cd = a + c h1/P  
+
+where:
+a	= 0.587 + 0.01 b/B	
+for b/B &lt;= 0.7
+
+a	= 0.610 - 0.056 (b/B)   + 0.048 (b/B)^2
+for b/B &gt; 0.7
+
+c	= -0.002
+for b/B &lt;= 0.2
+
+c	= 0.0016 - 0.0367 (b/B)  + 0.1127 (b/B)^2
+for b/B &gt; 0.2
+
+he = h1 + 0.001
+be = b + 0.003
+
+The following limitations apply on the use of the above formulae:
+
+b &gt;= 0.15 m
+P &gt;= 0.10 m
+he &gt;= 0.03 m
+h1/P	&lt;= 2.0
+h1 &lt;= ha and h2 &lt;= -0.05 m</documentation>
+				</annotation>
+			</element>
+			<element name="triangularThinPlateWeir" type="fews:TriangularSharpCrestedWeirComplexType">
+				<annotation>
+					<documentation>
+Q = Cg . Cd .  h1^(5/2)
+
+Cg = 8/15 sqrt(2 g) tg(b / 2hrt)  = 8/15 sqrt(2 g) tg( alfa / 2) 
+
+Cd = 0.640 - 0.873 h1 + 5.101 h1^2  - 13.040 h1^3 + 12.311 h1^4 
+for alfa = 90
+
+Cd = 0.637 - 0.566 h1 + 2.758 h1^2  - 6.425 h1^3 + 5.753 h1^4 
+for alfa = ½ 90
+
+Cd = 0.612 - 1.288 h1 + 6.804 h1^2  - 16.686 h1^3 + 15.345 h1^4 
+for alfa = ¼ 90
+
+Cd = 0.614 - 0.074 alfa + 0.046 alfa^2 - 0.009 alfa^3 			for 20 &lt;= alfa &lt;= 100 
+(alfa in radians)
+
+The following limitations apply on the use of the above formulae:
+
+h1 &lt;= htr
+h1 &lt;= 0.60 m	and h2 &lt;= -0.05 m
+</documentation>
+				</annotation>
+			</element>
+			<element name="cipolettiWeir" type="fews:SharpCrestedWeirComplexType">
+				<annotation>
+					<documentation>Q  = Cg . Cd . b . H1^(3/2)
+
+Cg = (2/3)^(3/2) sqrt(g)
+
+Cd = 0.63
+
+The following limitations apply on the use of the above formulae:
+
+h1/b &lt;= 0.5
+h1 &lt;= 0.6m and h2 &lt;=-0.05m</documentation>
+				</annotation>
+			</element>
+			<element name="crumpWeir" type="fews:SharpCrestedWeirComplexType">
+				<annotation>
+					<documentation>Q  = Cg . Cd . b . H1^(3/2)
+
+Cg = sqrt(g)
+
+Cd = 0.633
+
+The modular limit h2/h1 = 0.75. If this value is exceeded a missing value will be entered for the discharge. Further limiting conditions are:
+
+P &gt;= 0.06 m
+b &gt;= 0.30 m
+h1/P	&lt;= 3
+b/h1 &gt;= 2
+</documentation>
+				</annotation>
+			</element>
+			<element name="flatVWeir" type="fews:TriangularSharpCrestedWeirComplexType">
+				<annotation>
+					<documentation>
+For h1 &lt;= htr :
+
+Q = Cg . Cd . m . H1^(5/2) 
+
+Cg = 4/5 sqrt(g) 
+ 
+Cd = 0.615						for m  &lt;= 15
+Cd = 0.620						for 15 &lt; m &lt; 30
+Cd = 0.625						for m  &gt;= 30
+m = b/2htr
+
+For h1 &gt; htr :
+
+Q = Cg . Cd . m . (H1^(5/2) - (h1 - htr)^(5/2)) 
+ 
+Cd = 0.620						for m  &lt;= 15
+Cd = 0.625						for 15 &lt; m &lt; 30
+Cd = 0.630						for m  &gt;= 30
+
+The modular limit is:
+for h1 &lt;= htr h2/h1 = 0.70
+for h1 &gt; htr  h2/h1 = 0.75
+
+If the modular limit is exceeded a missing value will be entered for the discharge.</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</complexType>
+	<complexType name="UserDefinedExpressionComplexType">
+		<sequence>
+			<element name="expression" type="string"/>
+			<element name="coefficient" maxOccurs="unbounded">
+				<complexType>
+					<sequence>
+						<element name="id" type="string"/>
+						<element name="value" type="float"/>
+					</sequence>
+				</complexType>
+			</element>
+		</sequence>
+	</complexType>
+</schema>

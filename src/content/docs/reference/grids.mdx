@@ -1,0 +1,84 @@
+---
+title: Grids file
+description: Reference for the Grids config file — named grid geometries for gridded (radar, NWP, model) data. Field reference auto-generated from the schema.
+sidebar:
+  order: 26
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/grids.json';
+
+This page is the generated field list for `Grids.xml` — named grid geometries
+for anything gridded: radar rainfall, NWP output, model grids. A grid is
+defined once here and referenced by id from imports, transformations, and
+displays.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Defines the geometry (rows/columns, cell size or corners, projection) of a
+named grid, as a **regular** grid, an **irregular** grid (shapefile/CSV/NetCDF
+cell centers), or a set of **NetCDF files** whose geometry is read directly
+from the file (UGRID mesh).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<grids>` (**no** `version` attribute)
+
+**Used by**
+: Grid imports/exports and grid-based transformations, by the grid's
+`locationId`.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Grids.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<grids xmlns="http://www.wldelft.nl/fews">
+  <regular locationId="RadarGrid">
+    <rows>100</rows>
+    <columns>120</columns>
+    <firstCellCenter>
+      <x>-125.0</x>
+      <y>49.0</y>
+    </firstCellCenter>
+    <xCellSize>0.01</xCellSize>
+    <yCellSize>0.01</yCellSize>
+    <geoDatum>WGS 1984</geoDatum>
+  </regular>
+</grids>
+```
+
+## Field reference
+
+<Aside type="note">
+`RegularGridComplexType` carries a full catalogue of projection types
+(polar stereographic, rotated pole, Lambert conformal conic, transverse
+Mercator, geostationary satellite view, and more) as alternatives to a plain
+`geoDatum` string — pick the one that matches your data source's native
+projection. Most Pacific Northwest / CONUS radar and NWP grids just need
+`geoDatum` set to a standard datum like `WGS 1984`.
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- A regular grid's origin is `firstCellCenter` + `xCellSize`/`yCellSize` **or**
+  `gridCorners` — pick one; don't try to combine both ways of anchoring the
+  grid.
+- `rows`/`columns` order and the `z`/`zBottom`/`zTop` elevation arrays (when
+  used) are read **row by row, upper-left to lower-right** — a transposed grid
+  is a common source of silently-flipped data rather than an import error.
+- The root `<grids>` element is a repeated choice of `regular`/`irregular`/
+  `netcdfFiles` entries — list as many named grids as you need in one file.
+
+## See also
+
+- Schema: [`grids.xsd`]({data.schemaUrl})

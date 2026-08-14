@@ -35,6 +35,11 @@ const TARGETS = [
   { schema: 'validationRuleSets.xsd', element: 'validationRuleSets' },
   { schema: 'ratingCurves.xsd', element: 'ratingCurves' },
   { schema: 'interpolationSets.xsd', element: 'interpolationSets' },
+  { schema: 'unitConversions.xsd', element: 'unitConversions' },
+  { schema: 'moduleInstanceSets.xsd', element: 'moduleInstanceSets' },
+  { schema: 'coldModuleInstanceStateGroups.xsd', element: 'coldModuleInstanceStateGroups' },
+  { schema: 'grids.xsd', element: 'grids' },
+  { schema: 'structures.xsd', element: 'structures' },
   // NB: transformationModule.xsd is intentionally omitted — its type graph is
   // ~400 types / ~3000 fields, too large for one readable page. The
   // Transformations task guide defers the full catalogue to the schema instead.

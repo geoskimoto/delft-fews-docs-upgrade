@@ -71,6 +71,11 @@ export default defineConfig({
             { label: 'Validation rule sets file', slug: 'reference/validationrulesets' },
             { label: 'Rating curves file', slug: 'reference/ratingcurves' },
             { label: 'Interpolation sets file', slug: 'reference/interpolationsets' },
+            { label: 'Unit conversions file', slug: 'reference/unitconversions' },
+            { label: 'Module instance sets file', slug: 'reference/moduleinstancesets' },
+            { label: 'Cold module instance state groups file', slug: 'reference/coldmoduleinstancestategroups' },
+            { label: 'Grids file', slug: 'reference/grids' },
+            { label: 'Structures file', slug: 'reference/structures' },
           ],
         },
         {
