@@ -151,6 +151,13 @@ const TARGETS = [
       roots: categoryRoots('filter', 'review', 'selection', 'events', 'sample', 'merge', 'conditional', 'adjust'),
     },
   },
+  {
+    schema: 'transformationTypes.xsd',
+    multiRoot: {
+      pageId: 'transformGeneration',
+      roots: categoryRoots('generation', 'generationEnsemble', 'performanceIndicatorsLeadTimeAccuracy', 'lookup', 'regression', 'custom', 'user'),
+    },
+  },
 ];
 
 let failed = 0;

@@ -82,6 +82,7 @@ export default defineConfig({
             { label: 'Transformation functions — statistics', slug: 'reference/transformstatistics' },
             { label: 'Transformation functions — hydrology & physical process', slug: 'reference/transformhydrology' },
             { label: 'Transformation functions — data quality, selection & control flow', slug: 'reference/transformdataquality' },
+            { label: 'Transformation functions — generation, lookup & modeling', slug: 'reference/transformgeneration' },
           ],
         },
         {

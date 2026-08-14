@@ -1,0 +1,125 @@
+---
+title: Transformation functions — generation, lookup & modeling
+description: Reference for the generation, generationEnsemble, performanceIndicatorsLeadTimeAccuracy, lookup, regression, custom, and user transformation function families. Field reference auto-generated from the schema.
+sidebar:
+  order: 34
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/transformGeneration.json';
+
+This page is the generated field list for the **generation, lookup &
+modeling** transformation functions — synthesizing a series from scratch,
+manipulating ensemble members, scoring forecast accuracy, mapping values
+through a lookup table, regression, and free-format custom expressions. Part
+of the [transformation function
+catalogue](/reference/transformationbasics/#function-categories); see that
+page for the shared `<transformationModule>`/`<transformation>` mechanics
+these all sit inside.
+
+## At a glance
+
+<div class="field-list">
+
+**Covers**
+: `generation` (constant distribution, recession-mean/pattern repeat, tidal
+constituents), `generationEnsemble` (copy/select/combine ensemble members),
+`performanceIndicatorsLeadTimeAccuracy` (forecast skill vs. lead time —
+BIAS, RMSE, …), `lookup` (1D/2D/3D table lookup), `regression` (principal
+component analysis), `custom` (a fully user-supplied Java class), `user`
+(free-format expression, e.g. `"X1 + a"`, with named coefficients).
+
+**Used inside**
+: A `<transformation>`, `<periodTransformation>`, or `<rangeTransformation>`
+in a [`transformationModule`](/reference/transformationbasics/) file.
+
+**Related**
+: [Transformations](/tasks/transformations/) task guide's "Arithmetic /
+user-defined" family row.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/ConvertUnitsCustom 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="ApplyRatingOffset">
+    <user>
+      <simple>
+        <inputVariableDefinition>
+          <variableId>H</variableId>
+          <locationId>Gauge01</locationId>
+          <templateVariableId>H</templateVariableId>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>H.obs</parameterId>
+            <locationId>Gauge01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariableDefinition>
+        <expression>H + offset</expression>
+        <outputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ConvertUnitsCustom</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>H.corrected</parameterId>
+            <locationId>Gauge01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </outputVariable>
+        <coefficientSet>
+          <coefficient id="offset" value="0.15"/>
+        </coefficientSet>
+      </simple>
+    </user>
+  </transformation>
+</transformationModule>
+```
+
+## Field reference
+
+<Aside type="note">
+`user`'s `expression` is a plain string (`"X1 + a"`) evaluated at runtime —
+the schema can't validate it, so a typo'd variable or coefficient id is a
+**runtime** error in the transformation log, not a config-load error.
+`custom` is the escape hatch one level further down: a `className` pointing
+at a Java class you supply, for logic no built-in function covers.
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **`user simple`'s `expression` references ids, not element names** — the
+  string must use the `variableId`s declared in `inputVariableDefinition`
+  and the `id`s declared in `coefficientSet`/`coefficient`, not the FEWS
+  parameter or location ids. Mismatched ids fail at run time with no config
+  validation to catch it earlier.
+- **`lookup simple` still needs a `coefficientSet` even for the simplest
+  table** — the [input, output] pairs live inside it, and values between
+  defined points are found "using [interpolation type]" per the schema
+  annotation (check the specific lookup variant's coefficientSet fields for
+  which interpolation applies).
+- **`generation` functions don't read any input series for their output
+  values** — `constant`, `recessionMean`, `recessionPattern`, and
+  `tidalConstituents` synthesize the output from configuration (and, for the
+  recession variants, a *history period* read from the same series) rather
+  than transforming an input series. Don't expect an `inputVariable` field
+  here the way every other category has one.
+- **`custom` requires a `className` you (or a plugin) actually provide** —
+  unlike every other function's optional `className` override (which falls
+  back to a sensible built-in default), `custom`'s class is the *entire*
+  implementation. There's no default to fall back to.
+
+## See also
+
+- Reference: [Transformation functions — basics](/reference/transformationbasics/) · [Temporal reshaping](/reference/transformtemporal/) · [Interpolation & spatial](/reference/transforminterpolation/) · [Statistics](/reference/transformstatistics/) · [Hydrology & physical process](/reference/transformhydrology/) · [Data quality, selection & control flow](/reference/transformdataquality/)
+- Task guide: [Transformations](/tasks/transformations/)
+- Schema: [`transformationTypes.xsd`]({data.schemaUrl})
