@@ -137,6 +137,13 @@ const TARGETS = [
       roots: categoryRoots('statisticsSameAttributeValue', 'statisticsChildrenLocations', 'statisticsRelatedLocations', 'statisticsValueProperties', 'statisticsEnsemble', 'statisticsPeriodic', 'statisticsSerial', 'statisticsSummary', 'statisticsVerticalLayers'),
     },
   },
+  {
+    schema: 'transformationTypes.xsd',
+    multiRoot: {
+      pageId: 'transformHydrology',
+      roots: categoryRoots('dischargeStage', 'stageDischarge', 'precipitation', 'moisture', 'profile', 'wave', 'structure'),
+    },
+  },
 ];
 
 let failed = 0;

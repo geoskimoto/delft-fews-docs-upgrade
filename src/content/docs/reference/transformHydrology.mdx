@@ -1,0 +1,139 @@
+---
+title: Transformation functions — hydrology & physical process
+description: Reference for the dischargeStage, stageDischarge, precipitation, moisture, profile, wave, and structure transformation function families. Field reference auto-generated from the schema.
+sidebar:
+  order: 32
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/transformHydrology.json';
+
+This page is the generated field list for the **hydrology & physical
+process** transformation functions — stage/discharge conversion, rainfall and
+soil moisture processing, longitudinal profiles, wave spectra, and
+structure-based discharge calculations (weirs, pumps). The function
+categories most specific to river/reservoir forecasting live here. Part of
+the [transformation function
+catalogue](/reference/transformationbasics/#function-categories); see that
+page for the shared `<transformationModule>`/`<transformation>` mechanics
+these all sit inside.
+
+## At a glance
+
+<div class="field-list">
+
+**Covers**
+: `stageDischarge` / `dischargeStage` (convert water level ↔ flow, via table,
+power equation, merged rating curves, or a [rating
+curve](/reference/ratingcurves/) file reference), `precipitation` (tipping
+bucket → equidistant series, de-accumulation), `moisture` (optical depth,
+soil moisture — grid series only), `profile` (longitudinal profile ↔ time
+series), `wave` (generate 1D/2D wave spectra), `structure` (discharge through
+a configured weir or pump — Crump weir, flat-V weir, general weir, four pump
+variants).
+
+**Used inside**
+: A `<transformation>`, `<periodTransformation>`, or `<rangeTransformation>`
+in a [`transformationModule`](/reference/transformationbasics/) file.
+
+**Related**
+: [Rating curves file](/reference/ratingcurves/) (the `ratingCurve` variant
+references it by location) · [Structures file](/reference/structures/) (a
+separate, static catalog of pump/weir capacity — not the same mechanism as
+the `structure` transformation here).
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/ConvertStageToDischarge 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="Gauge01_HQ">
+    <stageDischarge>
+      <table>
+        <stage>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>H.obs</parameterId>
+            <locationId>Gauge01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </stage>
+        <discharge>
+          <timeSeriesSet>
+            <moduleInstanceId>ConvertStageToDischarge</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationId>Gauge01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </discharge>
+        <coefficientSet>
+          <type>level_to_flow</type>
+          <authoriseExtrapolation>false</authoriseExtrapolation>
+          <interpolationType>linear</interpolationType>
+          <tableRecord stage="0.0" discharge="0.0"/>
+          <tableRecord stage="1.0" discharge="12.5"/>
+          <tableRecord stage="2.0" discharge="48.0"/>
+        </coefficientSet>
+      </table>
+    </stageDischarge>
+  </transformation>
+</transformationModule>
+```
+
+## Field reference
+
+<Aside type="note">
+`structure` alone is 10 variants (weirs and pumps) that together account for
+most of this page's size — each pairs a physical formula with its own
+`coefficientSet` shape. If you're not configuring hydraulic structures, skim
+past it to `stageDischarge`/`dischargeStage`, the pair almost every river
+system actually uses.
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **Two unrelated ways to get a rating curve into a transformation.** The
+  `ratingCurve` variant of `stageDischarge`/`dischargeStage` looks up a curve
+  from the standalone [Rating curves file](/reference/ratingcurves/) by
+  `locationId` (+ optional `qualifierId`). The `table`/`power`/
+  `mergedRatingCurves` variants instead take an inline or file-referenced
+  `coefficientSet` (`coefficientSetId`/`coefficientSetFile`, from a
+  `Config/CoefficientSetsFiles/transformationCoefficientSets` file — a
+  different, not-yet-documented file family). Don't mix the two up: a
+  `coefficientSetId` typo won't fall back to `RatingCurves.xml`.
+- **`stageDischarge` and `dischargeStage` are mirror images**, not the same
+  function with a flag — pick the one that names your actual conversion
+  direction; each has its own `table`/`power`/`ratingCurve`/
+  `mergedRatingCurves` variants.
+- **`interpolationType: logarithmic`** on a `table` coefficientSet matters
+  for discharge behavior near the low end of a rating — log interpolation
+  avoids the unrealistic straight-line discharge a linear table can produce
+  just above zero flow. Worth checking against gauged low-flow data if you
+  see odd values there.
+- **`structure` functions need the *matching* `coefficientSet` shape for
+  their variant** — e.g. `generalWeirFixedHeight`'s height lives in the
+  coefficient set, `generalWeirVariableHeight`'s comes from an input
+  variable instead. Swapping variants without also updating the
+  coefficientSet shape is a common source of a config that loads but
+  computes nonsense.
+- **`moisture` functions are grid-only** — `opticalDepth` and `soilMoisture`
+  both require grid time series input; pointing them at a scalar series is a
+  config error, not a silent no-op.
+
+## See also
+
+- Reference: [Transformation functions — basics](/reference/transformationbasics/) · [Temporal reshaping](/reference/transformtemporal/) · [Interpolation & spatial](/reference/transforminterpolation/) · [Statistics](/reference/transformstatistics/)
+- Related references: [Rating curves file](/reference/ratingcurves/) · [Structures file](/reference/structures/)
+- Task guide: [Transformations](/tasks/transformations/)
+- Schema: [`transformationTypes.xsd`]({data.schemaUrl})

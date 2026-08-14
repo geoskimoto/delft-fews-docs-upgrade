@@ -80,6 +80,7 @@ export default defineConfig({
             { label: 'Transformation functions — temporal reshaping', slug: 'reference/transformtemporal' },
             { label: 'Transformation functions — interpolation & spatial', slug: 'reference/transforminterpolation' },
             { label: 'Transformation functions — statistics', slug: 'reference/transformstatistics' },
+            { label: 'Transformation functions — hydrology & physical process', slug: 'reference/transformhydrology' },
           ],
         },
         {
