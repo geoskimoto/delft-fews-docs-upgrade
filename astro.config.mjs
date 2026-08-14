@@ -81,6 +81,7 @@ export default defineConfig({
             { label: 'Transformation functions — interpolation & spatial', slug: 'reference/transforminterpolation' },
             { label: 'Transformation functions — statistics', slug: 'reference/transformstatistics' },
             { label: 'Transformation functions — hydrology & physical process', slug: 'reference/transformhydrology' },
+            { label: 'Transformation functions — data quality, selection & control flow', slug: 'reference/transformdataquality' },
           ],
         },
         {

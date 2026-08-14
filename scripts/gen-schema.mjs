@@ -144,6 +144,13 @@ const TARGETS = [
       roots: categoryRoots('dischargeStage', 'stageDischarge', 'precipitation', 'moisture', 'profile', 'wave', 'structure'),
     },
   },
+  {
+    schema: 'transformationTypes.xsd',
+    multiRoot: {
+      pageId: 'transformDataQuality',
+      roots: categoryRoots('filter', 'review', 'selection', 'events', 'sample', 'merge', 'conditional', 'adjust'),
+    },
+  },
 ];
 
 let failed = 0;

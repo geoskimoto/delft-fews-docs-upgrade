@@ -1,0 +1,140 @@
+---
+title: Transformation functions — data quality, selection & control flow
+description: Reference for the filter, review, selection, events, sample, merge, conditional, and adjust transformation function families. Field reference auto-generated from the schema.
+sidebar:
+  order: 33
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/transformDataQuality.json';
+
+This page is the generated field list for the **data quality, selection &
+control flow** transformation functions — smoothing/filtering a series,
+tidal review, picking specific values out of a series (peaks, lows, extremes,
+a time slice), summarizing discrete events, resampling at fixed points,
+combining multiple sources into one series, branching on a condition, and
+correcting values against a reference. Part of the [transformation function
+catalogue](/reference/transformationbasics/#function-categories); see that
+page for the shared `<transformationModule>`/`<transformation>` mechanics
+these all sit inside.
+
+## At a glance
+
+<div class="field-list">
+
+**Covers**
+: `filter` (low-pass, Gaussian smoothing), `review` (tidal balance review,
+historical-error resampling), `selection` (peaks/lows/extremes, ensemble
+member selection, grid-to-scalar extraction — ~15 variants), `events`
+(discharge volume/duration/maximum per discrete event), `sample`
+(equidistant/day/Julian-day/single-time-step resampling), `merge` (~12
+strategies to combine multiple input series into one — simple priority,
+weighted, gap-fallback, toggle, relations, synoptic, and more), `conditional`
+(critical-condition lookup), `adjust` (correct a computed discharge/stage
+against an observed reference).
+
+**Used inside**
+: A `<transformation>`, `<periodTransformation>`, or `<rangeTransformation>`
+in a [`transformationModule`](/reference/transformationbasics/) file.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/MergePrimaryBackup 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="MergeGaugeSources">
+    <merge>
+      <simple>
+        <inputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportPrimarySensor</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>H.obs</parameterId>
+            <locationId>Gauge01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariable>
+        <inputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportBackupSensor</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>H.obs</parameterId>
+            <locationId>Gauge01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariable>
+        <outputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>MergePrimaryBackup</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>H.obs</parameterId>
+            <locationId>Gauge01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </outputVariable>
+        <coefficientSet>
+          <reverseOrderInputTimeSeries>false</reverseOrderInputTimeSeries>
+        </coefficientSet>
+      </simple>
+    </merge>
+  </transformation>
+</transformationModule>
+```
+
+## Field reference
+
+<Aside type="note">
+`merge` and `selection` together account for most of this page's size —
+`merge` has ~12 strategies (this page's `simple`, shown above, is the one
+most systems reach for first: earlier `inputVariable` entries take priority,
+later ones fill gaps) and `selection` has ~15 (peaks, lows, extremes,
+ensemble-member and grid-to-scalar variants). Skim the type names for your
+use case rather than reading top to bottom.
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **`merge simple`'s priority order is the `inputVariable` *document
+  order*** — the first one wins wherever it has data; later ones only fill
+  gaps. `reverseOrderInputTimeSeries` (in the required `coefficientSet`)
+  flips that, and `reverseOrderAttributeId` can flip it per-location from a
+  location attribute. There's no separate "priority" field to set — reorder
+  the XML.
+- **`merge simple` requires a `coefficientSet` even with nothing to
+  configure** — the schema still requires at least one (with just
+  `reverseOrderInputTimeSeries` set) even when you don't need
+  range-dependent behavior. Leaving it out is a config error, not a
+  default-everything shortcut.
+- **`merge toggle` vs. `merge gap`**: both replace the primary series with
+  the next input once a gap exceeds `maxGapLength`, but `toggle` *stays* on
+  the replacement once switched (until it toggles back), while `gap` only
+  substitutes for the duration of the gap itself. Picking the wrong one
+  either produces an unwanted permanent source-switch or an unwanted
+  reversion mid-event.
+- **`selection` has near-identical `*Peaks`/`*Lows` pairs** (`peaks` vs.
+  `independentLows`, `lows` vs. `independentPeaks`, etc.) — the
+  "independent" variants find peaks/lows without requiring a full
+  rise-then-fall cycle between them, which matters for noisy or
+  closely-spaced series. Check the schema annotation for the specific
+  variant before assuming it behaves like the plain one.
+- **`adjust` corrects a computed series against an observed one** (e.g.
+  adjust a modeled discharge to match the latest observed gauge reading) —
+  it's not a general-purpose value editor; it needs both a computed input
+  and a reference observed series configured.
+
+## See also
+
+- Reference: [Transformation functions — basics](/reference/transformationbasics/) · [Temporal reshaping](/reference/transformtemporal/) · [Interpolation & spatial](/reference/transforminterpolation/) · [Statistics](/reference/transformstatistics/) · [Hydrology & physical process](/reference/transformhydrology/)
+- Task guide: [Transformations](/tasks/transformations/)
+- Schema: [`transformationTypes.xsd`]({data.schemaUrl})

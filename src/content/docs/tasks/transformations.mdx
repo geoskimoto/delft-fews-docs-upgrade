@@ -161,7 +161,7 @@ common ones:
 | [Interpolation & spatial](/reference/transforminterpolation/) | `interpolationSerial`, `interpolationSpatial`, `altitude`, `rotation` | Fill holes, extrapolate, interpolate across gauges, grid rainfall. |
 | [Temporal reshaping](/reference/transformtemporal/) | `aggregation`, `disaggregation`, `accumulation`, `deaccumulation`, `timeShift`, `gradient`, `copy` | Hourly→daily and back; sums vs means; shift in time. |
 | [Hydrology & physical process](/reference/transformhydrology/) | `stageDischarge`, `dischargeStage`, `structure`, `precipitation` | Convert water level ↔ discharge, weir/pump discharge, rainfall processing. |
-| Combine / select | `merge`, `copy`, `selection`, `conditional` | Merge sources, pick a preferred series, branch on a condition. |
+| [Data quality, selection & control flow](/reference/transformdataquality/) | `merge`, `selection`, `filter`, `conditional`, `adjust` | Merge sources, pick a preferred series, smooth, branch on a condition. |
 | Arithmetic / user-defined | `user` | Custom formulas over one or more inputs. |
 | [Statistics](/reference/transformstatistics/) | `statisticsSerial`, `statisticsSummary`, `statisticsEnsemble`, … | Rolling means, ensemble spread, summaries. |
 | Time manipulation | `timeShift`, `sample` | Shift or resample in time. |
