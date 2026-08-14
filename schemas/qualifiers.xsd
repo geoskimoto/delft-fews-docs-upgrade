@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema"  elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+    <include schemaLocation="sharedTypes.xsd"/>
+    <element name="qualifiers" type="fews:QualifiersComplexType"/>
+<!--    -->
+    <complexType name="QualifiersComplexType">
+        <sequence>
+			<group ref="fews:PersistentIdsCsvFilesGroup" minOccurs="0"/>
+			<element name="allowReferencingUndefinedQualifiers" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>When true qualifiers in time series sets or id maps that are not listed below are
+						added on the fly to this list.</documentation>
+				</annotation>
+			</element>
+			<element name="qualifier" type="fews:QualifierComplexType" minOccurs="0" maxOccurs="unbounded"/>
+			<element name="csvFile" type="fews:QualifiersCsvFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. Define qualifiers in csv file</documentation>
+				</annotation>
+			</element>
+			<element name="qualifierRootNode" type="fews:QualifierNodeComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. Define tree for qualifies based on attribute constraints</documentation>
+				</annotation>
+			</element>
+        </sequence>
+    </complexType>
+<!--    -->
+    <complexType name="QualifierComplexType">
+        <sequence>
+            <element name="description" type="string" minOccurs="0">
+                <annotation>
+                    <documentation>Long (descriptive) name of qualifier or description</documentation>
+                </annotation>
+            </element>
+            <element name="shortName" type="string" minOccurs="0">
+                <annotation>
+                    <documentation>Short name of qualifier for chart legend</documentation>
+                </annotation>
+            </element>
+			<element name="child" type="fews:QualifierComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. To order the qualifiers in a tree</documentation>
+				</annotation>
+			</element>
+			<element name="group" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.01. Assign this qualifier to a group. Only 1 qualifier from the same group can be added to a time series. Within a qualifier tree node qualfiers of the same group can be summed, in the TSD the values of time series will be summed and replaced by 1 summed time series.</documentation>
+				</annotation>
+			</element>
+            <group ref="fews:AttributeChoice" minOccurs="0" maxOccurs="unbounded"/>
+        </sequence>
+        <attribute name="id" type="fews:idStringType" use="required"/>
+        <attribute name="name" type="fews:nameStringType" use="optional"/>
+    </complexType>
+
+	<complexType name="QualifiersCsvFileComplexType">
+		<sequence>
+			<element name="file" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. name of a csv file in the map layer files or a full absolute path to the csv file (*.csv).</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. Character set of the text in the csv file. Specify only when the csv file contains non western characters.
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:QualifiersResourceSequence"/>
+		</sequence>
+	</complexType>
+	<group name="QualifiersResourceSequence">
+		<sequence>
+			<element name="id" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. e.g. "%ID%", put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="name" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="shortName" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="parentQualifierId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="group" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="timeZoneOffset" type="fews:timeZoneOffsetStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01. Optional timeZoneOffset for the dateTime attributes. This offset is always relative to GMT. For example "+02:00" means GMT+02:00. If no offset specified, then time zone GMT is used by default.</documentation>
+				</annotation>
+			</element>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.01. Optional pattern for the dateTime attributes. Default is yyyyMMdd, this is the internal format a dbf file is using when the column is of type 'D'.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:AttributesSequence" minOccurs="0"/>
+		</sequence>
+	</group>
+	<complexType name="QualifierNodeComplexType">
+		<sequence>
+			<element name="name" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. Short name of qualifier</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. FEWS-10077. Long descriptive name of qualifier node (tooltip) Description or description</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="qualifierId" type="string" minOccurs="0">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-10077. Reference to qualifier</documentation>
+					</annotation>
+				</element>
+				<element name="qualifierNode" type="fews:QualifierNodeComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-10077. child node</documentation>
+					</annotation>
+				</element>
+				<element name="constraints" type="fews:ConstraintsComplexType">
+					<annotation>
+						<documentation>Since 2014.02. FEWS-10077. Add all qualifiers that fulfill the constraints to this node</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-10077. Id of the qualifier node</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+
+</schema>

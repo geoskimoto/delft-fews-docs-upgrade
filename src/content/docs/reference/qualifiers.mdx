@@ -1,0 +1,72 @@
+---
+title: Qualifiers file
+description: Reference for the Qualifiers config file — named tags that distinguish multiple time series sharing the same location and parameter. Field reference auto-generated from the schema.
+sidebar:
+  order: 19
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/qualifiers.json';
+
+This page is the generated field list for `Qualifiers.xml` — the file that
+declares the qualifier ids used to tell apart multiple time series that share
+the same location and parameter (e.g. "1st guess" vs. "corrected", or one
+ensemble member vs. another).
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Declares the set of valid qualifier ids. A time series is uniquely
+identified by location + parameter + **qualifier(s)**, so qualifiers are how
+you keep multiple variants of "the same" series distinct instead of
+overwriting each other.
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<qualifiers>` (**no** `version` attribute)
+
+**Used by**
+: `qualifierId` on a `timeSeriesSet` (import/export/General Adapter config),
+and on the [ID map](/reference/idmap/) `<map>` element for external ↔ internal
+qualifier translation.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/Qualifiers.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<qualifiers xmlns="http://www.wldelft.nl/fews">
+  <qualifier id="1stGuess" name="First guess">
+    <description>Uncorrected first-guess forecast</description>
+  </qualifier>
+  <qualifier id="Corrected" name="Corrected">
+    <description>Forecaster-corrected forecast</description>
+  </qualifier>
+</qualifiers>
+```
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **`allowReferencingUndefinedQualifiers`** (root, optional) — when `true`,
+  any qualifier id used elsewhere (time series sets, id maps) but not declared
+  here gets silently added on the fly instead of raising a config error. Handy
+  during early setup, risky once qualifier ids matter for display/legend
+  behavior — most production configs leave it `false` or omit it.
+- `<child>` + `<group>` (since 2014.02) let you build a qualifier **tree** for
+  UI selection; `group` further constrains that only one qualifier from the
+  same group can be attached to a series at once.
+
+## See also
+
+- Related reference: [ID map file](/reference/idmap/) (external ↔ internal qualifier translation)
+- Schema: [`qualifiers.xsd`]({data.schemaUrl})

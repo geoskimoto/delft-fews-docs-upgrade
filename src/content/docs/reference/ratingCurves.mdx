@@ -1,0 +1,79 @@
+---
+title: Rating curves file
+description: Reference for the RatingCurves config file — stage-discharge (H/Q) relationships used to convert level to flow. Field reference auto-generated from the schema.
+sidebar:
+  order: 21
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/ratingCurves.json';
+
+This page is the generated field list for `RatingCurves.xml` — the
+stage-discharge (H/Q) relationships that convert a measured water level into a
+discharge (or vice versa). Core to any river forecasting system built on
+gauge-derived flow.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Defines, per location, a rating curve as either a lookup table (level/flow
+point pairs) or an equation (power, parabolic, or a custom user-defined form),
+with optional corrections (unsteady flow, backwater) and a validity period.
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<ratingCurves>` (`version="1.1"`, required)
+
+**References**
+: [`Locations`](/reference/locations/) (`locationId`).
+
+**Used by**
+: The rating-curve transformation in a transformation module or General
+Adapter config, referenced by `ratingCurveId`.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/RatingCurves.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<ratingCurves xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <ratingCurve ratingCurveId="Gauge01_HQ">
+    <location locationId="Gauge01"/>
+    <ratingCurveType>LevelToFlow</ratingCurveType>
+    <reversible>false</reversible>
+    <ratingCurveTable>
+      <ratingCurveTableRecord level="0.0" flow="0.0"/>
+      <ratingCurveTableRecord level="1.0" flow="12.5"/>
+      <ratingCurveTableRecord level="2.0" flow="48.0"/>
+    </ratingCurveTable>
+  </ratingCurve>
+</ratingCurves>
+```
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- `ratingCurveType` is `LevelToFlow` or `FlowToLevel` — it fixes the
+  conversion **direction**; `reversible` is a separate flag for whether the
+  same curve may also be used the other way round.
+- A curve is `ratingCurveTable` **or** `ratingCurveEquation`, not both — pick
+  the table form when you have measured gaugings, the equation form
+  (power/parabolic/user-defined) when you have a fitted formula.
+- `validPeriod` (repeatable) lets a rating shift over time — omit it and the
+  curve is valid for all time, which is wrong for a channel that's been
+  regraded or re-surveyed.
+
+## See also
+
+- Related reference: [Locations file](/reference/locations/)
+- Task guide: [Transformations](/tasks/transformations/)
+- Schema: [`ratingCurves.xsd`]({data.schemaUrl})

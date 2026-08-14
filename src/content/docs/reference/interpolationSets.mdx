@@ -1,0 +1,91 @@
+---
+title: Interpolation sets file
+description: Reference for the InterpolationSets config file — gap-filling (serial) and spatial interpolation configs used by the Interpolation module. Field reference auto-generated from the schema.
+sidebar:
+  order: 22
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/interpolationSets.json';
+
+This page is the generated field list for `InterpolationSets.xml`, used by the
+Interpolation module to either fill gaps in a single series (**serial**
+interpolation) or generate a spatial field from point observations
+(**spatial** interpolation, e.g. Kriging/IDW-style gridding).
+
+<Aside type="caution">
+The schema itself annotates the root `<interpolationSets>` element **`LEGACY`**.
+Newer configs generally do time-based gap-filling with a
+[transformation](/tasks/transformations/) instead, and spatial gridding with
+the region's grid/transformation tooling. Check what your FEWS version and
+existing config actually use before adding a new `InterpolationSets.xml` —
+this page documents the schema as it exists, not a recommendation to build on
+it for a new system.
+</Aside>
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: **Serial**: fill gaps in one series (default value, linear/block
+interpolation, extrapolation, capped by `gapLength`). **Spatial**: interpolate
+a value across locations (or generate a grid) using a chosen interpolation
+method, optionally with a variogram for geostatistical methods.
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<interpolationSets>` (`version="1.1"`, required)
+
+**References**
+: The `timeSeriesSet`(s) it reads/writes; a spatial set may also reference a
+`basinGroup`/`basin` for the interpolation area.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/InterpolationSets.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<interpolationSets xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <interpolationSet interpolationId="FillGaugeGaps">
+    <serialInterpolation>
+      <serialInterpolationOption>linear</serialInterpolationOption>
+      <gapLength>6</gapLength>
+    </serialInterpolation>
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationSetId>AllDischargeGauges</locationSetId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>read only</readWriteMode>
+    </timeSeriesSet>
+  </interpolationSet>
+</interpolationSets>
+```
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- `gapLength` bounds *how large a gap* serial interpolation will bridge (in
+  time steps) — without it, an arbitrarily long stretch of missing data gets
+  filled, which usually isn't what you want.
+- `timeSeriesInputSet`/`timeSeriesOutputSet` default the output to the input
+  when omitted; for anything other than in-place gap-filling, set them
+  explicitly rather than relying on the default.
+- `outputSet` (grid-geometry output) and `coordinateFile` are marked
+  **obsolete/deprecated** in the schema's own annotations — prefer configuring
+  grid geometry in the region config instead.
+
+## See also
+
+- Task guide: [Transformations](/tasks/transformations/) (the non-legacy path for most gap-filling today)
+- Schema: [`interpolationSets.xsd`]({data.schemaUrl})

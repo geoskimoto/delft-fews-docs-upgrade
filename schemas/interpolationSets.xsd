@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!--Schema for Interpolation Module-->
+	<element name="interpolationSets" type="fews:InterpolationSetsComplexType">
+		<annotation>
+			<documentation>LEGACY</documentation>
+		</annotation>
+	</element>
+	<!-- -->
+	<complexType name="InterpolationSetsComplexType">
+		<annotation>
+			<documentation>Collection of one or more Interpolation Set</documentation>
+		</annotation>
+		<sequence>
+			<element name="interpolationSet" type="fews:InterpolationSetComplexType" maxOccurs="unbounded"/>
+			<element name="basinGroup" type="fews:BasinGroupComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!-- -->
+	<complexType name="InterpolationSetComplexType">
+		<annotation>
+			<documentation>For serial or spatial filling the output is optional. When the first interpolation action is serial or
+                spatial filling the input is copied to the output before starting the actions. In this case the locations and value types of
+                the output series should be the same
+                as the locations and type of the input series. For spatial generation you can transform between grids and scalars.
+                When you specify multiple input grids you have to specify the same number of output grids</documentation>
+		</annotation>
+		<sequence>
+			<choice maxOccurs="unbounded">
+				<element name="serialInterpolation" type="fews:SerialInterpolationComplexType"/>
+				<element name="spatialInterpolation" type="fews:SpatialInterpolationComplexType"/>
+			</choice>
+			<choice>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>When the input is the same as the output only specify the time series set.
+                        This is not allowed for spatial series creation</documentation>
+					</annotation>
+				</element>
+				<sequence>
+					<element name="timeSeriesInputSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+					<choice minOccurs="0">
+						<element name="timeSeriesOutputSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded">
+							<annotation>
+								<documentation>For backwards compatibility the output equals the input when the output is not specified.
+                                When the input is the same as the output it is better to specify timeSeriesSet instead of timeSeriesInputSet</documentation>
+							</annotation>
+						</element>
+						<element name="outputSet" type="fews:OutputSetComplexType">
+							<annotation>
+								<documentation>obsolete, output set including grid geometry, it is better to specify the grid geometries
+                                    in the region config</documentation>
+							</annotation>
+						</element>
+					</choice>
+				</sequence>
+			</choice>
+		</sequence>
+		<attribute name="interpolationId" type="fews:idStringType" use="required"/>
+	</complexType>
+	<!-- -->
+	<complexType name="SerialInterpolationComplexType">
+		<annotation>
+			<documentation>Settings for Serial Interpolation </documentation>
+		</annotation>
+		<sequence>
+			<element name="serialInterpolationOption" type="fews:serialInterpolationOptionEnumStringType">
+				<annotation>
+					<documentation>fill with default value, linear and block interpolation. extrapolation.</documentation>
+				</annotation>
+			</element>
+			<element name="gapLength" type="int" minOccurs="0"/>
+			<element name="defaultValue" type="float" minOccurs="0"/>
+			<element name="window" type="fews:TimeSpanComplexType" minOccurs="0"/>
+			<element name="baseValue" type="float" minOccurs="0"/>
+			<element name="extrapolateDirection" type="fews:extrapolateDirectionEnumStringType" default="both" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="SpatialInterpolationComplexType">
+		<annotation>
+			<documentation>Settings for Spatial Interpolation </documentation>
+		</annotation>
+		<sequence>
+			<element name="interpolationOption" type="fews:spatialInterpolationOptionEnumStringType"/>
+			<element name="interpolationType" type="fews:interpolationEnumStringType">
+				<annotation>
+					<documentation>Option to choose between the filling of missing values or the generation of new series.</documentation>
+				</annotation>
+			</element>
+			<element name="valueOption" type="fews:valuesEnumStringType" minOccurs="0"/>
+			<element name="variogram" type="fews:VariogramComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Variogram information</documentation>
+				</annotation>
+			</element>
+			<element name="numberOfStations" type="int" minOccurs="0">
+				<annotation>
+					<documentation>Number of stations in interpolation computation, when distance function is used the closest number of stations is used. If not used then 8</documentation>
+				</annotation>
+			</element>
+			<element name="regressionElevation" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Elevation above which regression is required</documentation>
+				</annotation>
+			</element>
+			<element name="minimumValue" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Minimum value allowed, if not used then -999.99</documentation>
+				</annotation>
+			</element>
+			<element name="distanceParameters" type="fews:DistanceGeographicComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Coefficients G1 to G4 of function DistanceGeographic. Defaults to (1,1,0,0)</documentation>
+				</annotation>
+			</element>
+			<element name="debug" type="fews:DebugComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Debug information for interpolation model</documentation>
+				</annotation>
+			</element>
+			<element name="extrapolationOption" type="fews:spatialExtrapolationOptionEnumStringType" default="disabled" minOccurs="0"/>
+			<element name="coordinateScalingFactor" type="float" default="1" minOccurs="0">
+				<annotation>
+					<documentation>The coordinates are multiplied
+                        by the scaling factor before they are passed to a interpolation routine. This is especially
+                        useful for for
+                        the renka and cline triangulation in combination with splines. To calculate the splines
+                        correctly the z values
+                        should have the same scale as the x, y values</documentation>
+				</annotation>
+			</element>
+			<element name="coordinateFile" type="fews:fileStringType" minOccurs="0">
+				<annotation>
+					<documentation>NOT USED ANY MORE -DEPRECATED Use instead basinCoordinateGroupId Location of coordinate file. </documentation>
+				</annotation>
+			</element>
+			<element name="coordinateSytem" type="int" minOccurs="0">
+				<annotation>
+					<documentation>NOT USED ANY MORE -DEPRECATED, redundant configuration</documentation>
+				</annotation>
+			</element>
+			<element name="inversDistancePower" type="float" minOccurs="0"/>
+			<element name="searchCriteria" type="int" default="1" minOccurs="0">
+				<annotation>
+					<documentation>option to specify how to  select the stations in interpolation computation. For backward compatibility,
+                        searchCriteria = 1 (default)  or nothing specified means search for stations nearest to the interpolated point.
+                        SearchCriteria = 2, search for number of stations/4  per quadrant. i.e. if number of stations=8, then search for 2 stations +x+y quadrant, 2 stations +x-y quadrant etc.
+                        searchCriteria = 3, same as 1 but now the height is ignored in the distance calculation. Pur java implementation is used, up to 6 times faster.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="searchRadius" type="float" default="100000000." minOccurs="0">
+				<annotation>
+					<documentation>meters. option to specify the search radius for the support locations. Default = 100000000.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!-- -->
+	<complexType name="VariogramComplexType">
+		<annotation>
+			<documentation>Variogram options</documentation>
+		</annotation>
+		<sequence>
+			<element name="type" type="fews:variogramEnumStringType">
+				<annotation>
+					<documentation>Type of variogram</documentation>
+				</annotation>
+			</element>
+			<element name="nugget" type="float">
+				<annotation>
+					<documentation>Nugget of variogram (C0)</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="slope" type="float">
+					<annotation>
+						<documentation>Slope of variogram (C1)</documentation>
+					</annotation>
+				</element>
+				<element name="sill" type="float">
+					<annotation>
+						<documentation>Sill of variogram to be used in case of all variograms except Linear (C1)</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="range" type="float">
+				<annotation>
+					<documentation>Range of variogram in meters (a)</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="DistanceGeographicComplexType">
+		<annotation>
+			<documentation>The coefficients G1 to G4 of function DistanceGeographic. Defaults (1,1,0,0)</documentation>
+		</annotation>
+		<sequence>
+			<element name="g1" type="float" default="1"/>
+			<element name="g2" type="float" default="1"/>
+			<element name="g3" type="float" default="0"/>
+			<element name="g4" type="float" default="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="DebugComplexType">
+		<sequence>
+			<element name="level" type="int">
+				<annotation>
+					<documentation>Number for setting the level of debug generation, 0 = no debug information, 1 = some information, 2 ..etc = more information</documentation>
+				</annotation>
+			</element>
+			<element name="file" type="fews:fileStringType">
+				<annotation>
+					<documentation>Debug file</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<simpleType name="serialInterpolationOptionEnumStringType">
+		<annotation>
+			<documentation>fill with default value, linear and block interpolation. extrapolation.</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="defaultvalue"/>
+			<enumeration value="linear"/>
+			<enumeration value="block"/>
+			<enumeration value="extrapolate"/>
+			<enumeration value="extrapolatetobase"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="spatialInterpolationOptionEnumStringType">
+		<annotation>
+			<documentation>krigging ... </documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="kriging"/>
+			<enumeration value="bilinear"/>
+			<enumeration value="gridcellaveraging"/>
+			<enumeration value="gridCellAveragingUsingXMLData"/>
+			<enumeration value="inversedistance"/>
+			<enumeration value="closestdistance">
+				<annotation>
+					<documentation>uses the source location or grid cell that is closest to the destination location or grid cell.
+ Only allowed in combination with series filling. All other spatial options are ignored</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="sum">
+				<annotation>
+					<documentation>Calculates the sum of the off all input grid cells, polygons or points,
+                        that are in the output grid cell or polygon.
+                        When a grid cell or polygon is partially in the output grid cell or polygon
+                        the percentage of the input area inside the output area is multiplied with the input value.
+                        Only allowed in combination with series filling. All other spatial options are ignored
+                        NOT YET IMPLEMENTED FEATURES
+                        support for irregular grid input
+                        support for polygon input
+                    </documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="average">
+				<annotation>
+					<documentation>Calculates the weighted average of the off all input grid cells, polygons or points,
+                        that are in the output grid cell or polygon.
+                        When a grid cell or polygon is partially in the output grid cell or polygon
+                        the percentage of the input area inside the output area is multiplied with the input value.
+                        Only allowed in combination with series filling. All other spatial options are ignored
+                        NOT YET IMPLEMENTED FEATURES
+                        support for irregular grid input
+                        support for polygon input
+                    </documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="inputAverageTimesOutputArea">
+				<annotation>
+					<documentation>Calculates the weighted average of the off all input grid cells, polygons or points,
+                        that are in the output grid cell or polygon and multiplies them with the areas of the output polygons or output grid cells.
+                        When a grid cell or polygon is partially in the output grid cell or polygon
+                        the percentage of the input area inside the output area is multiplied with the input value.
+                        Only allowed in combination with series filling. All other spatial options are ignored
+                        NOT YET IMPLEMENTED FEATURES
+                        support for irregular grid input
+                        support for irregular grid output
+                        support for polygon input
+                    </documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="renkaClineTriangulation"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="interpolationEnumStringType">
+		<annotation>
+			<documentation>Type of interpolation</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="seriesfilling"/>
+			<enumeration value="seriesgeneration"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="spatialExtrapolationOptionEnumStringType">
+		<annotation>
+			<documentation>Only used for renka and cline triangulation</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="disabled"/>
+			<enumeration value="use splines"/>
+			<enumeration value="nearest neighbour"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="valuesEnumStringType">
+		<annotation>
+			<documentation>Type of values</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="normal"/>
+			<enumeration value="residuals"/>
+			<enumeration value="splitwithelevation"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="variogramEnumStringType">
+		<annotation>
+			<documentation>Type of variogram</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="spherical"/>
+			<enumeration value="exponential"/>
+			<enumeration value="gaussian"/>
+			<enumeration value="power"/>
+			<enumeration value="linear"/>
+		</restriction>
+	</simpleType>
+	<complexType name="OutputSetComplexType">
+		<sequence>
+			<element name="timeSeriesOutputSet" type="fews:TimeSeriesSetComplexType"/>
+			<element name="gridDefinition" type="fews:GridDefinitionComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="BasinGroupComplexType">
+		<sequence>
+			<element name="basin" type="fews:BasinComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="gridLocationId" type="fews:idStringType" use="required"/>
+		<attribute name="description" type="string" use="optional"/>
+	</complexType>
+	<complexType name="BasinComplexType">
+		<sequence>
+			<element name="cellPoints" type="fews:PointPositionComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>give the cell points locations (which refers to the exact row and col of the grid</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="locationId" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<complexType name="PointPositionComplexType">
+		<annotation>
+			<documentation>Each point element has two required attributes, X and Y that point to a Row and Col of the a Grid.</documentation>
+		</annotation>
+		<attribute name="col" type="int" use="required"/>
+		<attribute name="row" type="int" use="required"/>
+	</complexType>
+</schema>

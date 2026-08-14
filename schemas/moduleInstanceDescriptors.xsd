@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema targetNamespace="http://www.wldelft.nl/fews" xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema"  elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="moduleInstanceDescriptors" type="fews:ModuleInstanceDescriptorsComplexType"/>
+	<complexType name="ModuleInstanceDescriptorsComplexType">
+		<sequence>
+			<group ref="fews:PersistentIdsCsvFilesGroup" minOccurs="0"/>
+			<choice minOccurs="0" maxOccurs="unbounded">
+				<element name="moduleInstanceDescriptor" type="fews:ModuleInstanceDescriptorComplexType">
+				</element>
+				<element name="moduleInstanceGroup" type="fews:ModuleInstanceGroupComplexType">
+				</element>
+				<element name="moduleInstanceDescriptorsCsvFile" type="fews:ModuleInstanceDescriptorsCsvFileComplexType">
+					<annotation>
+						<documentation>Since 2022.01</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.0"/>
+	</complexType>
+	<complexType name="ModuleInstanceGroupComplexType">
+		<sequence>
+			<element name="moduleInstanceDescriptor" type="fews:ModuleInstanceDescriptorComplexType"
+					 maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="ModuleInstanceDescriptorComplexType">
+		<sequence>
+			<element name="description" type="string" minOccurs="0"/>
+			<element name="updateModuleRunTimesOnCompletion" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2021.01. When true run time statistics in ModuleRunTimes Table are updated for this module instance when the module instance is completed. These run times make it possible to predict when data becomes available the next time the workflow is executed</documentation>
+				</annotation>
+			</element>
+			<element name="moduleId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Deprecated and obsolete since 2013.02. The module is now recognized from the schema name in the config file.</documentation>
+				</annotation>
+			</element>
+			<element name="simulatedHistoricalModuleInstanceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						When this relation is known it is possible to read data before the start of a simulated forecast.
+						The simulated historical update run, current at the moment the forecast is created, will be used for data before the start of the forecast.
+						When different parameters are used for the forecast and historical period it is also required to specify the historical parameter for the forecast parameter
+						When configured this module instance can only be used for simulated forcast time series.
+						When one module instance is a group has a reference to a simulated historical, all module instances in this group should have a relation.
+						All referenced simulated historicals from one group should belong to the same group
+					</documentation>
+				</annotation>
+			</element>
+			<element name="waterCoachExternalForecastDelay" type="fews:CalendarTimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Simulates the delay of an operational environment between the external forecast is produced (external forecast time) and the time the external forecast becomes visible in FEWS. The delay for simulated forecasts is configured in the workflowDescriptors.xml
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="name" type="fews:nameStringType" use="optional"/>
+	</complexType>
+	<complexType name="ModuleInstanceDescriptorsCsvFileComplexType">
+		<sequence>
+			<element name="file" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Since 2022.01. FEWS-10156. name of a csv file in the map layer files or a full absolute path to the csv file (*.csv).</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. FEWS-10156. Character set of the text in the csv file. Specify only when the csv file contains non-western characters.</documentation>
+				</annotation>
+			</element>
+			<element name="id" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>e.g. "%ID%", put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="name" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>put the actual column name between %%</documentation>
+				</annotation>
+			</element>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>When true run time statistics in ModuleRunTimes Table are updated for this module instance when the module instance is completed. These run times make it possible to predict when data becomes available the next time the workflow is executed. "%ID%", put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="group" type="string" minOccurs="0">
+				<annotation>
+					<documentation>All module instances with same group id share the same branch and module run. Reduces the number of module runs but is no longer possible to run the modules independent %%.</documentation>
+				</annotation>
+			</element>
+			<element name="groupName" type="string" minOccurs="0">
+				<annotation>
+					<documentation>put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="updateModuleRunTimesOnCompletion" type="fews:idStringType" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2021.01. When true run time statistics in ModuleRunTimes Table are updated for this module instance when the module instance is completed. These run times make it possible to predict when data becomes available the next time the workflow is executed. "%ID%", put the actual column name between %%.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="simulatedHistoricalModuleInstanceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation> When this relation is known it is possible to read data before the start of a simulated forecast. The simulated historical update run, current at the moment the forecast is created, will be used for data before the start of the forecast.      When different parameters are used for the forecast and historical period it is also required to specify the historical parameter for the forecast parameter.  When configured this module instance can only be used for simulated forecast time series.      When one module instance is a group has a reference to a simulated historical, all module instances in this group should have a relation. All referenced simulated historicals from one group should belong to the same group  "%ID%", put the actual column name between %%.</documentation>
+				</annotation>
+			</element>
+			<element name="waterCoachExternalForecastDelayHours" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Simulates the delay of an operational environment between the external forecast is produced (external forecast time) and the time the external forecast becomes visible in FEWS. The delay for simulated forecasts is configured in the workflowDescriptors.xml. "%ID%", put the actual column name between %%.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="timeZoneOffset" type="fews:timeZoneOffsetStringType" minOccurs="0">
+				<annotation>
+					<documentation>This offset is always relative to GMT. For example "+02:00" means GMT+02:00. If no offset specified, then time zone GMT is used by default.</documentation>
+				</annotation>
+			</element>
+			<element name="dateTimePattern" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional pattern for the dateTime attributes. Default is yyyyMMdd, this is the internal format a dbf file is using when the column is of type 'D'. </documentation>
+				</annotation>
+			</element>
+			<group ref="fews:AttributesSequence" minOccurs="0"/>
+			<element name="attributeFile" type="fews:ModuleInstanceDescriptorAttributeFileComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Links an extra csv file to the current shape file to import extra attributes. Optionally allows defining different values for different periods and multiple values
+						(tables) per attribute
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ModuleInstanceDescriptorAttributeFileComplexType">
+		<sequence>
+			<element name="description" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>
+						Description
+					</documentation>
+				</annotation>
+			</element>
+			<element name="csvFile" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>name of csv file in the map layer files or a full absolute path to the csv file.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="charset" type="fews:charsetEnumStringType" default="ISO-8859-1" minOccurs="0">
+				<annotation>
+					<documentation>Character set of the text in the csv file. Specify only when the dbf file contains
+						non-western characters.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="id" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>ids of the module instance  in the csv file. e.g. "H_%ID%", put the actual column
+						name between %%.
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:AttributesSequence" minOccurs="0"/>
+		</sequence>
+	</complexType>
+
+</schema>

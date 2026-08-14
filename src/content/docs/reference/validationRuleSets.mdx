@@ -1,0 +1,96 @@
+---
+title: Validation rule sets file
+description: Reference for the ValidationRuleSets config file — extreme-value, rate-of-change, and other automated checks on imported time series. Field reference auto-generated from the schema.
+sidebar:
+  order: 20
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/validationRuleSets.json';
+
+This page is the generated field list for `ValidationRuleSets.xml` — automated
+plausibility checks applied to time series as they come in, independent of
+[thresholds](/reference/thresholdgroups/) (which are about warning a
+forecaster, not flagging bad data).
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Flags (or logs) values that fail an automated check: hard/soft
+min-max limits, rate-of-change (rise/fall) limits, "same reading repeated too
+long," temporary shifts, and oscillation. Each check can log at a configurable
+level (default `warning`).
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<validationRuleSets>` (`version="1.1"`, required)
+
+**Applies to**
+: The `timeSeriesSet` (or `timeSeries` filter) configured inside each
+`validationRuleSet` — checked when a General Adapter or Import module runs its
+validation activity.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/ValidationRuleSets.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<validationRuleSets xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <validationRuleSet validationRuleSetId="DischargeLimits">
+    <extremeValues>
+      <hardMax constantLimit="500"/>
+      <hardMin constantLimit="0"/>
+      <softMax constantLimit="350"/>
+    </extremeValues>
+    <timeSeriesSet>
+      <moduleInstanceId>ImportObservations</moduleInstanceId>
+      <valueType>scalar</valueType>
+      <parameterId>Q.obs</parameterId>
+      <locationSetId>AllDischargeGauges</locationSetId>
+      <timeSeriesType>external historical</timeSeriesType>
+      <timeStep unit="hour" multiplier="1"/>
+      <readWriteMode>read only</readWriteMode>
+    </timeSeriesSet>
+  </validationRuleSet>
+</validationRuleSets>
+```
+
+<Aside type="tip">
+`hardMax`/`hardMin`/`softMax`/`softMin` take their value as a `constantLimit`
+**attribute**, not a child element — a common transcription mistake coming
+from the threshold files, where values are nested elements.
+</Aside>
+
+## Field reference
+
+<Aside type="note">
+Each check type (`extremeValues`, `rateOfChange`, `sameReading`,
+`temporaryShift`, `oscillation`) also has a `*Functions` variant
+(`extremeValuesFunctions`, etc.) that computes the limit per-location from a
+location attribute expression instead of a single constant — useful when the
+limit genuinely varies across a location set (e.g. a hard max scaled to
+channel capacity).
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **Hard vs. soft** distinguishes severity, not behavior — both just log at
+  `logLevel`; validation never blocks import or modifies the value. Downstream
+  handling (e.g. flag conversion) is a separate config step.
+- `considerQualifiers` (since 2014.02) defaults to `false` — if two series
+  share location + parameter but differ only by qualifier, a rule set won't
+  distinguish them unless you turn this on.
+
+## See also
+
+- Task guide: [Run a model (General Adapter)](/tasks/general-adapter/)
+- Related reference: [Thresholds file](/reference/thresholdgroups/) (forecaster-facing warnings, a different concern)
+- Schema: [`validationRuleSets.xsd`]({data.schemaUrl})

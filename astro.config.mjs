@@ -64,6 +64,13 @@ export default defineConfig({
             { label: 'General Adapter file', slug: 'reference/generaladapterrun' },
             { label: 'Workflow file', slug: 'reference/workflow' },
             { label: 'Workflow descriptors file', slug: 'reference/workflowdescriptors' },
+            { label: 'Module descriptors file', slug: 'reference/moduledescriptors' },
+            { label: 'Module instance descriptors file', slug: 'reference/moduleinstancedescriptors' },
+            { label: 'Topology file', slug: 'reference/topology' },
+            { label: 'Qualifiers file', slug: 'reference/qualifiers' },
+            { label: 'Validation rule sets file', slug: 'reference/validationrulesets' },
+            { label: 'Rating curves file', slug: 'reference/ratingcurves' },
+            { label: 'Interpolation sets file', slug: 'reference/interpolationsets' },
           ],
         },
         {

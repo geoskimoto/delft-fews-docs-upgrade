@@ -1,0 +1,558 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<!--ValidationRuleSets Element -->
+	<element name="validationRuleSets" type="fews:ValidationRuleSetsComplexType"/>
+	<!--Collection of Validation Rule Sets-->
+	<complexType name="ValidationRuleSetsComplexType">
+		<annotation>
+			<documentation>Contains all Validation Rules Sets for all given time series</documentation>
+		</annotation>
+		<sequence>
+			<element name="validationRuleSet" type="fews:ValidationRuleSetComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<!--Complex Type for Validation Rule per TimeSeriesSet-->
+	<complexType name="ValidationRuleSetComplexType">
+		<annotation>
+			<documentation>Contains a Validation Rules Set for for a given time series</documentation>
+		</annotation>
+		<sequence>
+			<element name="logLevel" type="fews:lowerLogLevelEnumStringType" default="WARN" minOccurs="0">
+				<annotation>
+					<documentation>Optional log level for the log message that is logged if a time series violates a rule in this validationRuleSet. Default is warning.</documentation>
+				</annotation>
+			</element>
+			<element name="unit" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Specify when the unit given for the values is not the same as the (internally stored) unit of the parameter it applies to. When specified it
+                    is required to also specify  configUnitConversionsId in Parameters.xml. In this unit conversions the conversion from the specified unit to the (internal) unit should be available
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="considerQualifiers" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. Default = false. Is set to true, qualifiers are also considered when matching validation rule sets to timeseries sets.</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="extremeValues" type="fews:ExtremeValuesComplexType" maxOccurs="unbounded"/>
+				<element name="extremeValuesFunctions" type="fews:ExtremeValuesFunctionsComplexType">
+					<annotation>
+						<documentation>Allows to define a different extreme value for every location in the specified
+							location sets at once using a function referencing location attributes</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="rateOfChange" type="fews:RateOfChangeComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Contains Rate of Change (Rise / Fall) Limits</documentation>
+					</annotation>
+				</element>
+				<element name="rateOfChangeFunctions" type="fews:RateOfChangeFunctionsComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Allows to define a different rate of change value for every location in the specified
+							location sets at once using a function referencing location attributes</documentation>
+					</annotation>
+				</element>
+				<element name="rateOfChangeTimeSpan" type="fews:RateOfChangeTimeSpanComplexType" maxOccurs="unbounded"/>
+				<element name="rateOfChangeFunctionsTimeSpan" type="fews:RateOfChangeTimeSpanFunctionsComplexType" maxOccurs="unbounded"/>
+			</choice>
+			<choice minOccurs="0">
+				<element name="sameReading" type="fews:SameReadingComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Limits for SameReading Validation Check</documentation>
+					</annotation>
+				</element>
+				<element name="sameReadingFunctions" type="fews:SameReadingFunctionsComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Allows to define a different same reading check for every location in the specified
+							location sets at once using a function referencing location attributes</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="temporaryShift" type="fews:TemporaryShiftComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Limits for Temporary Shift Check</documentation>
+					</annotation>
+				</element>
+				<element name="temporaryShiftFunctions" type="fews:TemporaryShiftFunctionsComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Allows to define a different temporary shift check for every location in the specified
+							location sets at once using a function referencing location attributes</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice minOccurs="0">
+				<element name="oscillation" type="fews:OscillationComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Limits for Oscillation Check</documentation>
+					</annotation>
+				</element>
+				<element name="oscillationFunctions" type="fews:OscillationFunctionsComplexType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Allows to define a different oscillation check for every location in the specified location sets at once using a function referencing location attributes.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<choice>
+				<element name="timeSeries" type="fews:TimeSeriesFilterComplexType" maxOccurs="unbounded"/>
+				<element name="timeSeriesSet" type="fews:TimeSeriesSetComplexType" maxOccurs="unbounded"/>
+			</choice>
+		</sequence>
+		<attribute name="validationRuleSetId" type="fews:idStringType" use="optional"/>
+		<attribute name="timeZone" type="string" use="required"/>
+	</complexType>
+	<!--Complex Type  for Limits-->
+	<complexType name="ValidationLimitComplexType">
+		<annotation>
+			<documentation>Template for limit values</documentation>
+		</annotation>
+		<sequence minOccurs="0">
+			<element name="monthLimit" type="fews:MonthLimitComplexType" minOccurs="12" maxOccurs="12"/>
+		</sequence>
+		<attribute name="constantLimit" type="float" use="required"/>
+	</complexType>
+	<complexType name="ExtremeValuesValidationLimitComplexType">
+		<annotation>
+			<documentation>Template for extreme limit values</documentation>
+		</annotation>
+		<sequence minOccurs="0">
+			<element name="monthLimit" type="fews:MonthLimitComplexType" minOccurs="12" maxOccurs="12"/>
+		</sequence>
+		<attribute name="constantLimit" type="float" use="required"/>
+		<attribute name="label" type="fews:validationLabelEnumStringType">
+			<annotation>
+				<documentation>Label that will be set for all data values for which the configured limit is exceeded. No label will be set by default</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="comment" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Comment that will be added to all data values for which the configured limit is exceeded. No commentl will be added by default</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="RateOfChangeValidationLimitComplexType">
+		<annotation>
+			<documentation>Template for rate of change limit values</documentation>
+		</annotation>
+		<sequence minOccurs="0">
+			<element name="monthLimit" type="fews:MonthLimitComplexType" minOccurs="12" maxOccurs="12"/>
+		</sequence>
+		<attribute name="constantLimit" type="float" use="required">
+			<annotation>
+				<documentation>Rate of change in units/second. This should be positive or zero.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="validationFlag" type="fews:rateOfChangeValidationLimitFlagEnumStringType" default="unreliable">
+			<annotation>
+				<documentation>Flag that will be set for all data values for which the configured limit is exceeded. Default is unreliable.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="label" type="fews:validationLabelEnumStringType">
+			<annotation>
+				<documentation>Since 2013.01. FEWS-8621. Label that will be set for all data values for which the configured limit is exceeded. No label will be set by default</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="comment" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Since 2013.01. FEWS-8621. Comment that will be added to all data values for which the configured limit is exceeded. No commentl will be added by default</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<simpleType name="rateOfChangeValidationLimitFlagEnumStringType">
+		<restriction base="string">
+			<enumeration value="unreliable"/>
+			<enumeration value="doubtful"/>
+			<enumeration value="persistent unreliable"/>
+		</restriction>
+	</simpleType>
+
+	<complexType name="ValidationLimitFunctionComplexType">
+		<annotation>
+			<documentation>Template for limit values</documentation>
+		</annotation>
+		<sequence minOccurs="0">
+			<element name="monthLimit" type="fews:MonthLimitFunctionComplexType" minOccurs="12" maxOccurs="12"/>
+		</sequence>
+		<attribute name="constantLimit" type="string"/>
+	</complexType>
+	<complexType name="ExtremeValuesValidationLimitFunctionComplexType">
+		<annotation>
+			<documentation>Template for limit values</documentation>
+		</annotation>
+		<sequence minOccurs="0">
+			<element name="monthLimit" type="fews:MonthLimitFunctionComplexType" minOccurs="12" maxOccurs="12"/>
+		</sequence>
+		<attribute name="constantLimit" type="string"/>
+		<attribute name="label" type="fews:validationLabelEnumStringType">
+			<annotation>
+				<documentation>Label that will be set for all data values for which the configured limit is exceeded. No label will be set by default</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="comment" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Comment that will be added to all data values for which the configured limit is exceeded. No commentl will be added by default</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="RateOfChangeValidationLimitFunctionComplexType">
+		<annotation>
+			<documentation>Template for limit values</documentation>
+		</annotation>
+		<sequence minOccurs="0">
+			<element name="monthLimit" type="fews:MonthLimitFunctionComplexType" minOccurs="12" maxOccurs="12"/>
+		</sequence>
+		<attribute name="constantLimit" type="string">
+			<annotation>
+				<documentation>Rate of change in units/second. This should be positive or zero.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="validationFlag" type="fews:rateOfChangeValidationLimitFlagEnumStringType" default="unreliable">
+			<annotation>
+				<documentation>Flag that will be set for all data values for which the configured limit is exceeded. Default is unreliable.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="label" type="fews:validationLabelEnumStringType">
+			<annotation>
+				<documentation>Since 2013.01. FEWS-8621. Label that will be set for all data values for which the configured limit is exceeded. No label will be set by default</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="comment" type="fews:nonEmptyStringType">
+			<annotation>
+				<documentation>Since 2013.01. FEWS-8621. Comment that will be added to all data values for which the configured limit is exceeded. No commentl will be added by default</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--Month Limit Complex Type-->
+	<complexType name="MonthLimitComplexType">
+		<attribute name="month" type="string" use="optional"/>
+		<attribute name="value" type="float" use="required"/>
+	</complexType>
+	<complexType name="MonthLimitFunctionComplexType">
+		<attribute name="month" type="string" use="optional"/>
+		<attribute name="function" type="string" use="required"/>
+	</complexType>
+	<!--Extreme Value Check Rule-->
+	<complexType name="ExtremeValuesComplexType">
+		<annotation>
+			<documentation>Contains Hard and Soft Max Min Limits</documentation>
+		</annotation>
+		<sequence>
+			<element name="hardMax" type="fews:ExtremeValuesValidationLimitComplexType" minOccurs="0"/>
+			<element name="hardMin" type="fews:ExtremeValuesValidationLimitComplexType" minOccurs="0"/>
+			<element name="softMax" type="fews:ExtremeValuesValidationLimitComplexType" minOccurs="0"/>
+			<element name="softMin" type="fews:ExtremeValuesValidationLimitComplexType" minOccurs="0"/>
+		</sequence>
+		<attribute name="locationId" type="fews:idStringType">
+			<annotation>
+				<documentation>Specify a locationId to make the extremeValues applicable to a single location only. When no locationId is specified, the extremeValues will be applicable to all locations contained in the timeSeriesSets for this validationRuleSet.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="ExtremeValuesFunctionsComplexType">
+		<annotation>
+			<documentation>Contains Hard and Soft Max Min Limits</documentation>
+		</annotation>
+		<sequence>
+			<element name="hardMax" type="fews:ExtremeValuesValidationLimitFunctionComplexType" minOccurs="0"/>
+			<element name="hardMin" type="fews:ExtremeValuesValidationLimitFunctionComplexType" minOccurs="0"/>
+			<element name="softMax" type="fews:ExtremeValuesValidationLimitFunctionComplexType" minOccurs="0"/>
+			<element name="softMin" type="fews:ExtremeValuesValidationLimitFunctionComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!--Rate of Change Rule-->
+	<complexType name="RateOfChangeComplexType">
+		<annotation>
+			<documentation>Contains Rate of Change (Rise / Fall) Limits</documentation>
+		</annotation>
+		<choice>
+			<element name="rateofRiseFallDifferent" type="fews:RateofRiseFallDifferentComplexType"/>
+			<element name="rateOfRiseFallSame" type="fews:RateOfChangeValidationLimitComplexType">
+				<annotation>
+					<documentation>defines Same Rate of Rise/Fall for Rate of Change check</documentation>
+				</annotation>
+			</element>
+		</choice>
+		<attribute name="locationId" type="fews:idStringType">
+			<annotation>
+				<documentation>Specify a locationId to make the rateOfChange applicable to a single location only. When no locationId is specified, the rateOfChange will be applicable to all locations contained in the timeSeriesSets for this validationRuleSet.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="RateOfChangeFunctionsComplexType">
+		<annotation>
+			<documentation>Contains Rate of Change (Rise / Fall) Limits</documentation>
+		</annotation>
+		<choice>
+			<element name="rateofRiseFallDifferent" type="fews:RateofRiseFallDifferentFunctionComplexType"/>
+			<element name="rateOfRiseFallSame" type="fews:RateOfChangeValidationLimitFunctionComplexType">
+				<annotation>
+					<documentation>defines Same Rate of Rise/Fall for Rate of Change check</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</complexType>
+	<complexType name="RateOfChangeTimeSpanComplexType">
+		<annotation>
+			<documentation>Contains Rate of Change (Rise / Fall) Limits</documentation>
+		</annotation>
+		<sequence>
+			<choice>
+				<element name="rateofRiseFallDifferent" type="fews:RateofRiseFallDifferentComplexType"/>
+				<element name="rateOfRiseFallSame" type="fews:RateOfChangeValidationLimitComplexType">
+					<annotation>
+						<documentation>defines Same Rate of Rise/Fall for Rate of Change check</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="timeSpan" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>after first violation rule remains valid within given time span</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="locationId" type="fews:idStringType">
+			<annotation>
+				<documentation>Specify a locationId to make the rateOfChange applicable to a single location only. When no locationId is specified, the rateOfChange will be applicable to all locations contained in the timeSeriesSets for this validationRuleSet.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="RateOfChangeTimeSpanFunctionsComplexType">
+		<annotation>
+			<documentation>Contains Rate of Change (Rise / Fall) Limits</documentation>
+		</annotation>
+		<sequence>
+			<choice>
+				<element name="rateofRiseFallDifferent" type="fews:RateofRiseFallDifferentFunctionComplexType"/>
+				<element name="rateOfRiseFallSame" type="fews:RateOfChangeValidationLimitFunctionComplexType">
+					<annotation>
+						<documentation>defines Same Rate of Rise/Fall for Rate of Change check</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="timeSpan" type="fews:TimeSpanComplexType">
+				<annotation>
+					<documentation>after first violation rule remains valid within given timespan</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<!--defines Same Rate of Rise/Fall for Rate of Change check-->
+	<complexType name="RateofRiseFallDifferentComplexType">
+		<annotation>
+			<documentation>Contains rate of rise and/or rate of fall (in case they are different)</documentation>
+		</annotation>
+		<sequence>
+			<element name="rateOfRise" type="fews:RateOfChangeValidationLimitComplexType"/>
+			<element name="rateOfFall" type="fews:RateOfChangeValidationLimitComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="RateofRiseFallDifferentFunctionComplexType">
+		<annotation>
+			<documentation>Contains rate of rise and/or rate of fall (in case they are different)</documentation>
+		</annotation>
+		<sequence>
+			<element name="rateOfRise" type="fews:RateOfChangeValidationLimitFunctionComplexType"/>
+			<element name="rateOfFall" type="fews:RateOfChangeValidationLimitFunctionComplexType"/>
+		</sequence>
+	</complexType>
+	<!--Same Reading Check Rule-->
+	<complexType name="SameReadingComplexType">
+		<annotation>
+			<documentation>Limits for SameReading Validation Check </documentation>
+		</annotation>
+		<sequence>
+			<element name="label" type="fews:validationLabelEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Label that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="comment" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Comment that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="excludeMissingsFromSameReadingPeriod" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2020.01. If true a same reading period ends when a missing value is found. Default is false</documentation>
+				</annotation>
+			</element>
+			<element name="sameReadingDeviaton" type="fews:ValidationLimitComplexType">
+				<annotation>
+					<documentation>Contains Same Reading Deviation</documentation>
+				</annotation>
+			</element>
+			<element name="sameReadingPeriod" type="fews:ValidationLimitComplexType">
+				<annotation>
+					<documentation>'constantLimit' and 'value' specify a period in  seconds</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="locationId" type="fews:idStringType">
+			<annotation>
+				<documentation>Specify a locationId to make the sameReading applicable to a single location only. When no locationId is specified, the sameReading will be applicable to all locations contained in the timeSeriesSets for this validationRuleSet.</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="validationFlag" type="fews:flagEnumStringType" default="unreliable">
+			<annotation>
+				<documentation>Since 2014.02. FEWS-10296 .Flag that will be set for all data values for which the configured limit is exceeded. Default is unreliable.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="SameReadingFunctionsComplexType">
+		<annotation>
+			<documentation>Limits for SameReading Validation Check</documentation>
+		</annotation>
+		<sequence>
+			<element name="label" type="fews:validationLabelEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Label that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="comment" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Comment that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="excludeMissingsFromSameReadingPeriod" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2020.01. If true a same reading period ends when a missing value is found. Default is false</documentation>
+				</annotation>
+			</element>
+			<element name="sameReadingDeviaton" type="fews:ValidationLimitFunctionComplexType">
+				<annotation>
+					<documentation>Contains Same Reading Deviation</documentation>
+				</annotation>
+			</element>
+			<element name="sameReadingPeriod" type="fews:ValidationLimitFunctionComplexType"/>
+		</sequence>
+		<attribute name="validationFlag" type="fews:flagEnumStringType" default="unreliable">
+			<annotation>
+				<documentation>Since 2014.02 FEWS-10296. Flag that will be set for all data values for which the configured limit is exceeded. Default is unreliable.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<!--Temporary Shift Rule-->
+	<complexType name="TemporaryShiftComplexType">
+		<annotation>
+			<documentation>Limits for Temporary Shift Check</documentation>
+		</annotation>
+		<sequence>
+			<element name="label" type="fews:validationLabelEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Label that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="comment" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Comment that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="rateOfTemporaryShift" type="fews:ValidationLimitComplexType">
+				<annotation>
+					<documentation>Contains rate of temporary shift (similar to rate of change)</documentation>
+				</annotation>
+			</element>
+			<element name="temporaryShiftPeriod" type="fews:ValidationLimitComplexType">
+				<annotation>
+					<documentation>'constantLimit' and 'value' specify a period in  seconds</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="locationId" type="fews:idStringType">
+			<annotation>
+				<documentation>Specify a locationId to make the sameReading applicable to a single location only. When
+					no locationId is specified, the temporaryShiftPeriod will be applicable to all locations contained in the
+					timeSeriesSets for this validationRuleSet.
+				</documentation>
+			</annotation>
+		</attribute>
+		<attribute name="validationFlag" type="fews:flagEnumStringType" default="unreliable">
+			<annotation>
+				<documentation>Since 2014.02 FEWS-10296. Flag that will be set for all data values for which the configured limit is exceeded. Default is unreliable.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="TemporaryShiftFunctionsComplexType">
+		<annotation>
+			<documentation>Limits for Temporary Shift Check</documentation>
+		</annotation>
+		<sequence>
+			<element name="label" type="fews:validationLabelEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Label that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="comment" type="fews:nonEmptyStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2013.01. FEWS-8621. Comment that will be set for all data values for which the configured deviation and the reading period  is exceeded. No label will be set by default</documentation>
+				</annotation>
+			</element>
+			<element name="rateOfTemporaryShift" type="fews:ValidationLimitFunctionComplexType">
+				<annotation>
+					<documentation>Contains rate of temporary shift (similar to rate of change)</documentation>
+				</annotation>
+			</element>
+			<element name="temporaryShiftPeriod" type="fews:ValidationLimitFunctionComplexType"/>
+		</sequence>
+		<attribute name="validationFlag" type="fews:flagEnumStringType" default="unreliable">
+			<annotation>
+				<documentation>Since 2014.02 FEWS-10296. Flag that will be set for all data values for which the configured limit is exceeded. Default is unreliable.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="OscillationComplexType">
+		<sequence>
+			<element name="minDifference" type="fews:ValidationLimitComplexType">
+				<annotation>
+					<documentation>The minimum difference between a low and high value required for it to be detected as a potential oscillation.</documentation>
+				</annotation>
+			</element>
+			<element name="maxPeriod" type="fews:ValidationLimitComplexType">
+				<annotation>
+					<documentation>The maximum amount of time (in seconds) between two subsequent "low values" or two subsequent "high values" of a single oscillation.</documentation>
+				</annotation>
+			</element>
+			<element name="minOscillations" type="fews:ValidationLimitComplexType">
+				<annotation>
+					<documentation>The minimum amount of subsequent oscillations required for the values to be flagged as oscillating.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="validationFlag" type="fews:flagEnumStringType">
+			<annotation>
+				<documentation>Flag that will be set for all data values for which oscillation is detected. By default no flag is set, only the flag source "OSC" is used to mark the values.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<complexType name="OscillationFunctionsComplexType">
+		<sequence>
+			<element name="minDifference" type="fews:ValidationLimitFunctionComplexType">
+				<annotation>
+					<documentation>The minimum difference between a low and high value required for it to be detected as a potential oscillation.</documentation>
+				</annotation>
+			</element>
+			<element name="maxPeriod" type="fews:ValidationLimitFunctionComplexType">
+				<annotation>
+					<documentation>The maximum amount of time (in seconds) between two subsequent "low values" or two subsequent "high values" of a single oscillation.</documentation>
+				</annotation>
+			</element>
+			<element name="minOscillations" type="fews:ValidationLimitFunctionComplexType">
+				<annotation>
+					<documentation>The minimum amount of subsequent oscillations required for the values to be flagged as oscillating.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="validationFlag" type="fews:flagEnumStringType">
+			<annotation>
+				<documentation>Flag that will be set for all data values for which oscillation is detected. By default no flag is set, only the flag source "OSC" is used to mark the values.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+</schema>

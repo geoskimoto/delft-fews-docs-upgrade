@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2008 Deltares (Delft Hydraulics)) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<include schemaLocation="topologyGroup.xsd"/>
+	<element name="topology" type="fews:TopologyComplexType"/>
+	<complexType name="TopologyComplexType">
+		<sequence>
+			<element name="forecasterHelperDirectories" minOccurs="0">
+				<annotation>
+					<documentation>When present, this element specifies the directories where the forecaster helper should look for files instead of the INFORMATION_PANEL_FOLDER property in oc_global.properties.
+                    </documentation>
+				</annotation>
+				<complexType>
+					<sequence>
+						<element name="directory" type="fews:directoryStringType" minOccurs="0" maxOccurs="unbounded"/>
+						<element name="allNodesDirectory" type="fews:directoryStringType" minOccurs="0" maxOccurs="unbounded"/>
+						<element name="multipleNodesDirectory" minOccurs="0" maxOccurs="unbounded">
+							<complexType>
+								<simpleContent>
+									<extension base="fews:directoryStringType">
+										<attribute name="nodeIdPrefix" type="string" use="required"/>
+									</extension>
+								</simpleContent>
+							</complexType>
+						</element>
+						<element name="ignoredDirectoriesNameFilter" type="string" minOccurs="0"/>
+					</sequence>
+				</complexType>
+			</element>
+			<element name="enableOriginalButtons" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. By default the toolbar with 2 buttons is used: buttons 'Run' and 'Run approved forecast'.
+If a group node is selected, 'Run' runs the workflows of all childnodes.
+If a single node is selected, 'Run' runs the workflow of that node.
+'Run approved forecast' has the similar functionality.
+When the option enableOriginalButtons is set to true, the original toolbar with 4 or 5 buttons will be used.
+This original buttons are: 'Switch to edit/forecast mode' (optional),  'Go to next segment','Re-run segment', 'Re-run forecast group', 'Run approved forecast', 'Update current system time...'  (OC only)</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:ModifiersGroupChoice"/>
+			<element name="hideThresholdsButton" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2021.02. If set to true, show threshold buttons in the Topology tree will be invisible.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hideNextSegmentButton" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2023.02 If set to false, next segment button will be shown in the Topology tree
+					</documentation>
+				</annotation>
+			</element>
+			<element name="hidePreviousSegmentButton" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2023.02 If set to false, prev segment button will be shown in the Topology tree
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableAutoRun" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>When this option is set to true (default) a workflow which is supposed to run locally will run automaticly when the node is selected. NOTE:  this option is only applicable if 'enableOriginalButtons' is true.'
+					</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="enableAutoSelectParameters" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>When this option is set to true the parameters in the filters are automatically selected.</documentation>
+					</annotation>
+				</element>
+				<element name="enableAutoClearParameters" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>When this option is set to true, the parameter selection is cleared whenever a node with a configured filter is selected.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="enableRunUpstreamServerNodes" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When this option is set to true upstream server nodes with a workflow are run at the
+						server prior to running the selected server node
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableRunAllPreviousNodes" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>if this option is enabled and a node is run all previous nodes in the topology tree
+						are run previously to running the selected node, even if the nodes are not connected by the
+						defined topoly. If this option is not enabled (which is the default) then only the upstream
+						nodes will be run
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableSelectNodesFromMap" type="boolean" default="true" minOccurs="0">
+				<annotation>
+					<documentation>If this option is enabled it will be possible to select nodes by clicking on the location in the map. In addition you also need to configure at least one locationId and a filterId at each node which you would like to be selectable from a map.</documentation>
+				</annotation>
+			</element>
+			<element name="enableAutoSaveOnRun" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>When this option is set to true (default = false) all edits will be automatically saved
+                        to the database without having to press apply or confirm when a node is run.
+                    </documentation>
+				</annotation>
+			</element>
+			<element name="enableCrossGroupNodeReferencing" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.01. When enabled, it is allowed to list a node in another group when referencing to a "previousNodeId".</documentation>
+				</annotation>
+			</element>
+			<element name="enableSelectLastNodeOnStartUp" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02. When enabled, it allows the last selected node in the segment selection dialog on shutdown to be automatically reselected when FEWS is reopened.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="selectFirstPlotOnSelectionChange" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02 when selecting an other topology node the (thumbnail) plot is selected that shows the same parameter or location as currently displayed. To revert to the behaviour of 2016.01 specify true</documentation>
+				</annotation>
+			</element>
+			<choice maxOccurs="unbounded">
+				<element name="groupId" type="string">
+					<annotation>
+						<documentation>It is possible to split the configuration of the topology in different files. The topology.xml is always the main configuration file. Parts of the topology
+							(topology groups) can be configured in separate files. These topology groups are identified by a group id. This element can be used to configure which topology group should
+							be injected.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="nodes" type="fews:NodesComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<group name="ModifiersGroupChoice">
+		<choice>
+			<element name="modifiersIconVisible" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02. If set to true and there are modifiers associated with a node, the modifier icon will be continuously visible at the left side of that node</documentation>
+				</annotation>
+			</element>
+			<element name="hideModifiersButton" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>
+						Since 2021.02. If set to true, show modifiers buttons in the Topology tree will be invisible.
+					</documentation>
+				</annotation>
+			</element>
+		</choice>
+	</group>
+</schema>

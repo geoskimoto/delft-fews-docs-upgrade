@@ -1,0 +1,86 @@
+---
+title: Module instance descriptors file
+description: Reference for the ModuleInstanceDescriptors config file — the registry of module instance ids referenced by workflows. Field reference auto-generated from the schema.
+sidebar:
+  order: 17
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/moduleInstanceDescriptors.json';
+
+This page is the generated field list for `ModuleInstanceDescriptors.xml` —
+the registry of *module instances*: the concrete, named things a
+[workflow](/reference/workflow/) `<activity>` runs by `moduleInstanceId`. Each
+instance still needs its own config file in `Config/ModuleConfigFiles/` (e.g.
+[General Adapter](/reference/generaladapterrun/),
+[Import](/reference/timeseriesimportrun/),
+[Export](/reference/timeseriesexportrun/)) — this file is just the id/name/
+description that makes the instance addressable and gives it a place to hang
+custom attributes.
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Declares each module instance's `id` (referenced by workflows) and optional
+custom `<attribute>` values that other config files can pull in by quoting the
+attribute id between `@`s (e.g. `@HARD_MAX@`) — the same mechanism used on
+locations, parameters, and qualifiers.
+
+**Folder**
+: `Config/RegionConfigFiles/`
+
+**Root element**
+: `<moduleInstanceDescriptors>` (`version="1.0"`, required)
+
+**Referenced by**
+: `moduleInstanceId` in a [workflow](/reference/workflow/) activity.
+
+**Depends on**
+: The module *type* must be registered in [Module
+descriptors](/reference/moduledescriptors/).
+
+</div>
+
+<Aside type="tip">
+The root element is a **choice, repeated**: mix individual
+`<moduleInstanceDescriptor>` entries, `<moduleInstanceGroup>` blocks (instances
+sharing one branch/run), or CSV-backed declarations
+(`moduleInstanceDescriptorsCsvFile` / `persistentIdsCsvFile`, since 2022.01).
+The field reference below lists all four as top-level fields of the root type
+— in practice you pick whichever styles you need.
+</Aside>
+
+## Minimal example
+
+```xml title="Config/RegionConfigFiles/ModuleInstanceDescriptors.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<moduleInstanceDescriptors xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <moduleInstanceDescriptor id="ImportObservations" name="Import observed data">
+    <description>Imports observed time series from the external system</description>
+  </moduleInstanceDescriptor>
+  <moduleInstanceDescriptor id="RainfallRunoffModel" name="Rainfall-runoff model">
+    <description>Runs the rainfall-runoff model via the General Adapter</description>
+  </moduleInstanceDescriptor>
+</moduleInstanceDescriptors>
+```
+
+## Field reference
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- `moduleId` (the old way of pointing an instance at its module type) is
+  **deprecated since 2013.02** — FEWS now infers the module type from the root
+  element of the instance's own config file. Leave it out.
+- `<attribute>` values here are only reachable from other config as
+  `@THEIR_ID@` — a plain reference by element name won't resolve.
+
+## See also
+
+- Reference: [Module descriptors file](/reference/moduledescriptors/) · [Workflow file](/reference/workflow/)
+- Task guide: [Workflows & scheduling](/tasks/workflows/)
+- Schema: [`moduleInstanceDescriptors.xsd`]({data.schemaUrl})

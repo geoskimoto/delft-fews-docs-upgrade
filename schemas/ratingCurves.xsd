@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Delft FEWS (Copyright 2003 WL | Delft Hydraulics) -->
+<schema xmlns:fews="http://www.wldelft.nl/fews" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="ratingCurves" type="fews:RatingCurvesComplexType">
+		<annotation>
+			<documentation>List of rating curves</documentation>
+		</annotation>
+	</element>
+	<complexType name="RatingCurvesComplexType">
+		<annotation>
+			<documentation>List of rating curves</documentation>
+		</annotation>
+		<sequence>
+			<element name="ratingCurve" type="fews:RatingCurveComplexType" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="version" type="fews:versionStringType" use="required" fixed="1.1"/>
+	</complexType>
+	<complexType name="RatingCurveComplexType">
+		<annotation>
+			<documentation>Rating curve information</documentation>
+		</annotation>
+		<sequence>
+			<element name="description" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional description </documentation>
+				</annotation>
+			</element>
+			<element name="location" type="fews:RatingCurveLocationComplexType">
+				<annotation>
+					<documentation>Location for which this rating curve is designed.</documentation>
+				</annotation>
+			</element>
+			<element name="ratingCurveType" type="fews:RatingCurveTypeEnumStringType">
+				<annotation>
+					<documentation>Type of rating curve: Level t o flow or Flow to level.</documentation>
+				</annotation>
+			</element>
+			<element name="reversible" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Indicator whether the rating curve may be used in the reverse direction.</documentation>
+				</annotation>
+			</element>
+			<element name="validPeriod" type="fews:ValidPeriodComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Period for which this rating curve is valid. If missing Rating curve is always valid.</documentation>
+				</annotation>
+			</element>
+			<element name="correction" type="fews:RatingCurveCorrectionComplexType" minOccurs="0"/>
+			<element name="ratingCurveTable" type="fews:RatingCurveTableComplexType" minOccurs="0"/>
+			<element name="ratingCurveEquation" type="fews:RatingCurveEquationComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="ratingCurveId" type="fews:idStringType" use="optional"/>
+	</complexType>
+	<complexType name="RatingCurveCorrectionComplexType">
+		<annotation>
+			<documentation>Correction to be applied to rating curve due to changes in the stage-flow relation as a result of external factors, not depending on the control of the cross section. </documentation>
+		</annotation>
+		<sequence>
+			<element name="unsteadyFlow" type="fews:UnsteadyFlowCorrectionComplexType" minOccurs="0"/>
+			<element name="backwater" type="fews:BackWaterCorrectionComplexType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="UnsteadyFlowCorrectionComplexType">
+		<annotation>
+			<documentation>Unsteady Flow Correction</documentation>
+		</annotation>
+		<sequence>
+			<element name="jonesEquation" type="fews:JonesEquationComplexType"/>
+		</sequence>
+	</complexType>
+	<complexType name="BackWaterCorrectionComplexType">
+		<annotation>
+			<documentation>Backwater Correction</documentation>
+		</annotation>
+		<sequence>
+			<element name="referenceLocation" type="fews:RatingCurveLocationComplexType">
+				<annotation>
+					<documentation>Reference location to be used for the backwater curve correction</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="constantFallMethod" type="fews:ConstantFallMethodComplexType"/>
+				<element name="normalFallMethod" type="fews:NormalFallMethodComplexType"/>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurveLocationComplexType">
+		<annotation>
+			<documentation>Location definition</documentation>
+		</annotation>
+		<sequence>
+			<element name="locationId" type="fews:idStringType">
+				<annotation>
+					<documentation>Location for which this rating curve is designed.</documentation>
+				</annotation>
+			</element>
+			<element name="name" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Name of location</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="JonesEquationComplexType">
+		<annotation>
+			<documentation>Unsteady flow correction: Jones equation. 
+
+Omitting the acceleration terms in de dynamic flow equation the relation between the unsteady discharge Qm and steady discharge Qc, is given by the Jones equation.
+
+1/(S0*Vw) = a + bh + ch^2 for h>h_min
+
+hmin = the lowest water level for which the Jones correction has to be applied.
+a, b and c = parameters for Jones correction</documentation>
+		</annotation>
+		<sequence>
+			<element name="h_min" type="float">
+				<annotation>
+					<documentation>Minimum level for which the Jones approximation is valid</documentation>
+				</annotation>
+			</element>
+			<element name="a" type="float">
+				<annotation>
+					<documentation>Parameter a of Jones correction</documentation>
+				</annotation>
+			</element>
+			<element name="b" type="float">
+				<annotation>
+					<documentation>Parameter b of Jones correction</documentation>
+				</annotation>
+			</element>
+			<element name="c" type="float">
+				<annotation>
+					<documentation>Parameter c of Jones correction</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="ConstantFallMethodComplexType">
+		<annotation>
+			<documentation>Backwater correction: Constant fall method.
+
+In this method the reference fall Fr is taken as a constant. A special case of the constant-fall method is the unit-fall method, where Fr = 1 m is applied.</documentation>
+		</annotation>
+		<sequence>
+			<element name="referenceFall" type="float">
+				<annotation>
+					<documentation>Constant value for Fr</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="NormalFallMethodComplexType">
+		<annotation>
+			<documentation>Backwater correction: Normal fall method.
+
+In this method the reference fall Fr is provided as a function of the water level: 
+Fr = f(h). This function is represented by a parabola:
+
+Fr = a + bh + ch^2  for h > hmin
+
+Where:
+hmin = lower threshold of h above which the backwater correction is applied.
+a, b and c = parameters
+</documentation>
+		</annotation>
+		<sequence>
+			<element name="h_min" type="float">
+				<annotation>
+					<documentation>Minimum level for approximation of Fr</documentation>
+				</annotation>
+			</element>
+			<element name="a" type="float">
+				<annotation>
+					<documentation>Parameter a in Fr approximation</documentation>
+				</annotation>
+			</element>
+			<element name="b" type="float">
+				<annotation>
+					<documentation>Parameter b in Fr approximation</documentation>
+				</annotation>
+			</element>
+			<element name="c" type="float">
+				<annotation>
+					<documentation>Parameter c in Fr approximation</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurveEquationComplexType">
+		<annotation>
+			<documentation>Rating curve for this segment</documentation>
+		</annotation>
+		<sequence>
+			<element name="lowerLevel" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Lowest water level for which this segment is valid.</documentation>
+				</annotation>
+			</element>
+			<element name="upperLevel" type="float" minOccurs="0">
+				<annotation>
+					<documentation>Highest water level for which this segment is valid.</documentation>
+				</annotation>
+			</element>
+			<element name="flag" type="integer" minOccurs="0">
+				<annotation>
+					<documentation>Quality flag assigned to results of this segment
+					3 = doubtful, 6 = unreliable</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<sequence id="equation">
+					<element name="equation" type="fews:EquationTypeEnumString">
+						<annotation>
+							<documentation>Identification of the equation used: Power or Parabolic</documentation>
+						</annotation>
+					</element>
+					<element name="a" type="float">
+						<annotation>
+							<documentation>The a parameter of a Power or Parabolic rating curve</documentation>
+						</annotation>
+					</element>
+					<element name="b" type="float">
+						<annotation>
+							<documentation>The b parameter of a Power or Parabolic rating curve</documentation>
+						</annotation>
+					</element>
+					<element name="c" type="float">
+						<annotation>
+							<documentation>The c parameter of a Power or Parabolic rating curve</documentation>
+						</annotation>
+					</element>
+				</sequence>
+				<sequence id="userDefinedEquation">
+					<element name="userDefinedEquation" type="string"/>
+					<element name="inputVariable" type="string" minOccurs="0">
+						<annotation>
+							<documentation>The variable used to denote level (or flow)</documentation>
+						</annotation>
+					</element>
+					<element name="reverseUserDefinedEquation" type="string" minOccurs="0"/>
+					<element name="reverseEquationInputVariable" type="string" minOccurs="0"/>
+					<element name="coefficient" type="fews:RatingCurveEquationCoefficientComplexType" minOccurs="0" maxOccurs="unbounded">
+						<annotation>
+							<documentation>Coefficients referenced in function.</documentation>
+						</annotation>
+					</element>
+				</sequence>
+			</choice>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurveTableComplexType">
+		<annotation>
+			<documentation>Rating curve table.</documentation>
+		</annotation>
+		<sequence>
+			<element name="ratingCurveTableRecord" type="fews:RatingCurveTableRecordComplexType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurveTableRecordComplexType">
+		<annotation>
+			<documentation>Rating curve table record. Relation between level (H) and flow (Q).</documentation>
+		</annotation>
+		<attribute name="level" type="float" use="required"/>
+		<attribute name="flow" type="float" use="required"/>
+	</complexType>
+	<complexType name="PreDefinedEquationComplexType">
+		<sequence>
+			<element name="equation" type="fews:EquationTypeEnumString" minOccurs="0">
+				<annotation>
+					<documentation>Identification of the equation used: Power or Parabolic</documentation>
+				</annotation>
+			</element>
+			<element name="a" type="float" minOccurs="0">
+				<annotation>
+					<documentation>The a parameter of a Power or Parabolic rating curve</documentation>
+				</annotation>
+			</element>
+			<element name="b" type="float" minOccurs="0">
+				<annotation>
+					<documentation>The b parameter of a Power or Parabolic rating curve</documentation>
+				</annotation>
+			</element>
+			<element name="c" type="float" minOccurs="0">
+				<annotation>
+					<documentation>The c parameter of a Power or Parabolic rating curve</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="UserDefinedEquationComplexType">
+		<annotation>
+			<documentation>Complex mathematical equation:
+
+A complex mathematical equation can take any form:
+
+Q = f(h)
+
+The application receiving a rating curve of this form must be capable of interpreting the equation.
+</documentation>
+		</annotation>
+		<sequence>
+			<element name="userDefinedEquation" type="string" minOccurs="0"/>
+			<element name="inputVariable" type="string" minOccurs="0">
+				<annotation>
+					<documentation>The variable used to denote level (or flow)</documentation>
+				</annotation>
+			</element>
+			<element name="coefficient" type="fews:RatingCurveEquationCoefficientComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Coefficients referenced in function.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="RatingCurveEquationCoefficientComplexType">
+		<annotation>
+			<documentation>Coefficient(s) of a free form rating equation</documentation>
+		</annotation>
+		<attribute name="id" type="fews:idStringType" use="required"/>
+		<attribute name="value" type="float" use="required"/>
+	</complexType>
+	<simpleType name="EquationTypeEnumString">
+		<annotation>
+			<documentation>Equation Type</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="Power"/>
+			<enumeration value="Parabolic"/>
+		</restriction>
+	</simpleType>
+</schema>

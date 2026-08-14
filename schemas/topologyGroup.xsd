@@ -1,0 +1,899 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ICT (Stichting Deltares) -->
+<!--Delft FEWS (Copyright 2008 Deltares (Delft Hydraulics)) -->
+<schema xmlns="http://www.w3.org/2001/XMLSchema" xmlns:fews="http://www.wldelft.nl/fews" targetNamespace="http://www.wldelft.nl/fews" elementFormDefault="qualified" attributeFormDefault="unqualified"
+		version="1.0">
+	<include schemaLocation="sharedTypes.xsd"/>
+	<element name="topologyGroup" type="fews:TopologyGroupComplexType"/>
+	<complexType name="TopologyGroupComplexType">
+		<sequence>
+			<element name="group" type="fews:GroupComplexType" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="GroupComplexType">
+		<sequence>
+			<element name="nodes" type="fews:NodesComplexType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Nodes can be used to define a group node. A group node contains other group nodes or leafs</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+	</complexType>
+	<complexType name="NodesComplexType">
+		<sequence>
+			<element name="showModifiers" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. This element will enable that modifiers are shown and editable at groupNodes</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:runOptionsGroup" minOccurs="0"/>
+			<group ref="fews:LocalRunOptionsChoice" minOccurs="0"/>
+			<element name="showRunApprovedForecastButton" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>if this option is enabled the run approved forecast button is also show for a local node
+					</documentation>
+				</annotation>
+			</element>
+			<choice maxOccurs="unbounded">
+				<element name="node" type="fews:NodeComplexType">
+					<annotation>
+						<documentation>Child element in the topology structure. Workflows of child nodes are run locally
+						</documentation>
+					</annotation>
+				</element>
+				<element name="nodes" type="fews:NodesComplexType">
+					<annotation>
+						<documentation>one or more parent nodes in the topology structure</documentation>
+					</annotation>
+				</element>
+				<element name="groupId" type="string">
+					<annotation>
+						<documentation>It is possible to split the configuration of the topology in different files. The topology.xml is always the main configuration file. Parts of the topology (topology groups) can be configured in separate files. These topology groups are identified by a group id. This element can be used to configure which topology group should be injected.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<group ref="fews:connectivityOptionsGroup" minOccurs="0"/>
+			<group ref="fews:sharedNodeOptionsGroup" minOccurs="0"/>
+			<element name="backgroundSelectionColor" type="fews:colorEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 It is possible to configure the background color for selected individual and group nodes on the Forecast panel.</documentation>
+				</annotation>
+			</element>
+			<element name="backgroundNonSelectionColor" type="fews:colorEnumStringType" minOccurs="0">
+			<annotation>
+				<documentation>Since 2019.02 It is possible to configure the background color for non-selected individual and group nodes on the Forecast panel.</documentation>
+			</annotation>
+			</element>
+			<element name="textSelectionColor" type="fews:colorEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 It is possible to configure the text color for selected individual and group nodes on the Forecast panel.</documentation>
+				</annotation>
+			</element>
+			<element name="textNonSelectionColor" type="fews:colorEnumStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 It is possible to configure the text color for non-selected individual and group nodes on the Forecast panel.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+		<attribute name="id" type="string" use="required"/>
+		<attribute name="name" type="string" use="optional"/>
+	</complexType>
+	<group name="ForecastLengthGroup">
+		<sequence>
+			<element name="forecastLength" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Define the forecast length for a node. The forecast length is configured as a time span relative to T0. The user will be able to edit the forecast in the user interface (topology)</documentation>
+				</annotation>
+			</element>
+			<element name="cardinalTimeStepForecastLength" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This option can be used to define a cardinal time step for the end time or forecast length of a node.</documentation>
+				</annotation>
+			</element>
+			<element name="initialForecastLengthCardinalTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This option will determine the initial time of the end time by fitting the time to the cardinal time step</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<group name="StateSelectionForecastLengthSequenceGroup">
+		<sequence>
+			<group ref="fews:StateSelectionChoiceGroup" minOccurs="0"/>
+			<choice>
+			       <group ref="fews:ForecastLengthGroup"/>
+				  <element name="useForecastLengthFromInteractiveForecastDisplay" type="boolean">
+					  <annotation>
+						  <documentation>If this option is set to false the forecast length will be determined by the workflow</documentation>
+					  </annotation>
+				  </element>
+			</choice>
+		</sequence>
+	</group>
+	<group name="RelativePeriodSequence">
+		<sequence>
+			<choice minOccurs="0">
+				<element name="relativePeriod" type="fews:RelativePeriodComplexType">
+					<annotation>
+						<documentation>Define a relative period for this node. The workflow will run with a cold state equal to the start time of the node. The forecast length will be determined by calculating the difference between the end time and T0. The GUI will show a start time and an end time. This option can, for example, be used when the workflow only contains transformations.</documentation>
+					</annotation>
+				</element>
+				<element name="relativeStartTime" type="fews:RelativeTimeComplexType">
+					<annotation>
+						<documentation>Since 2017.02. The user can only determine the start time (cold state selection of the run). The forecast length will be determined by the workflow.</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="cardinalTimeStepStartTime" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This option can be used to define a cardinal time step for the start time or state selection of a node.</documentation>
+				</annotation>
+			</element>
+			<element name="initialStartTimeCardinalTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This option will determine the initial time of the start time by fitting the time to the cardinal time step</documentation>
+				</annotation>
+			</element>
+			<element name="cardinalTimeStepEndTime" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This option can be used to define a cardinal time step for the end time or forecast length of a node.</documentation>
+				</annotation>
+			</element>
+			<element name="initialEndTimeCardinalTimeStep" type="fews:TimeStepComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This option will determine the initial time of the end time by fitting the time to the cardinal time step</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<group name="StateSelectionChoiceGroup">
+		<sequence>
+			<choice>
+				<element name="coldState" type="fews:TimeSpanComplexType" minOccurs="0">
+					<annotation>
+						<documentation>With this option can be configured which initial state selection should be used by
+							default.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="coldStateFromCurrentRun" type="fews:ColdStateFromCurrentRunComplexType" minOccurs="0">
+					<annotation>
+						<documentation>With this option can be configured that the run will start with a cold state equal to
+							the start of the previous run of the configured workflow
+						</documentation>
+					</annotation>
+				</element>
+				<element name="coldStateStartTime" type="fews:DateTimeComplexType" minOccurs="0">
+					<annotation>
+						<documentation>With this option a cold state can be configured with a fixed start date/time
+						</documentation>
+					</annotation>
+				</element>
+				<element name="warmStateSelectionPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+					<annotation>
+						<documentation>Time window used to search for a warm state.</documentation>
+					</annotation>
+				</element>
+				<element name="warmState" type="fews:TimeSpanComplexType" minOccurs="0">
+					<annotation>
+						<documentation>With this option can be configured which initial state selection should be used by
+							default.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="noInitialState" type="fews:emptyElement" minOccurs="0">
+					<annotation>
+						<documentation>With this option can be configured which initial state selection should be used by
+							default.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="fixedColdState" type="fews:FixedColdStateComplexType" minOccurs="0"/>
+		</sequence>
+	</group>
+	<complexType name="FixedColdStateComplexType">
+		<sequence>
+			<element name="coldState" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>With this option can be configured which initial state selection should be used by
+						default.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="locationId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2023.01 The location id which provides the attributes in which the selected cold state will be stored</documentation>
+				</annotation>
+			</element>
+			<element name="modifierTypeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2023.01 The modifier type id which will be used to store the pinned cold state</documentation>
+				</annotation>
+			</element>
+			<element name="fixedColdStateLocationAttributeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2023.01 The location attribute (should be a date/time attribute) in which the selected cold state date/time will be stored</documentation>
+				</annotation>
+			</element>
+			<element name="fixedColdStateGroupLocationAttributeId" type="fews:idStringType">
+				<annotation>
+					<documentation>Since 2023.01 The location attribute (should be a date/time attribute) in which the selected cold state group will be stored</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="LocalRunOptionsChoice">
+		<choice>
+			<sequence>
+				<element name="localRun" type="boolean" minOccurs="0">
+					<annotation>
+						<documentation>by default workflows of child nodes will run locally and parent node are run at the server. By setting this option to true the workflow will run locally</documentation>
+					</annotation>
+				</element>
+				<element name="saveLocalRunEnabled" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>Since 2015.01. Allow the user to make a temporary local run permanent and upload it to the server, commit the modifiers, approves the forecast and makes it current. When the local run was executed on the server the run is approved and marked public</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<sequence>
+				<element name="privateRunAtServer" type="boolean" default="false">
+					<annotation>
+						<documentation>by default ifd runs run locally, but with this option the ifd run is executed at the server but are only visible for the current user. This run can be made visible for other users by pressing the save button. Uncommitted modifiers from the current users are visible at the server for this run</documentation>
+					</annotation>
+				</element>
+				<element name="publishPrivateRunEnabled" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>Since 2015.01. Allow the user to make the private run public commit the modifiers, approve the forecast and make it current.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+		</choice>
+	</group>
+	<group name="runOptionsGroup">
+		<sequence>
+			<sequence minOccurs="0">
+				<element name="properties" type="fews:PropertiesComplexType" minOccurs="0">
+					<annotation>
+						<documentation>These properties can be referenced in workflow files and module config file with $key$, similar to global properties. These properties are overruling the global
+							properties and module properties.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="workflowId" type="string" nillable="false">
+					<annotation>
+						<documentation>The id of the workflow which is connected to this node. When configured in a parent node, this workflow will only be executed when running on the server. When running the parent node locally, the workflows of the child nodes will be executed.</documentation>
+					</annotation>
+				</element>
+
+				<element name="refreshConfigAfterCompletion" type="boolean" minOccurs="0">
+					<annotation>
+						<documentation>If true, for the client type Computational Framework, the configuration is automatically reloaded after a successful run of the workflow.</documentation>
+					</annotation>
+				</element>
+				<group ref="fews:SecondaryWorkflowGroup" minOccurs="0">
+					<annotation>
+						<documentation>Since 201801. This group defines several options for the (optional) secondary workflow</documentation>
+					</annotation>
+				</group>
+				<element name="moduleInstanceId" type="string" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>When no module instance ids are specified all module instances in the workflow are executed. Specifiying the module instances that should be executed only works
+							for local runs
+						</documentation>
+					</annotation>
+				</element>
+				<element name="enableAutoApprove" type="boolean" default="false" minOccurs="0">
+					<annotation>
+						<documentation>Since 2019.02. If this option is set to true,  an  Approve checkbox will appear on the run options panel. With this checkbox the forecaster can determine if the forecast should be approved automatically after the run. The initial  value of the check box is determined by the autoApprove  setting  of the workflowDescriptor. Note:  the Approve check box will never  appear if  the approving of the forecast is not allowed ( allowApprove=false in workflowDescriptor).  In this case also a  Config.Error is logged.</documentation>
+					</annotation>
+				</element>
+			</sequence>
+			<choice>
+				<group ref="fews:FixedDatesForecastTimeSequenceGroup" minOccurs="0"/>
+				<group ref="fews:FlexibleDatesForecastTimeSequenceGroup" minOccurs="0"/>
+			</choice>
+		</sequence>
+	</group>
+	<group name="FixedDatesForecastTimeSequenceGroup">
+		<sequence>
+			<element name="startDateTime" type="fews:DateTimeComplexType">
+				<annotation>
+					<documentation>Available since 2025.01 It can be used to configure a fixed starting time for an IFD run. Cannot be combined with coldStartTime, forecastLength or timeZero.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableEarlierStartTime" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. If this option is set to true, the forecaster can set the start time of the run to a date before the fixed start time.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableLaterStartTime" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. If this option is set to true, the forecaster can set the start time of the run to a date after the fixed start time.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="endDateTime" type="fews:DateTimeComplexType">
+				<annotation>
+					<documentation>Available since 2025.01 It can be used to configure a fixed end time for an IFD run. Cannot be combined with coldStartTime, forecastLength or timeZero.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableEarlierEndTime" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. If this option is set to true, the forecaster can set the end time of the run to a date before the fixed end time.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="enableLaterEndTime" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2025.01. If this option is set to true, the forecaster can set the end time of the run to a date after the fixed end time.
+					</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<group name="FlexibleDatesForecastTimeSequenceGroup">
+		<sequence>
+			<choice>
+				<group ref="fews:StateSelectionForecastLengthSequenceGroup" minOccurs="0"/>
+				<group ref="fews:RelativePeriodSequence" minOccurs="0"/>
+			</choice>
+			<choice>
+				<element name="timeZero" type="fews:DateTimeComplexType" minOccurs="0">
+					<annotation>
+						<documentation>This option can be used to set a prefixed time zero for a group or a single node. If this option is not configured the system time will be used as time
+							zero.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="timeZeroShift" type="fews:TimeShiftComplexType" minOccurs="0">
+					<annotation>
+						<documentation>By default the time zero of the shown in the IFD is non-editable. If this option is chosen the t0 is editable and is shifted with the configured
+							timeZeroShift.
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+		</sequence>
+	</group>
+	<complexType name="ColdStateFromCurrentRunComplexType">
+		<sequence>
+			<element name="workflowId" type="string" nillable="false">
+				<annotation>
+					<documentation>The id of the workflow from which the state is selected</documentation>
+				</annotation>
+			</element>
+			<element name="coldState" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>This option can be used to define which cold state to use when no default run is available</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<group name="SecondaryWorkflowGroup">
+		<sequence>
+			<element name="secondaryWorkflowId" type="fews:idStringType" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 201801. The id of a secondary workflow which can be started from the IFD. Only the first configured workflow id will be used in the OC or SA. Additional worfklows will only be available in the WebOC.</documentation>
+				</annotation>
+			</element>
+			<element name="runSecondaryWorkflowAtServer" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 201801. By default the secondary workflow will be a server run if the primary workflow also runs at the server</documentation>
+				</annotation>
+			</element>
+			<element name="runSecondaryWorkflowWithTaskRunPropertiesFromIFD" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2019.02 (And the EA branch). By default the secondary workflow will ignore the taskrun properties in the IFD and run with configured properties in the workflow. When this option is set to true the taskrun properties of the IFD will be used.</documentation>
+				</annotation>
+			</element>
+			<element name="enableSecondaryWorkflow" type="fews:enableSecondaryWorkflowType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2021.02 Defines when the secondary workflow button is enabled</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<simpleType name="enableSecondaryWorkflowType">
+		<annotation>
+			<documentation>Overview of supported export types</documentation>
+		</annotation>
+		<restriction base="string">
+			<enumeration value="onlyWhenMainWorkflowIsPersistedOnServer">
+				<annotation>
+					<documentation>If this option is selected, the secondary workflow button will only be enabled if the main workflow has successfully ran at the server.</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<group name="connectivityOptionsGroup">
+		<sequence>
+			<element name="alwaysVisibleInForecasterNotes" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Specifies that the forecaster notes, created for this node, should be always visible in the ForecasterNotesDisplay. By default, the ForecasteNotesDisplay shows the
+						notes for the the node (and its parent) that is selected by the user in the Topology GUI. This list of forecast notes can be extended with the notes that are created for the
+						node with option alwaysVisibleInForecasterNotes=true
+					</documentation>
+				</annotation>
+			</element>
+			<element name="mapExtentId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>optional element to define a zoomExtent. When a node with this element defined is selected the map will automatically zoom to this extent
+					</documentation>
+				</annotation>
+			</element>
+			<element name="filterId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>The configured filter will automatically be selected when the node is selected in the topology.</documentation>
+				</annotation>
+			</element>
+			<element name="disableMap" type="boolean" minOccurs="0" default="false">
+				<annotation>
+					<documentation>Since 2024.02. Only used in the WebOC! This element can be used to disable the map in the WebOC.</documentation>
+				</annotation>
+			</element>
+			<choice>
+				<element name="displayGroupId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+					<annotation>
+						<documentation>displayGroupId references the id of a configured displayGroup element in the DisplayGroups.xml
+						</documentation>
+					</annotation>
+				</element>
+				<element name="displayId" type="fews:idStringType" minOccurs="0">
+					<annotation>
+						<documentation>Since 2019.01 The display id references the id of a configured display element in the DisplayGroups.xml
+						</documentation>
+					</annotation>
+				</element>
+				<element name="plotId" type="fews:idStringType" minOccurs="0">
+					<annotation>
+						<documentation>Since 2019.01 define the plot from which the display should be generated. The plot id and the location id define the display which should be displayed
+						</documentation>
+					</annotation>
+				</element>
+			</choice>
+			<element name="dataDownloadDisplayId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. Only used in the WebOC! The id of the data download display which is coupled to this node.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="logDisplayId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. Only used in the WebOC! The id of the data log display that is configured in de DisplayConfigFiles/LogDisplays.xml file.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="dynamicReportDisplayId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.02. Only used in the WebOC! The id of the dynamic report display that is configured in de DisplayConfigFiles/DynamicReportDisplays.xml file.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="webOCDashboardId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2023.02. Only used in the WebOC! The id of the dashboard panel. It is possible to define multiple dashboard ids.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="webOCMicroFrontEndId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2025.02. Only used in the WebOC! The id of the micro front end that is configured in the WebOCMicroFrontEnds DisplayConfigFiles.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="documentDisplayId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.02. Only used in the WebOC! The reference by id to a document defined in the documentDisplays.xml.</documentation>
+				</annotation>
+			</element>
+			<element name="timeSeriesButtonsPanelId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.01. Reference to time series button panel that becomes visible when this topology node is activated. For this functionality you need to configure the time
+						series button panel in explorer.xml and to add timeSeriesButtonsPanels.xml in the display config files..
+					</documentation>
+				</annotation>
+			</element>
+			<element name="reportModuleInstanceId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. Only used in the WebOC! The moduleInstance id for which to show reports for this node.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="dataAnalysisDisplayId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. Only used in the WebOC! The id of the data analysis display which is coupled to this node.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="documentFile" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.02. Refer to a document file that is available in the WebResourcesFiles.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<complexType name="CustomInfoLabelComplexType">
+		<sequence>
+			<element name="labelText" type="string">
+				<annotation>
+					<documentation>Since 2018.02 show a custom text in the IFD. It is allowed to use attributes in the text</documentation>
+				</annotation>
+			</element>
+			<element name="locationId" type="fews:idStringType"/>
+			<element name="overrulingUnmodifiedDateTimeAttributeValue" type="fews:UnmodifiedDateTimeAttributeValueComplexType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.02 if a date time attribute is unmodified it is possible to overrule the default (unmodified value) with a calculated time</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</complexType>
+	<complexType name="UnmodifiedDateTimeAttributeValueComplexType">
+		<sequence>
+			<element name="attributeId" type="fews:idStringType"/>
+			<element name="offset" type="fews:TimeSpanComplexType"/>
+			<element name="timeStep" type="fews:TimeStepComplexType"/>
+		</sequence>
+	</complexType>
+	<group name="sharedNodeOptionsGroup">
+		<sequence>
+			<element name="customInfoLabel" type="fews:CustomInfoLabelComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02 if a node has a custom info label defined then the defined text will be shown below the time zero in the IFD run options section. It is allowed to use attributes in the custom info label.</documentation>
+				</annotation>
+			</element>
+			<element name="showWorkflowDescriptionBox" type="boolean" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.02 show a textbox in which the user can enter a description for the workflow</documentation>
+				</annotation>
+			</element>
+			<element name="disableAdvancedButton" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2016.01 Disable the run edit options button when this node or one of its children is selected</documentation>
+				</annotation>
+			</element>
+			<element name="hideModifiersOverviewPanel" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2015.02 hide the overview panel when this node or one its children is selected.</documentation>
+				</annotation>
+			</element>
+			<element name="areaId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>This element can be used to group this node and it children to the area</documentation>
+				</annotation>
+			</element>
+			<element name="modifiersReadOnly" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>With this option a node can be set to readonly. Which means that modifiers can be viewed, but not created, editted or deleted.</documentation>
+				</annotation>
+			</element>
+			<element name="viewPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>
+						set a permission to control who can view this node
+					</documentation>
+				</annotation>
+			</element>
+			<element name="runWorkflowLocallyPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Permission to run the workflow for a node locally</documentation>
+				</annotation>
+			</element>
+			<element name="runWorkflowAtServerPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Permission to run the workflow for a node at the server</documentation>
+				</annotation>
+			</element>
+			<element name="runSecondaryWorkflowPermission" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Since 201801. Permission to run the secondary workflow</documentation>
+				</annotation>
+			</element>
+			<element name="defaultModifierId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Optional element to define a default modifier for a node. When a node is selected and a default modifier is defined the section in the modifiers display in which a
+						modifier can be created will automaticly initialize to the defined default modifier.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="onlyAllowEditDefaultModifier" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2014.02. This element will enable that if a default modifier is configured that
+						only the default modifier an be editted
+					</documentation>
+				</annotation>
+			</element>
+			<element name="visibleModifierGroup" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>If this option is not configured, than all applicable modifiers can be used. With this option it is possible to restrict which modifier groups can be used
+					</documentation>
+				</annotation>
+			</element>
+			<element name="attributeModifierLocationConstraint" type="fews:ConstraintsComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2018.02 Restriction for the locations whose attributes should be modified. If ommitted attributes of all locations associated with this node can be modified</documentation>
+				</annotation>
+			</element>
+			<element name="graceTime" type="fews:TimeSpanComplexType" minOccurs="0">
+				<annotation>
+					<documentation>If ths element is not defined only the runs from which the T0 is equal to the system time are used to define show the icons in the topology panel. However with a
+						grace time configured also runs which fall within the period T0 - grace time are used
+					</documentation>
+				</annotation>
+			</element>
+			<element name="checkStatusPreviousServerRun" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>If this option is set to true a server run can only be started if the status of the previous run is fully successful</documentation>
+				</annotation>
+			</element>
+			<element name="showMacroButton" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>this option can be used to show a macro button which can be used to start a server task with a predefined taskproperties-xml</documentation>
+				</annotation>
+			</element>
+			<element name="gridDisplaySelection" type="fews:gridDisplaySelection" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.01, selection in grid display can be specified with group and plot ids.</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:displayActivationChoice" minOccurs="0">
+				<annotation>
+					<documentation>This options can be used to configure which display should be activated  after selecting the topology node</documentation>
+				</annotation>
+			</group>
+			<element name="toolWindow" type="fews:toolWindowStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>this option can be used to configure which toolwindow should be activated or de-activated after selecting this node</documentation>
+				</annotation>
+			</element>
+			<element name="url" type="anyURI" minOccurs="0" maxOccurs="1">
+				<annotation>
+					<documentation>Since 2016.01. Configure a URL related to the node. Can be used by the Web Browser Display to open the URL. For file based URLs the file:/// convention should be used.</documentation>
+				</annotation>
+			</element>
+			<element name="embedUrl" type="anyURI" minOccurs="0" maxOccurs="1">
+				<annotation>
+					<documentation>Since 2023.02. Will open a URL embedded in the Web OC.</documentation>
+				</annotation>
+			</element>
+			<element name="useStatusParentNode" type="boolean" minOccurs="0" default="true">
+				<annotation>
+					<documentation>Since 2017.01 If the node has a server run and the parent node has a more recent server run the status of the parent node will be used. If this is set to false, then the server run of the parent node will be ignored.</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdValueSetId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Since 2018.02 The forecast tree shows by default icons which show the run status of the workflow associated with the node.
+						The forecast tree however also has the possibility to show threshold related icons. This option can be used to configure for which threshold value sets icons should be showed.</documentation>
+				</annotation>
+			</element>
+			<element name="scadaDisplayId" type="fews:idStringType" minOccurs="0" maxOccurs="1">
+				<annotation>
+					<documentation>Configure the ID of a scada display to open. Can be used by the Scada (SSD) Display to open a specific display when mainPanel is set to "schematic status display". The ID of a scada/SSD display if the same as the name of its config file (without the xml extension).</documentation>
+				</annotation>
+			</element>
+			<element name="scadaPanelId" type="fews:idStringType" minOccurs="0" maxOccurs="1">
+				<annotation>
+					<documentation>Configure the ID of a scada panel to open. Can be used by the Scada (SSD) Display to open a specific scada panel when mainPanel is set to "schematic status display". If no scada panel Id is configured, the first scada panel configured will be opened.</documentation>
+				</annotation>
+			</element>
+			<element name="popupMessageServerRun" type="string" nillable="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. The message which will be shown when a server run is started from this node.</documentation>
+				</annotation>
+			</element>
+			<element name="popupMessageUncommittedModifiers" type="string" nillable="false" minOccurs="0">
+				<annotation>
+					<documentation>Since 2022.01. The message which will be shown when the leaves a node with uncommitted modifiers.</documentation>
+				</annotation>
+			</element>
+			<element name="thresholdIconRelativeViewPeriod" type="fews:RelativePeriodComplexType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2024.01. The relative view period which will be used for the threshold icon of the topology (IFD and WebOC). If this option is not configured then no threshold icons will be shown.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="icon" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 202302. Define a custom icon to be used in the topology tree (WebOC and OC)</documentation>
+				</annotation>
+			</element>
+			<element name="iconId" type="fews:nameStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 202302. Only used in the WebOC! Define the id of the icon to be used in the topology tree of the Web OC.</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<simpleType name="mainPanelStringType">
+		<restriction base="string">
+			<enumeration value="time series dialog"/>
+			<enumeration value="map display"/>
+			<enumeration value="modifiers panel"/>
+			<enumeration value="grid display"/>
+			<enumeration value="system monitor"/>
+			<enumeration value="correlation display"/>
+			<enumeration value="document panel"/>
+			<enumeration value="web browser display"/>
+			<enumeration value="kflows"/>
+			<enumeration value="topology panel"/>
+			<enumeration value="schematic status display"/>
+			<enumeration value="log display">
+				<annotation>
+					<documentation>Since 2024.02. Only for WebOC!. The log display is the main panel</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="webOC dashboard">
+				<annotation>
+					<documentation>Since 2024.02. Only for WebOC!. The webOC dashboard display is the main panel</documentation>
+				</annotation>
+			</enumeration>
+			<enumeration value="what-if display"/>
+			<enumeration value="data analysis display">
+				<annotation>
+					<documentation>Since 2024.02. Only for WebOC!. The data analysis display is the main panel</documentation>
+				</annotation>
+			</enumeration>
+		</restriction>
+	</simpleType>
+	<simpleType name="toolWindowStringType">
+		<restriction base="string">
+			<enumeration value="forecaster notes"/>
+			<enumeration value="log panel"/>
+			<enumeration value="plot overview"/>
+			<enumeration value="filters"/>
+			<enumeration value="document selection panel"/>
+		</restriction>
+	</simpleType>
+	<complexType name="NodeComplexType">
+		<sequence>
+			<element name="previousNodeId" type="string" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>Optional element to define upstream connectivity between individual nodes.
+					</documentation>
+				</annotation>
+			</element>
+			<element name="nextNodeId" type="string" minOccurs="0">
+				<annotation>
+					<documentation>Optional element to define downstream connectivity between individual nodes. The same connectivity can be achieved by having the downstream node defining a previous
+						node.
+					</documentation>
+				</annotation>
+			</element>
+			<choice minOccurs="0">
+				<element name="locationId" type="fews:idStringType" maxOccurs="unbounded">
+					<annotation>
+						<documentation>Optional element to associate one or more locations to the node. When a filter is associated as well, these locations are highlighted on the map and in the data
+							viewer.
+						</documentation>
+					</annotation>
+				</element>
+				<element name="locationSetId" type="fews:idStringType" maxOccurs="1"/>
+			</choice>
+			<element name="tabularLocationId" type="fews:idStringType" minOccurs="0" maxOccurs="unbounded">
+				<annotation>
+					<documentation>
+						Optional element to associate one or more locations to the node for use with the Tabular ConfigFiles Display.
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:runOptionsGroup" minOccurs="0"/>
+			<group ref="fews:connectivityOptionsGroup" minOccurs="0"/>
+			<group ref="fews:sharedNodeOptionsGroup" minOccurs="0"/>
+			<element name="componentSettingsId" type="fews:idStringType" minOccurs="0">
+				<annotation>
+					<documentation>Since 2023.02. Only used in the WebOC! The id of the component settings.
+					</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:LocalRunOptionsChoice" minOccurs="0"/>
+			<element name="showRunApprovedForecastButton" type="boolean" default="false" minOccurs="0">
+				<annotation>
+					<documentation>if this option is enabled the run approved forecast button is also show for a local node
+					</documentation>
+				</annotation>
+			</element>
+			<element name="backgroundSelectionColor" type="fews:colorEnumStringType" minOccurs="0"/>
+			<element name="backgroundNonSelectionColor" type="fews:colorEnumStringType" minOccurs="0"/>
+			<element name="textSelectionColor" type="fews:colorEnumStringType" minOccurs="0"/>
+			<element name="textNonSelectionColor" type="fews:colorEnumStringType" minOccurs="0"/>
+		</sequence>
+		<attribute name="id" type="string" use="required">
+		<annotation>
+			<documentation>The id of the node. The id should always be unique!</documentation>
+		</annotation>
+		</attribute>
+		<attribute name="name" type="string" use="optional">
+			<annotation>
+				<documentation>The name of the node. When this option is not used the id of the node will be used as the name. The configured name will be shown in the topology tree.</documentation>
+			</annotation>
+		</attribute>
+	</complexType>
+	<group name="displayActivationChoice">
+		<choice>
+			<element name="mainPanel" type="fews:mainPanelStringType">
+				<annotation>
+					<documentation>Display can be specified using a key from the enumeration</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:displayActivationSequence">
+				<annotation>
+					<documentation>Display can be specified using its display config file name</documentation>
+				</annotation>
+			</group>
+			<element name="explorerTaskName" type="fews:nonEmptyStringType">
+					<annotation>
+						<documentation>Since 2021.02, display can be specified using the name specified for an explorer task.</documentation>
+					</annotation>
+			</element>
+		</choice>
+	</group>
+	<complexType name="gridDisplaySelection">
+		<sequence>
+			<element name="groupId" type="fews:idStringType"/>
+			<element name="plotId" type="fews:idStringType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<group name="displayActivationSequence">
+		<sequence>
+			<element name="displayConfigFileName" type="fews:nonEmptyStringType">
+				<annotation>
+					<documentation>Display config file name of the display that should be activated</documentation>
+				</annotation>
+			</element>
+			<group ref="fews:displayActivationElementsChoice" minOccurs="0">
+				<annotation>
+					<documentation>Additional options , available only for specific displays. If a display does not support any additional options, then the possibly configured option are ignored
+					</documentation>
+				</annotation>
+			</group>
+		</sequence>
+	</group>
+	<group name="displayActivationElementsChoice">
+		<annotation>
+			<documentation>Addition options , available only for specific displays d</documentation>
+		</annotation>
+		<choice>
+			<group ref="fews:SchematicStatusDisplayElements"/>
+			<group ref="fews:SystemMonitorDisplayElements"/>
+		</choice>
+	</group>
+	<group name="SystemMonitorDisplayElements">
+		<sequence>
+			<element name="tabId" type="fews:SystemMonitorTabEnumStringType">
+				<annotation>
+					<documentation>Id of a specific SystemMonitor tab to open. If no Id is configured, the logBrowser tab will be opened</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<group name="SchematicStatusDisplayElements">
+		<sequence>
+			<element name="panelId" type="fews:idStringType">
+				<annotation>
+					<documentation>Id of a specific SSD panel to open. If no Id is configured, the first SSD will be opened</documentation>
+				</annotation>
+			</element>
+		</sequence>
+	</group>
+	<simpleType name="SystemMonitorTabEnumStringType">
+		<restriction base="string">
+			<enumeration value="logBrowser"/>
+			<enumeration value="bulletinBoard"/>
+			<enumeration value="bulletinBoardPlus"/>
+			<enumeration value="batchTasks"/>
+			<enumeration value="importStatus"/>
+			<enumeration value="exportStatus"/>
+			<enumeration value="liveStatus"/>
+			<enumeration value="scheduledTasks"/>
+			<enumeration value="runningTasks"/>
+			<enumeration value="synchStatus"/>
+			<enumeration value="synchLog"/>
+		</restriction>
+	</simpleType>
+</schema>
