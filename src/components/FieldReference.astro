@@ -26,8 +26,13 @@ interface Attribute {
 }
 interface TypeNode { doc?: string; attributes: Attribute[]; fields: Field[]; }
 interface SchemaData {
-  element: string;
-  rootType: string;
+  // Single-root pages (most pages): one root element wraps everything.
+  element?: string;
+  rootType?: string;
+  // Multi-root pages (e.g. transformation function category pages): several
+  // named types are BFS roots at once, none corresponding to a root element.
+  // Maps type name -> human-facing heading label.
+  roots?: Record<string, string>;
   schemaFile: string;
   schemaUrl: string;
   doc?: string;
@@ -53,7 +58,9 @@ const typeEntries = Object.entries(data.types);
   {typeEntries.map(([typeName, node], i) => (
     <section id={typeName} class="fr-type">
       <h3 class="fr-type-title">
-        {i === 0 ? (
+        {data.roots && data.roots[typeName] ? (
+          <>Function <code>&lt;{data.roots[typeName]}&gt;</code></>
+        ) : i === 0 && data.element ? (
           <>Element <code>&lt;{data.element}&gt;</code></>
         ) : (
           <><code>{typeName}</code></>

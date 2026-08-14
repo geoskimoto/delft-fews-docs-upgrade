@@ -76,6 +76,8 @@ export default defineConfig({
             { label: 'Cold module instance state groups file', slug: 'reference/coldmoduleinstancestategroups' },
             { label: 'Grids file', slug: 'reference/grids' },
             { label: 'Structures file', slug: 'reference/structures' },
+            { label: 'Transformation functions — basics', slug: 'reference/transformationbasics' },
+            { label: 'Transformation functions — temporal reshaping', slug: 'reference/transformtemporal' },
           ],
         },
         {

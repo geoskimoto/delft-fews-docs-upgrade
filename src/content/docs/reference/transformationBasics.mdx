@@ -1,0 +1,148 @@
+---
+title: Transformation functions — basics
+description: Reference for the shared mechanics of a transformationModule file — the file root, variable definitions, and range/period-dependent wrapping — common to every transformation function. Field reference auto-generated from the schema.
+sidebar:
+  order: 28
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/transformationBasics.json';
+
+This page is the generated field list for the **shared mechanics** of a
+`transformationModule` file — everything about `<transformation>` that's the
+same no matter which function it runs. The function catalogue itself (43
+categories, from `accumulation` to `wave`) is split across separate pages
+listed in [Function categories](#function-categories) below, because
+together they're too large for one page (~400 types, ~3000 fields — see the
+[Transformations task guide](/tasks/transformations/) for why).
+
+## At a glance
+
+<div class="field-list">
+
+**Purpose**
+: Runs one or more `<transformation>` steps in order, each reading an input
+series and writing an output series through a chosen function.
+
+**Folder**
+: `Config/ModuleConfigFiles/`
+
+**Root element**
+: `<transformationModule>` (`version="1.0"`, required)
+
+**Concept**
+: [Transformations](/tasks/transformations/) task guide covers the
+input→function→output pattern and a worked gap-filling example in full.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/PreProcessObservations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="AggregateToDaily">
+    <aggregation>
+      <accumulative>
+        <inputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>P.obs</parameterId>
+            <locationId>RainGauge_01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariable>
+        <outputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>PreProcessObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>P.obs</parameterId>
+            <locationId>RainGauge_01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="day" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </outputVariable>
+      </accumulative>
+    </aggregation>
+  </transformation>
+</transformationModule>
+```
+
+This picks the `aggregation` family and its `accumulative` variant — see
+[Temporal reshaping](/reference/transformtemporal/) for that family's own
+field tables.
+
+## Field reference
+
+<Aside type="note">
+`TransformationFunctionComplexType`, `PeriodDependentTransformationComplexType`,
+and `RangeDependentTransformationComplexType` each list all **43 function
+category names** as fields (`accumulation`, `adjust`, `aggregation`, … `wave`)
+— that's the schema's actual `<choice>` of what a `<transformation>`,
+`<periodTransformation>`, or `<rangeTransformation>` can pick. They appear
+here unlinked (no field-reference table of their own) because each category's
+real content lives on its own page — see the directory below.
+</Aside>
+
+<FieldReference data={data} />
+
+## Function categories
+
+<div class="field-list">
+
+**Temporal reshaping** — [reference page](/reference/transformtemporal/) ✅
+: `accumulation` · `deaccumulation` · `aggregation` · `disaggregation` ·
+`timeShift` · `gradient` · `copy`
+
+**Interpolation & spatial** — not yet published
+: `interpolationSerial` · `interpolationSpatial` · `altitude` · `rotation` ·
+`multipleLocationAttributes`
+
+**Statistics** — not yet published
+: `statisticsSameAttributeValue` · `statisticsChildrenLocations` ·
+`statisticsRelatedLocations` · `statisticsValueProperties` ·
+`statisticsEnsemble` · `statisticsPeriodic` · `statisticsSerial` ·
+`statisticsSummary` · `statisticsVerticalLayers`
+
+**Hydrology & physical process** — not yet published
+: `dischargeStage` · `stageDischarge` · `precipitation` · `moisture` ·
+`profile` · `wave` · `structure`
+
+**Data quality, selection & control flow** — not yet published
+: `filter` · `review` · `selection` · `events` · `sample` · `merge` ·
+`conditional` · `adjust`
+
+**Generation, lookup & modeling** — not yet published
+: `generation` · `generationEnsemble` · `performanceIndicatorsLeadTimeAccuracy` ·
+`lookup` · `regression` · `custom` · `user`
+
+</div>
+
+Until a category's page is published, its precise fields are only in
+[`transformationTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationTypes.xsd)
+directly — search for e.g. `StageDischargeTransformationChoiceComplexType`.
+
+## Gotchas
+
+- **`rangeTransformation` and `periodTransformation` wrap the same 43-way
+  choice**, not a different one — a `<transformation>` picks a function
+  directly, *or* wraps a series of `<rangeTransformation>`/
+  `<periodTransformation>` blocks, each of which independently picks from the
+  same function catalogue for its range/period. You can't currently nest a
+  period-dependent choice inside a range-dependent one (or vice versa) in one
+  step.
+- **`<variable>` at the module root is optional** — most transformations just
+  embed a `<timeSeriesSet>` directly in `inputVariable`/`outputVariable`
+  instead. Declare a reusable `<variable>` only when several transformations
+  need to reference the same series by `variableId`.
+
+## See also
+
+- Task guide: [Transformations](/tasks/transformations/)
+- Reference: [Temporal reshaping](/reference/transformtemporal/)
+- Schema: [`transformationModule.xsd`]({data.schemaUrl}) and the function catalogue in [`transformationTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationTypes.xsd)

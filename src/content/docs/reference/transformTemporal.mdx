@@ -1,0 +1,117 @@
+---
+title: Transformation functions — temporal reshaping
+description: Reference for the accumulation, aggregation, disaggregation, timeShift, gradient, and copy transformation function families — reshaping a series along the time axis. Field reference auto-generated from the schema.
+sidebar:
+  order: 29
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/transformTemporal.json';
+
+This page is the generated field list for the **temporal reshaping**
+transformation functions — the families that change a series' time step or
+time alignment without changing what it physically represents: running
+totals, resampling to a coarser or finer time step, shifting in time, rate of
+change, and bulk copying to a new module instance. Part of the
+[transformation function catalogue](/reference/transformationbasics/#function-categories);
+see that page for the shared `<transformationModule>`/`<transformation>`
+mechanics these all sit inside.
+
+## At a glance
+
+<div class="field-list">
+
+**Covers**
+: `accumulation` (running totals), `deaccumulation` (undo a running total),
+`aggregation` (many values → fewer, e.g. hourly → daily),
+`disaggregation` (fewer values → many, the reverse), `timeShift` (shift in
+time), `gradient` (rate of change), `copy` (bulk-copy to a new module
+instance).
+
+**Used inside**
+: A `<transformation>`, `<periodTransformation>`, or `<rangeTransformation>`
+in a [`transformationModule`](/reference/transformationbasics/) file.
+
+**Related**
+: [Transformations](/tasks/transformations/) task guide's "Aggregation /
+disaggregation" family row.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/AccumulateRainfall 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="CumulativeRainfall">
+    <accumulation>
+      <sum>
+        <inputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>P.obs</parameterId>
+            <locationId>RainGauge_01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariable>
+        <outputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>PreProcessObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>P.cumulative</parameterId>
+            <locationId>RainGauge_01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </outputVariable>
+      </sum>
+    </accumulation>
+  </transformation>
+</transformationModule>
+```
+
+## Field reference
+
+<Aside type="note">
+Nearly every concrete function type here repeats the same wrapper fields —
+`className` (which Java class runs it; leave it out and FEWS uses the
+default), `period` (optionally restrict when it runs), `trimOutput`, and
+`inputVariable`/`outputVariable`. That repetition is the schema, not a
+documentation artifact — the [basics page](/reference/transformationbasics/)
+explains why every function extends this shape.
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **`accumulation` vs `aggregation`** are easy to conflate: `accumulation`
+  produces a **running/cumulative** curve at the *same* time step as the
+  input (each output value is the running total so far); `aggregation`
+  changes the time step itself (e.g. hourly sums rolled up into daily
+  totals via `accumulative`). Reach for `aggregation` when you actually want
+  fewer, coarser output values.
+- **`disaggregation` needs a reference for shape**, not just a target time
+  step — `accumulativeReferencePattern`, `weights`, and friends each define
+  *how* to spread one coarse value across finer time steps; picking the wrong
+  variant silently produces a flat (or badly shaped) disaggregation rather
+  than an error.
+- **`timeShift constant` only shifts, it doesn't extrapolate** — per its own
+  schema annotation, it produces output only for the overlap between the
+  shifted input and the output series' own time span. Don't expect it to
+  invent values beyond the input's range.
+- **`copy newModuleInstance`** (since 2025.02) is for bulk-copying *many*
+  matching series at once via a filter (`inputTimeSeries`), not a single
+  series — if you only need one series under a new module instance, a
+  `variable`/`outputVariable` rename elsewhere is simpler.
+
+## See also
+
+- Reference: [Transformation functions — basics](/reference/transformationbasics/)
+- Task guide: [Transformations](/tasks/transformations/)
+- Schema: [`transformationTypes.xsd`]({data.schemaUrl})

@@ -178,7 +178,13 @@ function typeIsComplex(ct) {
 
 // ---- Build ONE field (no recursion). Complex fields carry a `typeRef` that
 //      links to that type's own table, so every table stays shallow. --------
-function buildField(reg, el) {
+// `stopSet`: type names to describe but NOT expand into their own table —
+// used to prune a BFS at a natural boundary (e.g. transformationModule's 43
+// function categories, each of which gets its own separate reference page
+// instead of being pulled into the "basics" page). A stopped field still
+// renders (kind: 'complex', type name shown) but carries no typeRef, so
+// FieldReference.astro's existing no-typeRef fallback just shows it unlinked.
+function buildField(reg, el, stopSet = EMPTY_SET) {
   const name = el['@_name'];
   // Inline simpleType with enumeration?
   let typeName = el['@_type'];
@@ -208,10 +214,12 @@ function buildField(reg, el) {
   const isComplex = typeIsComplex(ct);
   if (isComplex) {
     field.kind = 'complex';
-    // Anonymous inline complexType → synthesise a stable name for its table.
-    field.typeRef = shortType || `${name}_inline`;
-    if (!reg.complexTypes.has(field.typeRef) && el.complexType) {
-      reg.complexTypes.set(field.typeRef, el.complexType);
+    if (!stopSet.has(shortType)) {
+      // Anonymous inline complexType → synthesise a stable name for its table.
+      field.typeRef = shortType || `${name}_inline`;
+      if (!reg.complexTypes.has(field.typeRef) && el.complexType) {
+        reg.complexTypes.set(field.typeRef, el.complexType);
+      }
     }
   } else {
     field.kind = 'scalar';
@@ -219,12 +227,14 @@ function buildField(reg, el) {
   return field;
 }
 
+const EMPTY_SET = new Set();
+
 // Build the field list + attributes for a single complex type, and report the
 // complex typeRefs it points at (so the caller can traverse the graph).
-function buildType(reg, typeName) {
+function buildType(reg, typeName, stopSet = EMPTY_SET) {
   const ct = reg.complexTypes.get(typeName);
   if (!ct) return null;
-  const fields = collectElements(reg, ct).map((el) => buildField(reg, el));
+  const fields = collectElements(reg, ct).map((el) => buildField(reg, el, stopSet));
   const refs = fields.filter((f) => f.kind === 'complex' && f.typeRef).map((f) => f.typeRef);
   return {
     node: { doc: docOf(ct), attributes: collectAttributes(reg, ct), fields },
@@ -234,9 +244,13 @@ function buildType(reg, typeName) {
 
 // ---- Main: emit the root type plus every complex type reachable from it,
 //      each as its own table keyed by type name (BFS, cycle-safe). ----------
-export function generate(schemaFile, rootElementName) {
+// `opts.stopTypes`: type names to leave unexpanded (see buildField above) —
+// used to prune BFS at a page boundary instead of pulling in everything
+// reachable from the root.
+export function generate(schemaFile, rootElementName, opts = {}) {
   const reg = newRegistry();
   loadSchema(schemaFile, reg, new Set());
+  const stopSet = new Set(opts.stopTypes || []);
 
   const rootEl = reg.elements.get(rootElementName);
   if (!rootEl) throw new Error(`Root element <${rootElementName}> not found in ${schemaFile}`);
@@ -256,7 +270,7 @@ export function generate(schemaFile, rootElementName) {
   const seen = new Set(queue);
   while (queue.length) {
     const t = queue.shift();
-    const built = buildType(reg, t);
+    const built = buildType(reg, t, stopSet);
     if (!built) continue;
     types[t] = built.node;
     for (const ref of built.refs) {
@@ -275,23 +289,76 @@ export function generate(schemaFile, rootElementName) {
   };
 }
 
-// Write a generated result to src/data/schema (or an explicit path).
-export function generateToFile(schemaFile, rootElement, outFile) {
-  const result = generate(schemaFile, rootElement);
+// ---- Multi-root variant: seed BFS from several named complexTypes at once
+//      instead of one root element. Used to split an oversized schema (e.g.
+//      transformationTypes.xsd's 43 function categories) into topical pages,
+//      where each page covers a handful of category types that don't
+//      correspond to any single root element on their own.
+// `roots`: [{ typeName, label }] — label is the human-facing heading
+// (FieldReference.astro renders "Function <label>" per root instead of the
+// single-root "Element <x>" heading).
+export function generateMultiRoot(schemaFile, roots, opts = {}) {
+  const reg = newRegistry();
+  loadSchema(schemaFile, reg, new Set());
+  const stopSet = new Set(opts.stopTypes || []);
+
+  for (const r of roots) {
+    if (!reg.complexTypes.get(r.typeName)) {
+      throw new Error(`Root type <${r.typeName}> not found in ${schemaFile}`);
+    }
+  }
+
+  const types = {};
+  const queue = roots.map((r) => r.typeName);
+  const seen = new Set(queue);
+  while (queue.length) {
+    const t = queue.shift();
+    const built = buildType(reg, t, stopSet);
+    if (!built) continue;
+    types[t] = built.node;
+    for (const ref of built.refs) {
+      if (!seen.has(ref)) { seen.add(ref); queue.push(ref); }
+    }
+  }
+
+  return {
+    roots: Object.fromEntries(roots.map((r) => [r.typeName, r.label])),
+    rootTypes: roots.map((r) => r.typeName),
+    schemaFile,
+    schemaUrl: `https://fews.wldelft.nl/schemas/version1.0/${schemaFile}`,
+    types,
+    missingIncludes: [...reg.missing],
+  };
+}
+
+function writeResult(result, outFile, pageId, rootFieldCounts) {
   const out = outFile
     ? resolve(process.cwd(), outFile)
-    : join(PROJECT_ROOT, 'src/data/schema', `${rootElement}.json`);
+    : join(PROJECT_ROOT, 'src/data/schema', `${pageId}.json`);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(result, null, 2));
   const typeNames = Object.keys(result.types);
   const totalFields = typeNames.reduce((n, t) => n + result.types[t].fields.length, 0);
-  console.log(`✓ ${rootElement}: ${typeNames.length} types, ${totalFields} fields total ` +
-    `(root <${rootElement}> → ${result.types[result.rootType].fields.length} fields) → ${out}`);
+  console.log(`✓ ${pageId}: ${typeNames.length} types, ${totalFields} fields total ` +
+    `(${rootFieldCounts}) → ${out}`);
   if (result.missingIncludes.length) {
     console.log(`  ⚠ skipped missing includes: ${result.missingIncludes.join(', ')} ` +
       `(types they define resolve as scalars)`);
   }
   return result;
+}
+
+// Write a generated result to src/data/schema (or an explicit path).
+export function generateToFile(schemaFile, rootElement, outFile, opts) {
+  const result = generate(schemaFile, rootElement, opts);
+  return writeResult(result, outFile, rootElement,
+    `root <${rootElement}> → ${result.types[result.rootType].fields.length} fields`);
+}
+
+// Write a multi-root generated result to src/data/schema (or an explicit path).
+export function generateMultiRootToFile(schemaFile, roots, pageId, opts, outFile) {
+  const result = generateMultiRoot(schemaFile, roots, opts);
+  return writeResult(result, outFile, pageId, `${roots.length} root types`);
 }
 
 // ---- CLI (only when run directly, not when imported) ---------------------

@@ -159,24 +159,25 @@ common ones:
 | Family | Root element(s) | Typical use |
 | --- | --- | --- |
 | Gap-filling / interpolation | `interpolationSerial`, `interpolationSpatial` | Fill holes, extrapolate, interpolate across gauges. |
-| Aggregation / disaggregation | `aggregation`, `disaggregation`, `accumulation`, `deaccumulation` | Hourly→daily and back; sums vs means. |
+| [Temporal reshaping](/reference/transformtemporal/) | `aggregation`, `disaggregation`, `accumulation`, `deaccumulation`, `timeShift`, `gradient`, `copy` | Hourly→daily and back; sums vs means; shift in time. |
 | Rating curves | `stageDischarge`, `dischargeStage` | Convert water level ↔ discharge. |
 | Combine / select | `merge`, `copy`, `selection`, `conditional` | Merge sources, pick a preferred series, branch on a condition. |
 | Arithmetic / user-defined | `user` | Custom formulas over one or more inputs. |
 | Statistics | `statisticsSerial`, `statisticsEnsemble`, … | Rolling means, ensemble spread, summaries. |
 | Time manipulation | `timeShift`, `sample` | Shift or resample in time. |
 
-<Aside type="caution" title="The full catalogue lives in the schema">
-There are far more function types (and many sub-variants per type) than any page
-should transcribe, and the exact child elements are version-dependent — new
-functions and options arrive with most FEWS releases. Treat the table above as a
-map, not a reference. For the authoritative list of function elements and the
-precise fields each one accepts, read the choice group in
+<Aside type="caution" title="The full catalogue is being split across reference pages">
+There are 43 function categories (and many sub-variants per category) — too
+many for one page, and the exact child elements are version-dependent. The
+[Transformation functions reference](/reference/transformationbasics/) is
+publishing them a family at a time; [Temporal
+reshaping](/reference/transformtemporal/) is live, the rest are still only in
+the schema. For any family without a reference page yet, read the choice
+group in
 [`transformationTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationTypes.xsd)
-(included by
-[`transformationModule.xsd`](https://fews.wldelft.nl/schemas/version1.0/transformationModule.xsd)).
-The **input→function→output** shape is the stable part you can rely on; the
-specific function's inner fields are what to verify against the `.xsd`.
+directly. The **input→function→output** shape is the stable part you can rely
+on; the specific function's inner fields are what to verify against the
+`.xsd` (or its reference page, once published).
 </Aside>
 
 ## Key fields at a glance
