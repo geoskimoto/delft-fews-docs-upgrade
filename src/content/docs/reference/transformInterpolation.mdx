@@ -1,0 +1,128 @@
+---
+title: Transformation functions — interpolation & spatial
+description: Reference for the interpolationSerial, interpolationSpatial, altitude, rotation, and multipleLocationAttributes transformation function families — filling gaps and moving values across space. Field reference auto-generated from the schema.
+sidebar:
+  order: 30
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import FieldReference from '../../../components/FieldReference.astro';
+import data from '../../../data/schema/transformInterpolation.json';
+
+This page is the generated field list for the **interpolation & spatial**
+transformation functions — filling gaps along the time axis
+(`interpolationSerial`), moving values across locations or onto a grid
+(`interpolationSpatial`), elevation-based adjustments (`altitude`), vector
+rotation between coordinate systems (`rotation`), and computing a value from
+location attributes (`multipleLocationAttributes`). Part of the
+[transformation function catalogue](/reference/transformationbasics/#function-categories);
+see that page for the shared `<transformationModule>`/`<transformation>`
+mechanics these all sit inside.
+
+## At a glance
+
+<div class="field-list">
+
+**Covers**
+: `interpolationSerial` (gap-fill/extrapolate one series in time),
+`interpolationSpatial` (20 methods — average, inverse distance, kriging,
+Thiessen polygon, triangulation, and more — moving values across locations or
+onto/off a grid), `altitude` (elevation lapse, zero-degree altitude, dry-cell
+removal), `rotation` (rotate u/v vectors between a rotated-pole grid and
+WGS 1984), `multipleLocationAttributes` (regression/threshold calculations
+driven by location attributes).
+
+**Used inside**
+: A `<transformation>`, `<periodTransformation>`, or `<rangeTransformation>`
+in a [`transformationModule`](/reference/transformationbasics/) file.
+
+**Related**
+: [Transformations](/tasks/transformations/) task guide's worked example uses
+`interpolationSerial` → `linear`.
+
+</div>
+
+## Minimal example
+
+```xml title="Config/ModuleConfigFiles/PreProcessObservations 1.00 default.xml"
+<?xml version="1.0" encoding="UTF-8"?>
+<transformationModule xmlns="http://www.wldelft.nl/fews" version="1.0">
+  <transformation id="FillGapsQobs">
+    <interpolationSerial>
+      <linear>
+        <inputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationId>RiverGauge_01</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </inputVariable>
+        <maxGapLength>6</maxGapLength>
+        <outputVariable>
+          <timeSeriesSet>
+            <moduleInstanceId>PreProcessObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationId>RiverGauge_01</locationId>
+            <timeSeriesType>simulated historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>add originals</readWriteMode>
+          </timeSeriesSet>
+        </outputVariable>
+      </linear>
+    </interpolationSerial>
+  </transformation>
+</transformationModule>
+```
+
+This is the same example worked through in the [Transformations task
+guide](/tasks/transformations/#minimal-example-fill-gaps-in-observed-discharge)
+— this page is its field-level companion.
+
+## Field reference
+
+<Aside type="note">
+`interpolationSpatial` alone has **20 concrete methods** — this is the
+biggest single function category in the whole catalogue. Most systems only
+ever use a handful (inverse distance and kriging for point-to-grid rainfall,
+Thiessen polygon for catchment averaging); skim the type names below rather
+than reading every table top to bottom.
+</Aside>
+
+<FieldReference data={data} />
+
+## Gotchas
+
+- **`interpolationSerial` fills gaps *within* one series** (time axis only);
+  **`interpolationSpatial` moves values *across* locations or to/from a grid**
+  (space axis) — they're not interchangeable despite the similar names. Use
+  serial to patch a gauge record, spatial to turn point rainfall into a
+  gridded field (or vice versa).
+- **`maxGapLength` bounds how large a gap `interpolationSerial` methods will
+  bridge** (in time steps) — omit it and an arbitrarily long stretch of
+  missing data gets filled, rarely what you want. Same caution as on
+  [interpolation sets](/reference/interpolationsets/) (the older, largely
+  superseded file this function family effectively replaces).
+- **Most `interpolationSpatial` methods need `searchRadius`/`numberOfPoints`
+  tuned to your station density** — `inverseDistance` and `kriging` default
+  to unbounded search radius and 8 points; a sparse network with far-apart
+  stations may need a larger `searchRadius` or the result silently leans on
+  distant, less-representative stations.
+- **`altitude elevationLapse` needs a `coefficientSet`**, referenced either
+  inline (`coefficientSet`) or from a separate file
+  (`coefficientSetId`/`coefficientSetFile`, in `Config/CoefficientSetsFiles/`)
+  — the lapse rate isn't a single number on the function itself.
+- **`rotation`'s one method is narrowly scoped**: it rotates u/v vector
+  *components* from a rotated-pole grid geometry to WGS 1984 — it doesn't
+  reproject scalar grids. For scalar reprojection, look at `interpolationSpatial`
+  methods instead (e.g. `bilinear`).
+
+## See also
+
+- Reference: [Transformation functions — basics](/reference/transformationbasics/) · [Temporal reshaping](/reference/transformtemporal/) · [Interpolation sets file](/reference/interpolationsets/) (legacy, related concern)
+- Task guide: [Transformations](/tasks/transformations/)
+- Schema: [`transformationTypes.xsd`]({data.schemaUrl})

@@ -158,7 +158,7 @@ common ones:
 
 | Family | Root element(s) | Typical use |
 | --- | --- | --- |
-| Gap-filling / interpolation | `interpolationSerial`, `interpolationSpatial` | Fill holes, extrapolate, interpolate across gauges. |
+| [Interpolation & spatial](/reference/transforminterpolation/) | `interpolationSerial`, `interpolationSpatial`, `altitude`, `rotation` | Fill holes, extrapolate, interpolate across gauges, grid rainfall. |
 | [Temporal reshaping](/reference/transformtemporal/) | `aggregation`, `disaggregation`, `accumulation`, `deaccumulation`, `timeShift`, `gradient`, `copy` | Hourly→daily and back; sums vs means; shift in time. |
 | Rating curves | `stageDischarge`, `dischargeStage` | Convert water level ↔ discharge. |
 | Combine / select | `merge`, `copy`, `selection`, `conditional` | Merge sources, pick a preferred series, branch on a condition. |

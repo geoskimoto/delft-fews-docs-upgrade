@@ -78,6 +78,7 @@ export default defineConfig({
             { label: 'Structures file', slug: 'reference/structures' },
             { label: 'Transformation functions — basics', slug: 'reference/transformationbasics' },
             { label: 'Transformation functions — temporal reshaping', slug: 'reference/transformtemporal' },
+            { label: 'Transformation functions — interpolation & spatial', slug: 'reference/transforminterpolation' },
           ],
         },
         {

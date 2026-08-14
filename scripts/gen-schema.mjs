@@ -123,6 +123,13 @@ const TARGETS = [
       roots: categoryRoots('accumulation', 'deaccumulation', 'aggregation', 'disaggregation', 'timeShift', 'gradient', 'copy'),
     },
   },
+  {
+    schema: 'transformationTypes.xsd',
+    multiRoot: {
+      pageId: 'transformInterpolation',
+      roots: categoryRoots('interpolationSerial', 'interpolationSpatial', 'altitude', 'rotation', 'multipleLocationAttributes'),
+    },
+  },
 ];
 
 let failed = 0;
