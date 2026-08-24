@@ -238,6 +238,32 @@ def test_corpus_keeps_body_text(docs):
     assert "Plain body." in out
 
 
+def test_prose_line_starting_with_the_word_import_survives(docs):
+    """generalAdapterRun.mdx hard-wraps sentences onto lines that begin
+    'import cycle in full.' and 'import results (...)'. A pattern matching any
+    line starting with 'import ' deletes real documentation with no error."""
+    (docs / "tasks" / "adapter.mdx").write_text(
+        "---\ntitle: Adapter\n---\n\n"
+        "import { Aside } from '@astrojs/starlight/components';\n\n"
+        "The General Adapter runs the export, run and\n"
+        "import cycle in full. This page explains it.\n"
+    )
+    out = build_corpus(docs, BASE)
+    assert "import cycle in full." in out
+    assert "@astrojs/starlight/components" not in out
+
+
+def test_multiline_prose_mentioning_import_from_survives(docs):
+    """Prose can legitimately contain the words 'import' and 'from' on one
+    line; only a real module specifier in quotes makes it an import."""
+    (docs / "tasks" / "prose.mdx").write_text(
+        "---\ntitle: Prose\n---\n\n"
+        "import results from the upstream model are written to disk.\n"
+    )
+    out = build_corpus(docs, BASE)
+    assert "import results from the upstream model" in out
+
+
 def test_field_reference_becomes_a_tool_pointer(docs):
     out = build_corpus(docs, BASE)
     assert "<FieldReference" not in out
@@ -280,7 +306,13 @@ from pathlib import Path
 
 _FRONTMATTER = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 _TITLE = re.compile(r"^title:\s*(.+?)\s*$", re.MULTILINE)
-_IMPORT_LINE = re.compile(r"^import\s+.*?;?\s*$\n?", re.MULTILINE)
+# Requires real import syntax (`... from '...'`). A looser pattern that matched
+# any line starting with "import " silently ate prose — generalAdapterRun.mdx
+# hard-wraps sentences onto lines beginning "import cycle in full." and
+# "import results (...)", and those disappeared from the corpus with no error.
+_IMPORT_LINE = re.compile(
+    r"^import\s+.+?\s+from\s+['\"][^'\"]+['\"]\s*;?[ \t]*$\n?", re.MULTILINE
+)
 _SCHEMA_IMPORT = re.compile(r"^import\s+data\s+from\s+.*?/schema/([\w-]+)\.json.*$", re.MULTILINE)
 _FIELD_REF_TAG = re.compile(r"^<FieldReference\b[^>]*/>\s*$", re.MULTILINE)
 
