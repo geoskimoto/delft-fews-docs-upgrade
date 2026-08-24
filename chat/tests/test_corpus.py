@@ -65,6 +65,32 @@ def test_corpus_keeps_body_text(docs):
     assert "Plain body." in out
 
 
+def test_prose_line_starting_with_the_word_import_survives(docs):
+    """generalAdapterRun.mdx hard-wraps sentences onto lines that begin
+    'import cycle in full.' and 'import results (...)'. A pattern matching any
+    line starting with 'import ' deletes real documentation with no error."""
+    (docs / "tasks" / "adapter.mdx").write_text(
+        "---\ntitle: Adapter\n---\n\n"
+        "import { Aside } from '@astrojs/starlight/components';\n\n"
+        "The General Adapter runs the export, run and\n"
+        "import cycle in full. This page explains it.\n"
+    )
+    out = build_corpus(docs, BASE)
+    assert "import cycle in full." in out
+    assert "@astrojs/starlight/components" not in out
+
+
+def test_multiline_prose_mentioning_import_from_survives(docs):
+    """Prose can legitimately contain the words 'import' and 'from' on one
+    line; only a real module specifier in quotes makes it an import."""
+    (docs / "tasks" / "prose.mdx").write_text(
+        "---\ntitle: Prose\n---\n\n"
+        "import results from the upstream model are written to disk.\n"
+    )
+    out = build_corpus(docs, BASE)
+    assert "import results from the upstream model" in out
+
+
 def test_field_reference_becomes_a_tool_pointer(docs):
     out = build_corpus(docs, BASE)
     assert "<FieldReference" not in out

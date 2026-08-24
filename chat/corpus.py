@@ -9,7 +9,13 @@ from pathlib import Path
 
 _FRONTMATTER = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 _TITLE = re.compile(r"^title:\s*(.+?)\s*$", re.MULTILINE)
-_IMPORT_LINE = re.compile(r"^import\s+.*?;?\s*$\n?", re.MULTILINE)
+# Requires real import syntax (`... from '...'`). A looser pattern that matched
+# any line starting with "import " silently ate prose — generalAdapterRun.mdx
+# hard-wraps sentences onto lines beginning "import cycle in full." and
+# "import results (...)", and those disappeared from the corpus with no error.
+_IMPORT_LINE = re.compile(
+    r"^import\s+.+?\s+from\s+['\"][^'\"]+['\"]\s*;?[ \t]*$\n?", re.MULTILINE
+)
 _SCHEMA_IMPORT = re.compile(r"^import\s+data\s+from\s+.*?/schema/([\w-]+)\.json.*$", re.MULTILINE)
 _FIELD_REF_TAG = re.compile(r"^<FieldReference\b[^>]*/>\s*$", re.MULTILINE)
 
