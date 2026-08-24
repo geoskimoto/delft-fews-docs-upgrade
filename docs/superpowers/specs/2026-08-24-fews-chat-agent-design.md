@@ -1,7 +1,7 @@
 # Design: FEWS configuration chat agent
 
 **Date:** 2026-08-24
-**Status:** Draft — awaiting review
+**Status:** Approved — all open questions resolved 2026-08-24
 **Site:** https://df-docs.streamflows.org
 
 ## Goal
@@ -17,6 +17,9 @@ documentation, with links back to the relevant pages.
 | Who can use it | Signed-in `streamflows.org` users only. Docs stay public; only the chat is gated. |
 | How the agent knows FEWS | The entire Markdown corpus goes in the system prompt behind a prompt-cache breakpoint. No embeddings, no vector store. |
 | Where the backend lives | A small Flask service on this VPS, proxied by nginx. The Astro site stays a pure static build. |
+| Which group | The existing `streamflow` group. No admin-database change needed. |
+| Model | `claude-sonnet-5`. |
+| Spend ceiling | $2.00/day, org-wide, enforced in dollars. |
 
 ## Architecture
 
@@ -95,7 +98,7 @@ import jwt
 from flask import request, jsonify, g
 from streamflows_auth.tokens import decode_token
 
-REQUIRED_GROUP = "fewsdocs"
+REQUIRED_GROUP = "streamflow"
 ADMIN_GROUP = "admin"
 
 
@@ -119,9 +122,10 @@ def require_streamflows_user(view):
     return wrapped
 ```
 
-A `fewsdocs` group must be created in the `streamflow-apps` admin database and
-granted to whoever should have chat access. Members of `admin` get in
-automatically, matching the behaviour of every other app on the box.
+The gate is the existing `streamflow` group — the same one the synopsis tool
+uses — so there is no admin-database change and no new group to administer.
+Anyone who can already reach the forecasting apps can use the chat. Members of
+`admin` get in automatically, matching every other app on the box.
 
 `GET /api/chat/status` is the same check with no body — the widget calls it on
 page load to decide whether to render the chat input or a "Sign in to ask"
@@ -177,7 +181,7 @@ demand, not bulk inclusion — that is a separate spec.
 
 ```python
 client.messages.stream(
-    model="claude-opus-5",
+    model="claude-sonnet-5",
     max_tokens=8000,
     system=[
         {"type": "text", "text": PERSONA},
@@ -191,16 +195,15 @@ client.messages.stream(
 
 Notes on each choice:
 
-- **`claude-opus-5`** is the default. This is the cost lever if you want one:
-  switching to `claude-sonnet-5` is a one-line config change and cuts the per-message
-  price meaningfully. I have not done it, because that is a quality decision that
-  should be yours rather than mine.
-- **1-hour cache TTL**, not the 5-minute default. The corpus prefix is byte-identical
-  for every user, so the cache is shared across everyone. A docs site sees sparse,
-  bursty traffic; with a 5-minute TTL most conversations would pay the full
-  uncached price on their first message. The 1-hour write costs 2× but reads cost
-  0.1×, which wins as soon as the corpus is read more than about three times an
-  hour.
+- **`claude-sonnet-5`**, chosen for cost. It is strong on exactly this shape of
+  work — explaining and synthesising from supplied reference material.
+- **1-hour cache TTL**, not the 5-minute default. The reason is the rhythm of a
+  real conversation rather than raw arithmetic: someone asks how ID mapping works,
+  reads the answer, tries it in FEWS, then asks a follow-up. That gap is routinely
+  longer than five minutes. With the default TTL the cache would expire *between
+  turns of the same conversation*, so every single message would pay a full cache
+  write — $0.30 a message instead of $0.04. The 1-hour write costs 2× base rather
+  than 1.25×, and that premium buys the whole conversation staying warm.
 - **`effort: "medium"`** — this is retrieval and explanation over supplied context,
   not deep reasoning. Medium keeps latency and token spend down. Tunable in config.
 - **Thinking stays on** (the Opus 5 default). Disabling it is the wrong trade here:
@@ -225,13 +228,52 @@ the enter key. Three independent limits:
 |---|---|---|
 | Per-user rate limit | 20 messages / 5 min | 429 with a friendly retry message |
 | Conversation history cap | last 12 turns, 24 KB | Older turns dropped silently |
-| Daily token budget | configurable, org-wide | 429, panel shows "chat is resting until tomorrow" |
+| Daily spend budget | $2.00/day, org-wide | 429, panel shows "chat is resting until tomorrow" |
 
 The rate limiter is the sliding-window `RateLimiter` already written in
 `streamflow_synopsis_tool/web/security.py` — the same in-process approach is
-correct here, since this runs as a single gunicorn worker. The daily budget
-accumulates reported `usage` from each response into a small JSON file so it
-survives restarts.
+correct here, since this runs as a single gunicorn worker.
+
+The budget is denominated in **dollars, not tokens**. A token count cannot express
+this ceiling, because the four token classes are priced an order of magnitude
+apart: a cached read costs a tenth of base input while a 1-hour cache write costs
+double it, a 20× spread. Counting raw tokens would let a handful of cache writes
+blow through a cap that looked generous. So after each response the service reads
+all four `usage` fields — `input_tokens`, `cache_creation_input_tokens`,
+`cache_read_input_tokens`, `output_tokens` — multiplies each by its own rate, and
+adds the result to a running daily total in a small JSON file that survives
+restarts. Rates live in config alongside the model name, so changing model means
+changing both together.
+
+The check runs **before** the request is dispatched, using the previous message's
+cost as the estimate. A budget that only notices after the fact would always allow
+one final overshoot.
+
+### Cost model
+
+Measured against the current 80k-token corpus, at Sonnet 5's standing $3/$15 rate
+(the introductory $2/$10 rate ends 2026-08-31, a week from now, so the standing
+rate is what to plan against):
+
+| | Cost |
+|---|---|
+| First message of a cold conversation (pays the cache write) | ~$0.50 |
+| Each follow-up within the hour | ~$0.04 |
+| A five-turn conversation, end to end | ~$0.66 |
+
+**$2.00/day is therefore about three five-turn conversations.** That is a real
+constraint and worth knowing before the panel goes live rather than discovering it
+from a "chat is resting" message on the first afternoon. It is a deliberate
+ceiling, not an estimate, so the failure mode is a friendly message rather than a
+surprise invoice.
+
+Three levers if it proves too tight in practice, in order of how little they cost
+you elsewhere: raise the ceiling; switch the model to `claude-haiku-4-5`, which is
+a one-line config change and buys roughly three times as many conversations for
+the same $2; or trim the corpus, which is the only one of the three that costs
+answer quality. The dominant term in every conversation is the single cache write,
+so cutting corpus size is what moves the number most — but it is also what makes
+the agent dumber, which is why it is listed last.
 
 Per your standing rule, every one of these surfaces as a clear, friendly message
 in the panel rather than a silent failure or a spinner that never resolves. The
@@ -279,9 +321,22 @@ rejected, malformed payloads produce 400); rate limiter and budget accounting at
 their boundaries; SSE frame formatting.
 
 **Integration** — the full request path per auth state: no cookie → 401;
-expired token → 401; valid token without the `fewsdocs` group → 403; valid token
+expired token → 401; valid token without the `streamflow` group → 403; valid token
 with the group → 200 and a stream. Mismatched `Origin` → 403. Rate limit and
 budget exhaustion → 429. An Anthropic API error → a clean error frame, not a 500.
+
+One integration test earns a specific mention: **a request arriving at `/api/chat`
+with no cookie must be rejected.** That is the regression test for the
+`protect_app()` `/api/` exemption described above. If a future refactor reaches for
+`protect_app()`, this test is what catches it before the endpoint goes public with
+an API key behind it.
+
+Budget accounting gets its own unit coverage against a synthetic `usage` object:
+each of the four token classes must be multiplied by its own rate, so a response
+dominated by `cache_creation_input_tokens` costs roughly twenty times one dominated
+by `cache_read_input_tokens`. A test that only exercised cached reads would pass
+against an implementation that summed raw tokens and let cache writes through
+unpriced.
 
 **Property** — arbitrary client-supplied history always yields either a valid
 request to the mocked API or a 400, never an unhandled exception.
@@ -349,16 +404,6 @@ service must never gain the ability to run shell commands.
 No user data is stored. Conversations live in the browser only. Usernames from the
 JWT are used for rate-limit keying and are never written to logs, consistent with
 the no-PII-in-logs rule.
-
-## Open questions for review
-
-1. **Group name.** I have assumed a new `fewsdocs` group. Reusing the existing
-   `streamflow` group would mean no admin-database change but would give chat
-   access to everyone who has the forecasting apps.
-2. **Model.** Defaulting to `claude-opus-5`. Say the word and it becomes
-   `claude-sonnet-5` for a materially lower per-message cost.
-3. **Daily budget ceiling.** Needs a number from you. I have no basis for guessing
-   what you want to spend per day.
 
 ## Out of scope
 
