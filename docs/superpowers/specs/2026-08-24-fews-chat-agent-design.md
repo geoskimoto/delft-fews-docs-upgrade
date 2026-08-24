@@ -15,7 +15,7 @@ documentation, with links back to the relevant pages.
 | Question | Decision |
 |---|---|
 | Who can use it | Signed-in `streamflows.org` users only. Docs stay public; only the chat is gated. |
-| How the agent knows FEWS | The entire Markdown corpus goes in the system prompt behind a prompt-cache breakpoint. No embeddings, no vector store. |
+| How the agent knows FEWS | The entire Markdown corpus goes in the system prompt behind a prompt-cache breakpoint, plus a tool for on-demand schema field lookups. No embeddings, no vector store. |
 | Where the backend lives | A small Flask service on this VPS, proxied by nginx. The Astro site stays a pure static build. |
 | Which group | The existing `streamflow` group. No admin-database change needed. |
 | Model | `claude-sonnet-5`. |
@@ -38,8 +38,10 @@ Flask service  fewsdocs-chat.service  (gunicorn, 127.0.0.1:8057)
   │  3. rate limit + daily budget   → 429 JSON when exceeded
   │  4. validate client history     → 400 JSON on malformed input
   ▼
-Anthropic Messages API  (streaming)
-  system = [ persona,  FULL DOCS CORPUS  ← cache_control breakpoint ]
+Anthropic Messages API  (streaming, with a tool loop)
+  tools  = [ lookup_config_fields ]              ← renders first, must be stable
+  system = [ persona,  FULL DOCS CORPUS ]        ← cache_control breakpoint here
+  messages = client-supplied history + tool results
 ```
 
 The service holds no conversation state. The browser keeps the transcript and
@@ -60,9 +62,10 @@ chat/
   app.py             create_app(), config, blueprint registration
   auth.py            require_streamflows_user decorator (JSON 401/403)
   corpus.py          walks ../src/content/docs, builds the cached corpus string
+  schema_tool.py     lookup_config_fields tool definition + JSON-to-text handler
   security.py        Origin check, RateLimiter, DailyBudget
   conversation.py    validates and truncates the client-supplied history
-  agent.py           Anthropic client, system prompt assembly, streaming
+  agent.py           Anthropic client, system prompt assembly, tool loop, streaming
   routes.py          POST /api/chat  and  GET /api/chat/status
   requirements.txt   pinned exact versions
   tests/
@@ -171,13 +174,71 @@ restarted after any content deploy** or it will keep answering from the previous
 build. This is added to the redeploy runbook below.
 
 The 33 generated XSD field-reference JSON files under `src/data/schema/` are
-deliberately **not** included. They are 2.8 MB, the Markdown reference pages
-already present the same fields in prose, and adding them would roughly
-quadruple the per-message cost. If field-level precision turns out to be missing
-in practice, the right follow-up is a schema-lookup tool the agent can call on
-demand, not bulk inclusion — that is a separate spec.
+**not** included in the corpus. They are reached through a tool instead — see the
+next section, which explains why.
 
-### 4. The agent call
+### 4. The schema lookup tool
+
+The reference pages under `src/content/docs/reference/` do not contain their field
+tables. Each one is prose plus a `<FieldReference data={data} />` component, and
+the tables are injected at build time from `src/data/schema/*.json`. A corpus built
+from Markdown alone therefore carries the explanations and none of the specifics:
+the agent could describe what a Locations file is for and would be unable to say
+what attributes `<location>` accepts. On a configuration reference site that is a
+large and obvious class of question to fail.
+
+Bulk inclusion does not solve it. Rendered to compact text the schema data is
+~351k tokens, taking the corpus to ~425k. At a 1-hour TTL that is **$2.55 per cache
+write** — a single cold message would exceed the entire daily budget.
+
+So the agent gets a tool:
+
+```python
+{
+    "name": "lookup_config_fields",
+    "description": (
+        "Look up the complete field and attribute reference for one Delft-FEWS "
+        "configuration file, generated directly from its XSD schema. Call this "
+        "whenever the user asks which fields, attributes, elements, child types, "
+        "or enum values a config file supports, or whether a particular field "
+        "exists. The documentation pages in your context explain concepts but do "
+        "NOT contain these tables — this tool is the only way to see them."
+    ),
+    "strict": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "config_file": {"type": "string", "enum": SCHEMA_NAMES},
+        },
+        "required": ["config_file"],
+        "additionalProperties": False,
+    },
+}
+```
+
+`SCHEMA_NAMES` is the sorted list of the 33 `src/data/schema/*.json` stems, and
+`strict: True` pins the argument to that enum so the agent cannot invent a config
+file name. The handler renders one JSON file to compact text — type name, doc
+string, attributes, then fields with type, required/repeatable flags, and enum
+values.
+
+This is cheap because it is selective. The median file is ~6,200 tokens (about 2
+cents at base input rate) and only loads when a question actually needs it. Even
+the largest, `transformDataQuality` at ~45k tokens, costs about 14 cents — and
+only when someone asks about data-quality transformations specifically.
+
+Because tool definitions render *before* `system` in the cached prefix, the tool
+list must be byte-stable across requests or it would invalidate the corpus cache
+on every call. Building `SCHEMA_NAMES` by sorting the directory listing keeps it
+deterministic; that ordering is not cosmetic and there is a test for it.
+
+Adding a tool means the request becomes a loop rather than a single call: stream,
+and if the turn ends with `stop_reason == "tool_use"`, run the lookup, append the
+result, and continue streaming into the same SSE response. The user sees one
+continuous answer. The loop is capped at 3 tool calls per message to bound both
+latency and spend.
+
+### 5. The agent call
 
 ```python
 client.messages.stream(
@@ -219,7 +280,7 @@ not cover something rather than inventing FEWS behaviour. Given that the audienc
 is people configuring a live forecasting system, a confident wrong answer is worse
 than an admission of a gap.
 
-### 5. Cost and abuse controls
+### 6. Cost and abuse controls
 
 Authentication removes anonymous abuse, but an authenticated user can still hold
 the enter key. Three independent limits:
@@ -259,7 +320,9 @@ rate is what to plan against):
 |---|---|
 | First message of a cold conversation (pays the cache write) | ~$0.50 |
 | Each follow-up within the hour | ~$0.04 |
-| A five-turn conversation, end to end | ~$0.66 |
+| One schema lookup, median config file (~6,200 tokens) | ~$0.02 |
+| One schema lookup, largest config file (~45,000 tokens) | ~$0.14 |
+| A five-turn conversation with two median lookups | ~$0.70 |
 
 **$2.00/day is therefore about three five-turn conversations.** That is a real
 constraint and worth knowing before the panel goes live rather than discovering it
@@ -280,7 +343,7 @@ in the panel rather than a silent failure or a spinner that never resolves. The
 same applies to a failed Anthropic call: the panel says the assistant is
 unreachable and offers a retry.
 
-### 6. Front end
+### 7. Front end
 
 A new `src/components/ChatPanel.astro` wired in through Starlight's component
 override system, which this version supports:
@@ -316,9 +379,11 @@ per the project's testing constraints. The Anthropic client is mocked throughout
 no test spends money.
 
 **Unit** — corpus assembly (frontmatter stripped, URLs correct, deterministic
-ordering); history validation (over-long transcripts truncated, `system` roles
-rejected, malformed payloads produce 400); rate limiter and budget accounting at
-their boundaries; SSE frame formatting.
+ordering); the schema tool (every one of the 33 files renders without raising, the
+enum list is sorted and byte-stable across calls, an unknown config file name
+returns an error result rather than throwing); history validation (over-long
+transcripts truncated, `system` roles rejected, malformed payloads produce 400);
+rate limiter and budget accounting at their boundaries; SSE frame formatting.
 
 **Integration** — the full request path per auth state: no cookie → 401;
 expired token → 401; valid token without the `streamflow` group → 403; valid token
@@ -330,6 +395,11 @@ with no cookie must be rejected.** That is the regression test for the
 `protect_app()` `/api/` exemption described above. If a future refactor reaches for
 `protect_app()`, this test is what catches it before the endpoint goes public with
 an API key behind it.
+
+The tool loop gets integration coverage against a mocked API that returns
+`stop_reason: "tool_use"`: the lookup runs, its result is appended, the loop
+continues, and the client sees one uninterrupted stream. A mocked API that asks
+for tools forever must stop at the 3-call cap rather than spinning.
 
 Budget accounting gets its own unit coverage against a synthetic `usage` object:
 each of the four token classes must be multiplied by its own rate, so a response
@@ -407,6 +477,6 @@ the no-PII-in-logs rule.
 
 ## Out of scope
 
-Multi-user conversation history or persistence; feedback and rating capture; the
-schema-lookup tool; making the chat available to anonymous visitors; anything
-touching FEWS itself. Each is a separate spec if wanted later.
+Multi-user conversation history or persistence; feedback and rating capture;
+making the chat available to anonymous visitors; anything touching FEWS itself.
+Each is a separate spec if wanted later.
