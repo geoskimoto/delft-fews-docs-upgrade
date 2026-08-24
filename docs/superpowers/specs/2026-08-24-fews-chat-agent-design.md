@@ -1,0 +1,367 @@
+# Design: FEWS configuration chat agent
+
+**Date:** 2026-08-24
+**Status:** Draft — awaiting review
+**Site:** https://df-docs.streamflows.org
+
+## Goal
+
+Add a chat panel to the Delft-FEWS Config Guide where a signed-in user can ask
+questions about FEWS configuration and get answers grounded in this site's own
+documentation, with links back to the relevant pages.
+
+## Decisions already made
+
+| Question | Decision |
+|---|---|
+| Who can use it | Signed-in `streamflows.org` users only. Docs stay public; only the chat is gated. |
+| How the agent knows FEWS | The entire Markdown corpus goes in the system prompt behind a prompt-cache breakpoint. No embeddings, no vector store. |
+| Where the backend lives | A small Flask service on this VPS, proxied by nginx. The Astro site stays a pure static build. |
+
+## Architecture
+
+```
+Browser (static Starlight page)
+  │  chat drawer, vanilla JS in an .astro component
+  │  POST /api/chat  (SSE response)
+  │  cookie: streamflows_auth  (domain .streamflows.org, sent automatically)
+  ▼
+nginx  df-docs.streamflows.org
+  │  location /api/chat  →  proxy_pass 127.0.0.1:8057, proxy_buffering off
+  ▼
+Flask service  fewsdocs-chat.service  (gunicorn, 127.0.0.1:8057)
+  │  1. verify JWT from cookie      → 401 JSON if absent/expired/wrong group
+  │  2. verify Origin header        → 403 JSON on mismatch (CSRF)
+  │  3. rate limit + daily budget   → 429 JSON when exceeded
+  │  4. validate client history     → 400 JSON on malformed input
+  ▼
+Anthropic Messages API  (streaming)
+  system = [ persona,  FULL DOCS CORPUS  ← cache_control breakpoint ]
+```
+
+The service holds no conversation state. The browser keeps the transcript and
+sends it back each turn, so a service restart never drops a conversation and
+there is no session store to run.
+
+### Where the code lives
+
+The chat service lives **inside this repository** at `chat/`, not in a separate
+project. That is the whole point: the deploy clone at `/home/fewsdocs/repo`
+already pulls this repo, so one `git pull` updates the documentation and the
+corpus the agent reads from it in the same step. A separate repo would let the
+two drift apart, and a stale corpus is the failure mode that matters most here —
+the agent would confidently answer from documentation the site no longer shows.
+
+```
+chat/
+  app.py             create_app(), config, blueprint registration
+  auth.py            require_streamflows_user decorator (JSON 401/403)
+  corpus.py          walks ../src/content/docs, builds the cached corpus string
+  security.py        Origin check, RateLimiter, DailyBudget
+  conversation.py    validates and truncates the client-supplied history
+  agent.py           Anthropic client, system prompt assembly, streaming
+  routes.py          POST /api/chat  and  GET /api/chat/status
+  requirements.txt   pinned exact versions
+  tests/
+```
+
+## Component detail
+
+### 1. Auth — and the trap in `streamflows_auth`
+
+The site reuses the existing SSO. The login service at `apps.streamflows.org`
+sets a `streamflows_auth` JWT cookie scoped to `.streamflows.org`, so
+`df-docs.streamflows.org` receives it with no extra work.
+
+**Two things make `protect_app()` the wrong tool here, and both are easy to miss:**
+
+1. `protect_app()` **exempts every path beginning with `/api/`**
+   (`_EXEMPT_PREFIXES = ("/_dash-", "/assets/", "/api/")`). Mounting the chat at
+   `/api/chat` and calling `protect_app()` would produce an endpoint that looks
+   guarded and is in fact wide open to the internet. This is the single most
+   important detail in this document.
+2. `protect_app()` **redirects** to the login page on failure. A `fetch()` that
+   receives a 302 to an HTML login form cannot show the user anything useful.
+
+So the chat service does **not** call `protect_app()`. It defines its own
+decorator that reuses the same token logic — `decode_token()` from
+`streamflows_auth.tokens` stays the single source of truth for JWT verification,
+so there is no second copy of the secret handling to drift.
+
+```python
+# chat/auth.py
+from functools import wraps
+import jwt
+from flask import request, jsonify, g
+from streamflows_auth.tokens import decode_token
+
+REQUIRED_GROUP = "fewsdocs"
+ADMIN_GROUP = "admin"
+
+
+def require_streamflows_user(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        token = request.cookies.get("streamflows_auth")
+        if not token:
+            return jsonify({"error": "not_authenticated"}), 401
+        try:
+            payload = decode_token(token)
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "session_expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "not_authenticated"}), 401
+        groups = payload.get("groups", [])
+        if REQUIRED_GROUP not in groups and ADMIN_GROUP not in groups:
+            return jsonify({"error": "not_authorized"}), 403
+        g.current_user = payload.get("sub", "")
+        return view(*args, **kwargs)
+    return wrapped
+```
+
+A `fewsdocs` group must be created in the `streamflow-apps` admin database and
+granted to whoever should have chat access. Members of `admin` get in
+automatically, matching the behaviour of every other app on the box.
+
+`GET /api/chat/status` is the same check with no body — the widget calls it on
+page load to decide whether to render the chat input or a "Sign in to ask"
+link pointing at
+`https://apps.streamflows.org/login?next=<current page URL>`.
+
+### 2. CSRF
+
+`POST /api/chat` changes state (it spends money) and authenticates from a
+cookie, so it needs CSRF protection. The synopsis tool's signed-session-token
+approach does not fit here, because that pattern requires a server-rendered page
+to seed the token and these pages are static HTML built by Astro.
+
+The fit for a static front end is an **Origin check**: reject the request unless
+the `Origin` header exactly matches the site's own origin. Combined with the
+cookie's existing `SameSite=Lax` (which already blocks cross-site POSTs) and a
+required `Content-Type: application/json` (which forces a preflight for any
+cross-origin attempt), this gives layered protection with no token plumbing.
+
+### 3. Corpus
+
+`corpus.py` walks `src/content/docs/**/*.{md,mdx}` at service startup, strips
+each file's frontmatter, and concatenates the pages into one string. Each page is
+prefixed with its title and its live URL so the agent can cite real links:
+
+```
+=== Define locations & location sets ===
+URL: https://df-docs.streamflows.org/tasks/locations/
+<page body>
+```
+
+Current size is 297 KB across 53 pages, roughly 75–85k tokens — comfortably
+inside the context window with room to grow. Ordering is deterministic (sorted
+by path) because a reordered corpus is a different byte prefix and would
+silently destroy the prompt cache.
+
+The base URL for citations comes from the service's own config, not from
+`astro.config.mjs`, whose `site` field is still `http://localhost:4321` and would
+produce dead links.
+
+The corpus is read once at startup and held in memory, so **the service must be
+restarted after any content deploy** or it will keep answering from the previous
+build. This is added to the redeploy runbook below.
+
+The 33 generated XSD field-reference JSON files under `src/data/schema/` are
+deliberately **not** included. They are 2.8 MB, the Markdown reference pages
+already present the same fields in prose, and adding them would roughly
+quadruple the per-message cost. If field-level precision turns out to be missing
+in practice, the right follow-up is a schema-lookup tool the agent can call on
+demand, not bulk inclusion — that is a separate spec.
+
+### 4. The agent call
+
+```python
+client.messages.stream(
+    model="claude-opus-5",
+    max_tokens=8000,
+    system=[
+        {"type": "text", "text": PERSONA},
+        {"type": "text", "text": corpus,
+         "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+    ],
+    output_config={"effort": "medium"},
+    messages=history,
+)
+```
+
+Notes on each choice:
+
+- **`claude-opus-5`** is the default. This is the cost lever if you want one:
+  switching to `claude-sonnet-5` is a one-line config change and cuts the per-message
+  price meaningfully. I have not done it, because that is a quality decision that
+  should be yours rather than mine.
+- **1-hour cache TTL**, not the 5-minute default. The corpus prefix is byte-identical
+  for every user, so the cache is shared across everyone. A docs site sees sparse,
+  bursty traffic; with a 5-minute TTL most conversations would pay the full
+  uncached price on their first message. The 1-hour write costs 2× but reads cost
+  0.1×, which wins as soon as the corpus is read more than about three times an
+  hour.
+- **`effort: "medium"`** — this is retrieval and explanation over supplied context,
+  not deep reasoning. Medium keeps latency and token spend down. Tunable in config.
+- **Thinking stays on** (the Opus 5 default). Disabling it is the wrong trade here:
+  it saves little on a task this shaped, and it can leak internal `<thinking>` tags
+  into the visible answer. Streaming solves the perceived-latency problem instead.
+- **Streaming** is what makes the panel feel responsive. It requires
+  `proxy_buffering off` on the nginx location, or nginx will hold the whole
+  response and deliver it in one lump.
+
+The persona prompt instructs the agent to answer only from the supplied
+documentation, to link to the relevant page, and to say plainly when the docs do
+not cover something rather than inventing FEWS behaviour. Given that the audience
+is people configuring a live forecasting system, a confident wrong answer is worse
+than an admission of a gap.
+
+### 5. Cost and abuse controls
+
+Authentication removes anonymous abuse, but an authenticated user can still hold
+the enter key. Three independent limits:
+
+| Control | Value | Behaviour when hit |
+|---|---|---|
+| Per-user rate limit | 20 messages / 5 min | 429 with a friendly retry message |
+| Conversation history cap | last 12 turns, 24 KB | Older turns dropped silently |
+| Daily token budget | configurable, org-wide | 429, panel shows "chat is resting until tomorrow" |
+
+The rate limiter is the sliding-window `RateLimiter` already written in
+`streamflow_synopsis_tool/web/security.py` — the same in-process approach is
+correct here, since this runs as a single gunicorn worker. The daily budget
+accumulates reported `usage` from each response into a small JSON file so it
+survives restarts.
+
+Per your standing rule, every one of these surfaces as a clear, friendly message
+in the panel rather than a silent failure or a spinner that never resolves. The
+same applies to a failed Anthropic call: the panel says the assistant is
+unreachable and offers a retry.
+
+### 6. Front end
+
+A new `src/components/ChatPanel.astro` wired in through Starlight's component
+override system, which this version supports:
+
+```js
+starlight({
+  components: {
+    Footer: './src/components/ChatPanelFooter.astro',
+  },
+})
+```
+
+`Footer` is the injection point because it renders inside every documentation
+page. The panel itself is `position: fixed` against the right edge with its own
+stacking context, so it reads as a docked sidebar rather than page content:
+docked open on wide viewports (≥1400px, where Starlight's grid leaves room), and
+a collapsible overlay drawer below that. A floating button toggles it, and the
+open/closed state persists in `localStorage`.
+
+I considered overriding `PageSidebar` instead, which is the literal right-hand
+rail. I am not recommending it: it would displace or compete with the table of
+contents, and that rail is hidden entirely on narrower screens, which would make
+the chat vanish on laptops and tablets.
+
+The client script is plain vanilla JavaScript in the component's `<script>` tag —
+no framework, no build pipeline, consistent with the rest of the site. It reads
+the SSE stream and appends text deltas as they arrive.
+
+## Testing
+
+Tests are written before the implementation and by a separate agent invocation,
+per the project's testing constraints. The Anthropic client is mocked throughout;
+no test spends money.
+
+**Unit** — corpus assembly (frontmatter stripped, URLs correct, deterministic
+ordering); history validation (over-long transcripts truncated, `system` roles
+rejected, malformed payloads produce 400); rate limiter and budget accounting at
+their boundaries; SSE frame formatting.
+
+**Integration** — the full request path per auth state: no cookie → 401;
+expired token → 401; valid token without the `fewsdocs` group → 403; valid token
+with the group → 200 and a stream. Mismatched `Origin` → 403. Rate limit and
+budget exhaustion → 429. An Anthropic API error → a clean error frame, not a 500.
+
+**Property** — arbitrary client-supplied history always yields either a valid
+request to the mocked API or a 400, never an unhandled exception.
+
+**Mutation** — run by an independent evaluator, not by the implementing agent.
+
+**UIX** — panel opens and closes, state persists across navigation, the signed-out
+state shows the sign-in link, streaming text renders incrementally, and every
+error state shows a readable message.
+
+## Deployment
+
+New systemd unit `fewsdocs-chat.service` running gunicorn on `127.0.0.1:8057`
+(verified free — 8050–8056 are taken) as the `fewsdocs` user, with the virtualenv
+at `/home/fewsdocs/repo/chat/venv` per the site-directory convention — that path
+sits inside the repository, so `chat/venv/` and `chat/__pycache__/` are added to
+`.gitignore`. Secrets
+(`ANTHROPIC_API_KEY`, `JWT_SECRET`) come from an `EnvironmentFile` at
+`/home/fewsdocs/chat.env`, mode 600, owned by `fewsdocs`. Any value containing
+`$` must be quoted or systemd will mangle it.
+
+nginx gains one location block in the site's vhost:
+
+```nginx
+location /api/chat {
+    proxy_pass http://127.0.0.1:8057;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_buffering off;
+    proxy_read_timeout 300s;
+}
+```
+
+**This must be added through the CloudPanel vhost editor**, not by hand-editing
+the file. CloudPanel regenerates the vhost whenever the site is saved in its UI,
+which is exactly what happened to the two `error_page` lines already documented
+in `CLAUDE.md`. Adding it in the UI is what makes it survive.
+
+No new cron jobs, so no scheduling conflicts to resolve.
+
+Updated redeploy runbook:
+
+```bash
+sudo -u fewsdocs git -C /home/fewsdocs/repo pull
+sudo -u fewsdocs bash -c 'cd /home/fewsdocs/repo && npm ci && npm run build'
+sudo -u fewsdocs bash -c 'cd /home/fewsdocs/repo/chat && venv/bin/pip install -r requirements.txt'
+sudo systemctl restart fewsdocs-chat   # picks up the new corpus
+```
+
+## Blast radius
+
+Worth stating plainly, since this is the first thing on the box that spends money
+per request.
+
+The service reads Markdown files and calls one external HTTPS API. It executes no
+shell commands, spawns no subprocesses, writes only its own budget file, and
+touches no database. A compromise of the service would expose the Anthropic API
+key and the JWT signing secret — the latter is the more serious of the two, since
+it would allow minting session tokens for every app on `streamflows.org`. That
+risk already exists for every SSO-protected app here and is not increased by this
+one, but it is the reason the environment file is mode 600 and the reason this
+service must never gain the ability to run shell commands.
+
+No user data is stored. Conversations live in the browser only. Usernames from the
+JWT are used for rate-limit keying and are never written to logs, consistent with
+the no-PII-in-logs rule.
+
+## Open questions for review
+
+1. **Group name.** I have assumed a new `fewsdocs` group. Reusing the existing
+   `streamflow` group would mean no admin-database change but would give chat
+   access to everyone who has the forecasting apps.
+2. **Model.** Defaulting to `claude-opus-5`. Say the word and it becomes
+   `claude-sonnet-5` for a materially lower per-message cost.
+3. **Daily budget ceiling.** Needs a number from you. I have no basis for guessing
+   what you want to spend per day.
+
+## Out of scope
+
+Multi-user conversation history or persistence; feedback and rating capture; the
+schema-lookup tool; making the chat available to anonymous visitors; anything
+touching FEWS itself. Each is a separate spec if wanted later.
