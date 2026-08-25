@@ -22,3 +22,6 @@ chat/__pycache__/
 chat/**/__pycache__/
 chat/.pytest_cache/
 chat/data/
+
+# hypothesis example database (test scratch)
+.hypothesis/
