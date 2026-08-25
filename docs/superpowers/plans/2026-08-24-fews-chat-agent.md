@@ -885,6 +885,9 @@ git commit -m "feat: add JSON-returning SSO guard that avoids the protect_app /a
 Create `chat/tests/test_security.py`:
 
 ```python
+import json
+import threading
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -1017,6 +1020,76 @@ def test_budget_tolerates_a_corrupt_state_file(tmp_path):
     path = tmp_path / "b.json"
     path.write_text("{ not json")
     assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_cost_of_handles_none_valued_cache_fields(tmp_path):
+    """The SDK types the cache fields as Optional[int] and sends None — present
+    but null — whenever that class of token was unused, which is nearly every
+    request. getattr's default does not fire for an existing None attribute, so
+    None reaches the multiplication and raises TypeError in the request path."""
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    real_shape = SimpleNamespace(
+        input_tokens=10,
+        output_tokens=5,
+        cache_creation_input_tokens=None,
+        cache_read_input_tokens=80_000,
+    )
+    cost = b.cost_of(real_shape)
+    assert cost == pytest.approx(
+        10 * 3e-6 + 5 * 15e-6 + 80_000 * 0.3e-6, rel=1e-6
+    )
+
+
+def test_cost_of_handles_a_usage_object_missing_fields_entirely(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    assert b.cost_of(SimpleNamespace()) == 0.0
+
+
+@pytest.mark.parametrize("body", ["[1, 2, 3]", '"hello"', "null", "42"])
+def test_budget_tolerates_valid_json_of_the_wrong_shape(tmp_path, body):
+    """.get on a list or string raises AttributeError; this runs in the
+    request path and must degrade to 'nothing spent yet' instead."""
+    path = tmp_path / "b.json"
+    path.write_text(body)
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_budget_tolerates_a_non_numeric_spent_value(tmp_path):
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"date": date.today().isoformat(), "spent_usd": "lots"}))
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_budget_clamps_a_negative_stored_total(tmp_path):
+    """A negative total would hand out more than the configured ceiling."""
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"date": date.today().isoformat(), "spent_usd": -50.0}))
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
+    """The service runs one gunicorn worker with 8 threads, so two requests can
+    interleave load -> compute -> save. Unsynchronised, this loses most of the
+    accounting and can raise FileNotFoundError when two temp renames collide."""
+    b = DailyBudget(tmp_path / "b.json", 100.0)
+    errors = []
+
+    def worker():
+        try:
+            for _ in range(25):
+                b.record(SimpleNamespace(output_tokens=1_000))
+        except Exception as exc:  # noqa: BLE001 — any race must surface
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    expected = 8 * 25 * 1_000 * 15e-6
+    assert b.remaining() == pytest.approx(100.0 - expected, rel=1e-6)
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1029,12 +1102,28 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'chat.security'`
 ```python
 """CSRF origin check, per-user rate limiting, and the daily spend ceiling."""
 import json
+import os
+import threading
 import time
 from collections import defaultdict, deque
 from datetime import date
 from pathlib import Path
 
 from chat import config
+
+
+def _num(value) -> float:
+    """Coerce one SDK usage field to a number.
+
+    The Anthropic SDK types cache_creation_input_tokens and
+    cache_read_input_tokens as Optional[int], and they are None — present but
+    null — whenever that class of token was not used, which is true of nearly
+    every request. `getattr(usage, name, 0)` does NOT help: the attribute
+    exists, so the default never fires and None flows into the multiplication.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value)
 
 
 def origin_allowed(origin: str | None, allowed: str) -> bool:
@@ -1090,27 +1179,45 @@ class DailyBudget:
         self.path = Path(path)
         self.limit = limit_usd
         self.clock = clock
+        # One gunicorn worker, but 8 threads. Without this, two threads
+        # interleave load -> compute -> save and most of the spend is lost.
+        self._lock = threading.Lock()
 
     def cost_of(self, usage) -> float:
         return (
-            getattr(usage, "input_tokens", 0) * config.RATE_INPUT
-            + getattr(usage, "output_tokens", 0) * config.RATE_OUTPUT
-            + getattr(usage, "cache_creation_input_tokens", 0) * config.RATE_CACHE_WRITE
-            + getattr(usage, "cache_read_input_tokens", 0) * config.RATE_CACHE_READ
+            _num(getattr(usage, "input_tokens", 0)) * config.RATE_INPUT
+            + _num(getattr(usage, "output_tokens", 0)) * config.RATE_OUTPUT
+            + _num(getattr(usage, "cache_creation_input_tokens", 0))
+            * config.RATE_CACHE_WRITE
+            + _num(getattr(usage, "cache_read_input_tokens", 0))
+            * config.RATE_CACHE_READ
         )
 
     def _load(self) -> float:
+        """Never raise. This runs in the request path, and a state file that
+        cannot be parsed must degrade to "nothing spent yet", not a 500."""
         try:
             data = json.loads(self.path.read_text())
         except (OSError, json.JSONDecodeError):
             return 0.0
-        if data.get("date") != self.clock():
+        # Valid JSON of the wrong shape ([1,2,3], "hello", null) would make
+        # .get raise AttributeError.
+        if not isinstance(data, dict) or data.get("date") != self.clock():
             return 0.0
-        return float(data.get("spent_usd", 0.0))
+        try:
+            spent = float(data.get("spent_usd", 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+        # A negative total would hand out more than the configured ceiling.
+        return max(0.0, spent)
 
     def _save(self, spent: float) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
+        # Unique temp name per writer: a shared ".tmp" lets two concurrent
+        # renames collide and raise FileNotFoundError.
+        tmp = self.path.with_name(
+            f"{self.path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
         tmp.write_text(json.dumps({"date": self.clock(), "spent_usd": spent}))
         tmp.replace(self.path)
 
@@ -1121,9 +1228,10 @@ class DailyBudget:
         return self.remaining() <= 0
 
     def record(self, usage) -> float:
-        spent = self._load() + self.cost_of(usage)
-        self._save(spent)
-        return spent
+        with self._lock:
+            spent = self._load() + self.cost_of(usage)
+            self._save(spent)
+            return spent
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
