@@ -2626,8 +2626,10 @@ const loginUrl = 'https://apps.streamflows.org/login';
   const log = document.getElementById('fews-chat-log');
   const form = document.getElementById('fews-chat-form');
   const input = document.getElementById('fews-chat-input');
+  const sendBtn = form.querySelector('button[type="submit"]');
   const messages = [];
   let signedIn = false;
+  let inFlight = false;
 
   const DOC_LINK = /https:\/\/df-docs\.streamflows\.org\/[^\s)]*/g;
 
@@ -2716,7 +2718,17 @@ const loginUrl = 'https://apps.streamflows.org/login';
   }
 
   async function send(question) {
-    messages.push({ role: 'user', content: question });
+    /* Remove THIS turn by identity, never messages.pop(). A blind pop removes
+       whatever happens to be last, which is only this turn's entry if no other
+       send is in flight — and an overlapping send would make it delete another
+       turn's successful answer instead. */
+    const turn = { role: 'user', content: question };
+    function dropTurn() {
+      const i = messages.indexOf(turn);
+      if (i !== -1) messages.splice(i, 1);
+    }
+
+    messages.push(turn);
     addTurn('user', question);
     const answerEl = addTurn('assistant', '');
     let answer = '';
@@ -2734,7 +2746,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
       /* Pop the user turn, exactly as the !resp.ok branch does. `messages`
          outlives the send, so leaving it would replay the failed question on
          the next successful turn as a second consecutive user message. */
-      messages.pop();
+      dropTurn();
       answerEl.remove();
       addTurn('notice', 'Could not reach the assistant. Check your connection.');
       return;
@@ -2745,7 +2757,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
       try { msg = (await resp.json()).message || msg; } catch (e) {}
       answerEl.className = 'turn notice';
       answerEl.textContent = msg;
-      messages.pop();
+      dropTurn();
       return;
     }
 
@@ -2794,7 +2806,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
        transcript: the next request would otherwise present a truncated answer
        to the model as though it were complete. */
     if (answer && !errored) messages.push({ role: 'assistant', content: answer });
-    else if (errored) messages.pop();
+    else if (errored) dropTurn();
   }
 
   toggle.addEventListener('click', () => setOpen(panel.hidden));
@@ -2802,9 +2814,20 @@ const loginUrl = 'https://apps.streamflows.org/login';
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const q = input.value.trim();
-    if (!q || !signedIn) return;
+    /* Single-flight. Overlapping sends would interleave two answers into one
+       log and burn budget on a question the user has already moved past; the
+       input is disabled while a reply streams so it cannot happen. */
+    if (!q || !signedIn || inFlight) return;
     input.value = '';
-    send(q);
+    inFlight = true;
+    input.disabled = true;
+    sendBtn.disabled = true;
+    send(q).finally(() => {
+      inFlight = false;
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+    });
   });
 
   try {
