@@ -116,11 +116,75 @@ def test_truncation_keeps_the_history_starting_on_a_user_turn():
     max_leaves=20,
 ))
 def test_arbitrary_payloads_never_crash(payload):
-    """Any client payload yields a clean list or InvalidHistory — never an
-    unhandled exception that would surface as a 500."""
+    """Garbage of any shape yields InvalidHistory, never an unhandled
+    exception. This covers the outer type guards only — see the shaped
+    strategy below for the parsing and truncation logic."""
     try:
         out = normalise(payload)
     except InvalidHistory:
         return
     assert isinstance(out, list)
     assert all(m["role"] in ("user", "assistant") for m in out)
+
+
+# The recursive strategy above almost never produces a well-formed message
+# list, so on its own it exercises the first two type checks and nothing else.
+# This one is shaped like a real payload so it actually reaches role
+# validation, byte counting, and truncation — including the lone surrogate that
+# str.encode refuses.
+_ROLE = st.sampled_from(
+    ["user", "assistant", "system", "SYSTEM", " user", "wizard", ""]
+)
+_CONTENT = st.one_of(
+    st.text(max_size=200),
+    st.text(min_size=1, max_size=40).map(lambda s: s * 500),  # oversized
+    st.just("\ud800"),                                        # lone surrogate
+    st.just("é" * 5000),                                      # multi-byte
+    st.integers(),
+    st.none(),
+)
+_MESSAGE = st.fixed_dictionaries({"role": _ROLE, "content": _CONTENT})
+
+
+# deadline=None: some generated payloads are deliberately large, and hypothesis
+# would otherwise fail them for exceeding its 200ms per-example budget.
+@settings(max_examples=300, deadline=None)
+@given(st.lists(_MESSAGE, min_size=1, max_size=20))
+def test_wellformed_shaped_payloads_never_crash(messages):
+    """Same invariant, but against payloads that actually reach the interesting
+    code paths. Every accepted result must be a non-empty list that starts and
+    ends on a user turn and respects the byte cap."""
+    from chat import config
+
+    try:
+        out = normalise({"messages": messages})
+    except InvalidHistory:
+        return
+
+    assert isinstance(out, list) and out
+    assert all(m["role"] in ("user", "assistant") for m in out)
+    assert out[0]["role"] == "user"
+    assert out[-1]["role"] == "user"
+    assert len(out) <= config.MAX_HISTORY_TURNS
+    total = sum(len(m["content"].encode("utf-8")) for m in out)
+    assert total <= config.MAX_HISTORY_BYTES
+
+
+def test_lone_surrogate_content_raises_invalid_history():
+    """json.loads turns the escape "\\ud800" into a str that str.encode cannot
+    encode. Unguarded that is a 500 on a crafted request."""
+    with pytest.raises(InvalidHistory):
+        normalise({"messages": [msg("user", "\ud800")]})
+
+
+def test_lone_surrogate_in_history_raises_invalid_history():
+    with pytest.raises(InvalidHistory):
+        normalise(
+            {
+                "messages": [
+                    msg("user", "\ud800"),
+                    msg("assistant", "ok"),
+                    msg("user", "real question"),
+                ]
+            }
+        )
