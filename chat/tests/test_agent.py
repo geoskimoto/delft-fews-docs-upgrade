@@ -197,6 +197,51 @@ def test_a_failing_usage_callback_cannot_escape_the_generator(agent, client):
     assert "event: error" in out
 
 
+def test_disconnect_during_a_later_tool_round_is_still_charged(agent, client):
+    """A single `charged` flag was set by the first completed call and never
+    reset, so a disconnect during round 2 of a tool loop left that call — billed
+    upstream regardless — recorded nowhere. Deterministic, not a race."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["second ", "round ", "text"], message()),
+    ]
+    charges = []
+    gen = agent.run([{"role": "user", "content": "fields?"}], on_usage=charges.append)
+    next(gen)          # drive into round 2's stream...
+    next(gen)
+    gen.close()        # ...then disconnect
+
+    assert client.messages.stream.call_count == 2, "second call was dispatched"
+    assert len(charges) == 2, "both dispatched calls must be charged"
+
+
+def test_reserve_refusal_stops_before_dispatching(agent, client):
+    client.messages.stream.return_value = FakeStream(["x"], message())
+    out = collect(agent.run([{"role": "user", "content": "hi"}], on_reserve=lambda: False))
+    client.messages.stream.assert_not_called()
+    assert "event: error" in out
+    assert "daily limit" in out
+
+
+def test_reserve_is_consulted_before_every_call_in_the_tool_loop(agent, client):
+    """The second call costs as much as the first; reserving only once would
+    let a tool loop spend a multiple of what was checked."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["ok"], message()),
+    ]
+    reserves = []
+    collect(
+        agent.run(
+            [{"role": "user", "content": "fields?"}],
+            on_reserve=lambda: (reserves.append(1), True)[1],
+        )
+    )
+    assert len(reserves) == 2
+
+
 def test_refusal_surfaces_a_message_rather_than_a_blank_answer(agent, client):
     client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
     out = collect(agent.run([{"role": "user", "content": "hi"}]))

@@ -193,6 +193,60 @@ def test_record_survives_an_unwritable_state_file(tmp_path):
     assert b.record(SimpleNamespace(output_tokens=1_000)) > 0
 
 
+def test_concurrent_reservations_cannot_exceed_the_ceiling(tmp_path):
+    """The bug this exists to prevent: exhausted() then dispatch then record is
+    check-then-act. With eight threads every one read the same pre-spend
+    balance and all passed — measured at $4.43 spent against a $2.00 ceiling.
+    Reserving under the lock must admit only what actually fits."""
+    b = DailyBudget(tmp_path / "b.json", 1.00)
+    granted = []
+
+    def worker():
+        granted.append(b.try_reserve(0.30))
+
+    threads = [threading.Thread(target=worker) for _ in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # 0.30 each into a 1.00 ceiling: at most three may be granted.
+    assert sum(granted) == 3
+    assert b.remaining() == pytest.approx(0.10, rel=1e-6)
+
+
+def test_settle_replaces_the_reservation_with_the_real_cost(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    assert b.try_reserve(0.50) is True
+    b.settle(0.50, SimpleNamespace(output_tokens=1_000))  # actually $0.015
+    assert b.remaining() == pytest.approx(2.00 - 0.015, rel=1e-6)
+
+
+def test_reserve_refuses_once_the_ceiling_is_reached(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 1.00)
+    assert b.try_reserve(0.90) is True
+    assert b.try_reserve(0.20) is False
+    assert b.remaining() == pytest.approx(0.10, rel=1e-6)
+
+
+def test_rate_limiter_holds_its_cap_under_concurrency(tmp_path):
+    """Same class of bug as the budget: an unlocked read-modify-write across
+    eight threads."""
+    rl = RateLimiter(20, 300)
+    allowed = []
+
+    def worker():
+        for _ in range(10):
+            allowed.append(rl.allow("alice"))
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sum(allowed) == 20
+
+
 def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
     """The service runs one gunicorn worker with 8 threads, so two requests can
     interleave load -> compute -> save. Unsynchronised, this loses most of the

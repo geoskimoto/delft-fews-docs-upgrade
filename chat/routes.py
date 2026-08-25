@@ -61,12 +61,23 @@ def chat():
         client=current_app.config["ANTHROPIC_CLIENT"],
     )
 
+    # Reserve the worst case for each call BEFORE it is dispatched, then settle
+    # to the real cost. The earlier shape — check exhausted(), dispatch, record
+    # afterwards — is check-then-act: eight threads all read the same pre-spend
+    # balance and all pass. Measured at $4.43 spent against a $2.00 ceiling
+    # with six concurrent requests.
+    estimate = agent.estimated_cost(budget)
+
     def generate():
-        # budget.record runs per completed API call, not at the end of the
+        # budget.settle runs per completed API call, not at the end of the
         # stream: a browser that disconnects mid-answer never runs a
         # generator's tail, so end-of-stream accounting would let a client
         # evade the daily ceiling by hanging up every time.
-        for frame in agent.run(messages, on_usage=budget.record):
+        for frame in agent.run(
+            messages,
+            on_reserve=lambda: budget.try_reserve(estimate),
+            on_usage=lambda usage: budget.settle(estimate, usage),
+        ):
             yield frame
         # No usernames, no message content — counts only.
         log.info("chat turn complete, spent_today=%.4f", budget.limit - budget.remaining())

@@ -84,7 +84,22 @@ class Agent:
             )
         return {"type": "tool_result", "tool_use_id": block.id, "content": body}
 
-    def run(self, messages: list[dict], on_usage=None) -> Iterator[str]:
+    def estimated_cost(self, budget) -> float:
+        """Worst case for ONE call: a cold cache write plus a full-length
+        answer. Reserved before dispatch and settled to the real figure after,
+        so the reservation is held only for the duration of that call. Erring
+        high is the correct direction for a spend ceiling — it refuses near the
+        cap rather than sailing past it."""
+        return budget.cost_of(
+            SimpleNamespace(
+                input_tokens=0,
+                output_tokens=config.MAX_TOKENS,
+                cache_creation_input_tokens=self._corpus_tokens,
+                cache_read_input_tokens=0,
+            )
+        )
+
+    def run(self, messages: list[dict], on_usage=None, on_reserve=None) -> Iterator[str]:
         """Stream one answer, transparently resolving tool calls along the way.
 
         on_usage is invoked with each completed response's usage object, as soon
@@ -101,10 +116,28 @@ class Agent:
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
         }
-        charged = False
+        # Counters, not a boolean. A single `charged` flag is set by the first
+        # completed call and never reset, so a disconnect during round 2 of a
+        # tool loop left that call — already billed upstream — recorded
+        # nowhere. Deterministic, not a race: it fired on every disconnect in
+        # any second-or-later round.
+        dispatched = 0
+        recorded = 0
 
         try:
             for _ in range(config.MAX_TOOL_CALLS + 1):
+                if on_reserve is not None and not on_reserve():
+                    yield sse(
+                        "error",
+                        {
+                            "message": "The assistant has reached its daily "
+                            "limit and is resting until tomorrow. The "
+                            "documentation is still all here."
+                        },
+                    )
+                    return
+
+                dispatched += 1
                 with self.client.messages.stream(
                     model=config.MODEL,
                     max_tokens=config.MAX_TOKENS,
@@ -121,7 +154,7 @@ class Agent:
                 # Charge for this call before anything else can go wrong.
                 if on_usage is not None:
                     on_usage(final.usage)
-                    charged = True
+                    recorded += 1
                 for key in totals:
                     value = getattr(final.usage, key, 0)
                     totals[key] += value if isinstance(value, int) else 0
@@ -180,7 +213,9 @@ class Agent:
             # looks like from here. If we never saw a usage object the request
             # was still billed upstream, so charge the floor rather than let a
             # client evade the ceiling by hanging up every time.
-            if on_usage is not None and not charged:
+            # One floor charge per call that was dispatched but never recorded,
+            # not one per run. Each was billed upstream regardless.
+            for _ in range(max(0, dispatched - recorded)) if on_usage else ():
                 try:
                     on_usage(self.minimum_usage())
                 except Exception:
