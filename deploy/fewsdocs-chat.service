@@ -1,6 +1,12 @@
 [Unit]
 Description=Delft-FEWS docs chat service
 After=network.target
+# create_app() raises at boot on a missing schema directory or an unset
+# JWT_SECRET. Neither self-heals, so without a start limit systemd would
+# crash-loop every 5s forever, filling the journal instead of surfacing a
+# failed state anyone would notice.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -24,6 +30,10 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+# Must already exist when the unit starts — systemd does NOT create it, and an
+# absent path fails the unit with exit 226 (EXIT_NAMESPACE) before ExecStart
+# runs, which reads as an opaque namespace error rather than "directory
+# missing". Deploy Step 4 creates it; keep that ordering.
 ReadWritePaths=/home/fewsdocs/repo/chat/data
 
 [Install]
