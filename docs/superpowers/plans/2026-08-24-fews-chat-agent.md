@@ -797,6 +797,19 @@ def test_non_list_groups_claim_denies_cleanly_instead_of_500(client, claim):
     assert resp.get_json()["error"] == "not_authorized"
 
 
+@pytest.mark.parametrize("sub", [None, "", "   ", 5])
+def test_token_without_a_usable_subject_is_rejected(client, sub):
+    """The rate limiter keys on sub. A blank one would put every such caller in
+    a single shared bucket, letting one token lock out others."""
+    claims = {"groups": ["streamflow"], "exp": int(time.time()) + 3600}
+    if sub is not None:
+        claims["sub"] = sub
+    client.set_cookie("streamflows_auth", jwt.encode(claims, SECRET, algorithm="HS256"))
+    resp = client.post("/api/chat")
+    assert resp.status_code == 401
+    assert resp.get_json()["error"] == "not_authenticated"
+
+
 def test_missing_groups_claim_is_forbidden(client):
     token = jwt.encode(
         {"sub": "alice", "exp": int(time.time()) + 3600}, SECRET, algorithm="HS256"
@@ -859,7 +872,15 @@ def require_streamflows_user(view):
         if not groups & {REQUIRED_GROUP, ADMIN_GROUP}:
             return jsonify({"error": "not_authorized"}), 403
 
-        g.current_user = payload.get("sub", "")
+        # The rate limiter keys on this. Defaulting a missing or blank sub to ""
+        # would drop every such caller into one shared bucket, so one noisy
+        # token could lock out others. A token with no subject identifies
+        # nobody and should not authorize anything.
+        user = payload.get("sub")
+        if not isinstance(user, str) or not user.strip():
+            return jsonify({"error": "not_authenticated"}), 401
+
+        g.current_user = user
         return view(*args, **kwargs)
 
     return wrapped
@@ -1076,6 +1097,19 @@ def test_budget_clamps_a_negative_stored_total(tmp_path):
     assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
 
 
+def test_record_survives_an_unwritable_state_file(tmp_path):
+    """record() is called from inside a live SSE generator, after a 200 has
+    already been committed. An escaping OSError would reset the connection
+    mid-answer, so losing the accounting is the better failure."""
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+
+    def boom(_spent):
+        raise OSError("disk full")
+
+    b._save = boom
+    assert b.record(SimpleNamespace(output_tokens=1_000)) > 0
+
+
 def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
     """The service runs one gunicorn worker with 8 threads, so two requests can
     interleave load -> compute -> save. Unsynchronised, this loses most of the
@@ -1111,6 +1145,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'chat.security'`
 ```python
 """CSRF origin check, per-user rate limiting, and the daily spend ceiling."""
 import json
+import logging
 import os
 import threading
 import time
@@ -1119,6 +1154,8 @@ from datetime import date
 from pathlib import Path
 
 from chat import config
+
+log = logging.getLogger(__name__)
 
 
 def _num(value) -> float:
@@ -1239,7 +1276,15 @@ class DailyBudget:
     def record(self, usage) -> float:
         with self._lock:
             spent = self._load() + self.cost_of(usage)
-            self._save(spent)
+            try:
+                self._save(spent)
+            except OSError:
+                # _load already promises never to raise; keep the write side
+                # symmetrical. This is called from inside a live SSE generator
+                # after a 200 has been committed, so an escaping OSError would
+                # reset the connection mid-answer. Losing one turn's accounting
+                # is the better failure — but make it loud.
+                log.exception("could not persist daily spend")
             return spent
 ```
 
@@ -1804,6 +1849,19 @@ def test_abandoned_stream_is_still_charged(agent, client):
     assert charges[0].cache_read_input_tokens > 0
 
 
+def test_a_failing_usage_callback_cannot_escape_the_generator(agent, client):
+    """The finally block's floor charge is outside every except clause. If it
+    raised, the client would get a committed 200 and a reset connection instead
+    of an error frame."""
+    client.messages.stream.side_effect = RuntimeError("upstream down")
+
+    def boom(_usage):
+        raise OSError("disk full")
+
+    out = collect(agent.run([{"role": "user", "content": "hi"}], on_usage=boom))
+    assert "event: error" in out
+
+
 def test_refusal_surfaces_a_message_rather_than_a_blank_answer(agent, client):
     client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
     out = collect(agent.run([{"role": "user", "content": "hi"}]))
@@ -2017,7 +2075,13 @@ class Agent:
             # was still billed upstream, so charge the floor rather than let a
             # client evade the ceiling by hanging up every time.
             if on_usage is not None and not charged:
-                on_usage(self.minimum_usage())
+                try:
+                    on_usage(self.minimum_usage())
+                except Exception:
+                    # Nothing above catches this one — an exception escaping a
+                    # finally block leaves the client with a committed 200 and
+                    # a reset connection instead of an error frame.
+                    log.exception("could not record the floor charge")
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
