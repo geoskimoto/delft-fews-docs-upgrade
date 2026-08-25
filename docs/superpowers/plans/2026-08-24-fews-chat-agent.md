@@ -2605,6 +2605,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
   #fews-chat-log .turn { margin-bottom: 1rem; white-space: pre-wrap; }
   #fews-chat-log .turn.user { color: var(--sl-color-white); font-weight: 600; }
   #fews-chat-log .turn.notice { color: var(--sl-color-orange-high); }
+  #fews-chat-log .turn a { color: var(--sl-color-text-accent); }
   #fews-chat-form { display: flex; gap: 0.5rem; padding: 0.75rem;
     border-top: 1px solid var(--sl-color-gray-5); }
   #fews-chat-form textarea { flex: 1; resize: vertical;
@@ -2628,6 +2629,8 @@ const loginUrl = 'https://apps.streamflows.org/login';
   const messages = [];
   let signedIn = false;
 
+  const DOC_LINK = /https:\/\/df-docs\.streamflows\.org\/[^\s)]*/g;
+
   function addTurn(cls, text) {
     const el = document.createElement('div');
     el.className = 'turn ' + cls;
@@ -2635,6 +2638,24 @@ const loginUrl = 'https://apps.streamflows.org/login';
     log.appendChild(el);
     log.scrollTop = log.scrollHeight;
     return el;
+  }
+
+  /* Render an answer as text plus real links to this site's own pages.
+     Everything goes through textContent and createElement, so nothing the
+     model emits is ever parsed as HTML. Only same-site doc URLs become
+     anchors — an arbitrary URL stays inert text. */
+  function renderAnswer(el, text) {
+    el.textContent = '';
+    let last = 0;
+    for (const match of text.matchAll(DOC_LINK)) {
+      el.appendChild(document.createTextNode(text.slice(last, match.index)));
+      const a = document.createElement('a');
+      a.href = match[0];
+      a.textContent = match[0];
+      el.appendChild(a);
+      last = match.index + match[0].length;
+    }
+    el.appendChild(document.createTextNode(text.slice(last)));
   }
 
   function setOpen(open) {
@@ -2683,6 +2704,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
     addTurn('user', question);
     const answerEl = addTurn('assistant', '');
     let answer = '';
+    let errored = false;
 
     let resp;
     try {
@@ -2724,15 +2746,23 @@ const loginUrl = 'https://apps.streamflows.org/login';
         const ev = evLine ? evLine.slice(7) : 'delta';
         if (ev === 'delta') {
           answer += payload.text;
-          answerEl.textContent = answer;
+          renderAnswer(answerEl, answer);
           log.scrollTop = log.scrollHeight;
         } else if (ev === 'error') {
-          answerEl.className = 'turn notice';
-          answerEl.textContent = payload.message;
+          /* Keep whatever text already arrived — the model may have said
+             something useful before the failure — and put the error beneath it
+             rather than replacing it. Overwriting would silently discard a
+             partial answer the user already watched appear. */
+          errored = true;
+          if (!answer) answerEl.remove();
+          addTurn('notice', payload.message);
         }
       }
     }
-    if (answer) messages.push({ role: 'assistant', content: answer });
+    /* A partial or failed turn stays on screen but does NOT go into the
+       transcript: the next request would otherwise present a truncated answer
+       to the model as though it were complete. */
+    if (answer && !errored) messages.push({ role: 'assistant', content: answer });
   }
 
   toggle.addEventListener('click', () => setOpen(panel.hidden));
@@ -2796,6 +2826,37 @@ test -f dist/404.html && echo "404 page OK"
 ```
 
 Expected: both lines print.
+
+- [ ] **Step 5b: Verify the answer renderer cannot inject HTML**
+
+The model's output is attacker-influenced (a user can ask it to repeat
+anything), so confirm `renderAnswer` never parses markup. Extract the function
+into a scratch file and run it under node against hostile inputs:
+
+```bash
+node -e '
+const { JSDOM } = require("jsdom");
+' 2>/dev/null || echo "jsdom not present — do the DOM-free check below instead"
+```
+
+If `jsdom` is unavailable, verify by inspection against these three inputs and
+state the reasoning in the report:
+
+1. `<img src=x onerror=alert(1)>` — must appear as literal text, because every
+   insertion goes through `document.createTextNode` or `.textContent`, and no
+   code path assigns to `innerHTML`.
+2. `https://evil.example/steal` — must remain inert text, because the link
+   regex only matches `https://df-docs.streamflows.org/...`.
+3. `https://df-docs.streamflows.org/tasks/locations/` — must become an anchor
+   whose `href` equals its text.
+
+Grep the component to prove the first point mechanically:
+
+```bash
+grep -n "innerHTML\|outerHTML\|insertAdjacentHTML\|document.write" src/components/ChatPanel.astro || echo "no HTML sinks — safe"
+```
+
+Expected: `no HTML sinks — safe`.
 
 - [ ] **Step 6: Commit**
 
