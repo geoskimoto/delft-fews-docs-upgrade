@@ -20,6 +20,11 @@ Live at **https://df-docs.streamflows.org** — static site, no gunicorn/systemd
 sudo -u fewsdocs git -C /home/fewsdocs/repo pull
 sudo -u fewsdocs bash -c 'cd /home/fewsdocs/repo && npm ci && npm run build'
 sudo -u fewsdocs bash -c 'cd /home/fewsdocs/repo/chat && venv/bin/pip install -r requirements.txt'
+# streamflows_auth is not on PyPI — it installs from a local wheel and is NOT
+# in requirements.txt, so a rebuilt venv silently lacks it and the service
+# fails at import. Reinstall it whenever the venv is recreated:
+sudo -u fewsdocs /home/fewsdocs/repo/chat/venv/bin/pip install \
+  /home/geoskimoto/projects/streamflows-auth/dist/streamflows_auth-0.1.0-py3-none-any.whl
 sudo systemctl restart fewsdocs-chat
 ```
 

@@ -1110,6 +1110,60 @@ def test_record_survives_an_unwritable_state_file(tmp_path):
     assert b.record(SimpleNamespace(output_tokens=1_000)) > 0
 
 
+def test_concurrent_reservations_cannot_exceed_the_ceiling(tmp_path):
+    """The bug this exists to prevent: exhausted() then dispatch then record is
+    check-then-act. With eight threads every one read the same pre-spend
+    balance and all passed — measured at $4.43 spent against a $2.00 ceiling.
+    Reserving under the lock must admit only what actually fits."""
+    b = DailyBudget(tmp_path / "b.json", 1.00)
+    granted = []
+
+    def worker():
+        granted.append(b.try_reserve(0.30))
+
+    threads = [threading.Thread(target=worker) for _ in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # 0.30 each into a 1.00 ceiling: at most three may be granted.
+    assert sum(granted) == 3
+    assert b.remaining() == pytest.approx(0.10, rel=1e-6)
+
+
+def test_settle_replaces_the_reservation_with_the_real_cost(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    assert b.try_reserve(0.50) is True
+    b.settle(0.50, SimpleNamespace(output_tokens=1_000))  # actually $0.015
+    assert b.remaining() == pytest.approx(2.00 - 0.015, rel=1e-6)
+
+
+def test_reserve_refuses_once_the_ceiling_is_reached(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 1.00)
+    assert b.try_reserve(0.90) is True
+    assert b.try_reserve(0.20) is False
+    assert b.remaining() == pytest.approx(0.10, rel=1e-6)
+
+
+def test_rate_limiter_holds_its_cap_under_concurrency(tmp_path):
+    """Same class of bug as the budget: an unlocked read-modify-write across
+    eight threads."""
+    rl = RateLimiter(20, 300)
+    allowed = []
+
+    def worker():
+        for _ in range(10):
+            allowed.append(rl.allow("alice"))
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sum(allowed) == 20
+
+
 def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
     """The service runs one gunicorn worker with 8 threads, so two requests can
     interleave load -> compute -> save. Unsynchronised, this loses most of the
@@ -1196,16 +1250,20 @@ class RateLimiter:
         self.window = window_seconds
         self.clock = clock
         self._hits: dict[str, deque] = defaultdict(deque)
+        # Eight threads share this. The GIL makes the window narrow, but the
+        # read-modify-write is still not atomic.
+        self._lock = threading.Lock()
 
     def allow(self, key: str) -> bool:
-        now = self.clock()
-        hits = self._hits[key]
-        while hits and now - hits[0] > self.window:
-            hits.popleft()
-        if len(hits) >= self.max_calls:
-            return False
-        hits.append(now)
-        return True
+        with self._lock:
+            now = self.clock()
+            hits = self._hits[key]
+            while hits and now - hits[0] > self.window:
+                hits.popleft()
+            if len(hits) >= self.max_calls:
+                return False
+            hits.append(now)
+            return True
 
 
 def _today() -> str:
@@ -1272,6 +1330,41 @@ class DailyBudget:
 
     def exhausted(self) -> bool:
         return self.remaining() <= 0
+
+    def try_reserve(self, amount_usd: float) -> bool:
+        """Atomically refuse or HOLD budget before a call is dispatched.
+
+        Calling exhausted() and recording the cost afterwards is check-then-act:
+        with eight threads every one reads the same pre-spend balance and they
+        all pass. Measured on this branch — six concurrent requests against
+        $0.10 remaining all returned 200, and the ledger finished at $4.43
+        against a $2.00 ceiling. Reserving under the lock is what makes the
+        ceiling a ceiling.
+        """
+        with self._lock:
+            spent = self._load()
+            if spent + amount_usd > self.limit:
+                return False
+            self._write(spent + amount_usd)
+            return True
+
+    def settle(self, reserved_usd: float, usage) -> float:
+        """Swap a reservation for the real cost once the call has finished."""
+        with self._lock:
+            spent = max(0.0, self._load() - reserved_usd + self.cost_of(usage))
+            self._write(spent)
+            return spent
+
+    def _write(self, spent: float) -> None:
+        try:
+            self._save(spent)
+        except OSError:
+            # _load already promises never to raise; keep the write side
+            # symmetrical. This runs inside a live SSE generator after a 200
+            # has been committed, so an escaping OSError would reset the
+            # connection mid-answer. Losing one turn's accounting is the
+            # better failure — but make it loud.
+            log.exception("could not persist daily spend")
 
     def record(self, usage) -> float:
         with self._lock:
@@ -1862,6 +1955,51 @@ def test_a_failing_usage_callback_cannot_escape_the_generator(agent, client):
     assert "event: error" in out
 
 
+def test_disconnect_during_a_later_tool_round_is_still_charged(agent, client):
+    """A single `charged` flag was set by the first completed call and never
+    reset, so a disconnect during round 2 of a tool loop left that call — billed
+    upstream regardless — recorded nowhere. Deterministic, not a race."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["second ", "round ", "text"], message()),
+    ]
+    charges = []
+    gen = agent.run([{"role": "user", "content": "fields?"}], on_usage=charges.append)
+    next(gen)          # drive into round 2's stream...
+    next(gen)
+    gen.close()        # ...then disconnect
+
+    assert client.messages.stream.call_count == 2, "second call was dispatched"
+    assert len(charges) == 2, "both dispatched calls must be charged"
+
+
+def test_reserve_refusal_stops_before_dispatching(agent, client):
+    client.messages.stream.return_value = FakeStream(["x"], message())
+    out = collect(agent.run([{"role": "user", "content": "hi"}], on_reserve=lambda: False))
+    client.messages.stream.assert_not_called()
+    assert "event: error" in out
+    assert "daily limit" in out
+
+
+def test_reserve_is_consulted_before_every_call_in_the_tool_loop(agent, client):
+    """The second call costs as much as the first; reserving only once would
+    let a tool loop spend a multiple of what was checked."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["ok"], message()),
+    ]
+    reserves = []
+    collect(
+        agent.run(
+            [{"role": "user", "content": "fields?"}],
+            on_reserve=lambda: (reserves.append(1), True)[1],
+        )
+    )
+    assert len(reserves) == 2
+
+
 def test_refusal_surfaces_a_message_rather_than_a_blank_answer(agent, client):
     client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
     out = collect(agent.run([{"role": "user", "content": "hi"}]))
@@ -1978,7 +2116,22 @@ class Agent:
             )
         return {"type": "tool_result", "tool_use_id": block.id, "content": body}
 
-    def run(self, messages: list[dict], on_usage=None) -> Iterator[str]:
+    def estimated_cost(self, budget) -> float:
+        """Worst case for ONE call: a cold cache write plus a full-length
+        answer. Reserved before dispatch and settled to the real figure after,
+        so the reservation is held only for the duration of that call. Erring
+        high is the correct direction for a spend ceiling — it refuses near the
+        cap rather than sailing past it."""
+        return budget.cost_of(
+            SimpleNamespace(
+                input_tokens=0,
+                output_tokens=config.MAX_TOKENS,
+                cache_creation_input_tokens=self._corpus_tokens,
+                cache_read_input_tokens=0,
+            )
+        )
+
+    def run(self, messages: list[dict], on_usage=None, on_reserve=None) -> Iterator[str]:
         """Stream one answer, transparently resolving tool calls along the way.
 
         on_usage is invoked with each completed response's usage object, as soon
@@ -1995,10 +2148,28 @@ class Agent:
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
         }
-        charged = False
+        # Counters, not a boolean. A single `charged` flag is set by the first
+        # completed call and never reset, so a disconnect during round 2 of a
+        # tool loop left that call — already billed upstream — recorded
+        # nowhere. Deterministic, not a race: it fired on every disconnect in
+        # any second-or-later round.
+        dispatched = 0
+        recorded = 0
 
         try:
             for _ in range(config.MAX_TOOL_CALLS + 1):
+                if on_reserve is not None and not on_reserve():
+                    yield sse(
+                        "error",
+                        {
+                            "message": "The assistant has reached its daily "
+                            "limit and is resting until tomorrow. The "
+                            "documentation is still all here."
+                        },
+                    )
+                    return
+
+                dispatched += 1
                 with self.client.messages.stream(
                     model=config.MODEL,
                     max_tokens=config.MAX_TOKENS,
@@ -2015,7 +2186,7 @@ class Agent:
                 # Charge for this call before anything else can go wrong.
                 if on_usage is not None:
                     on_usage(final.usage)
-                    charged = True
+                    recorded += 1
                 for key in totals:
                     value = getattr(final.usage, key, 0)
                     totals[key] += value if isinstance(value, int) else 0
@@ -2074,7 +2245,9 @@ class Agent:
             # looks like from here. If we never saw a usage object the request
             # was still billed upstream, so charge the floor rather than let a
             # client evade the ceiling by hanging up every time.
-            if on_usage is not None and not charged:
+            # One floor charge per call that was dispatched but never recorded,
+            # not one per run. Each was billed upstream regardless.
+            for _ in range(max(0, dispatched - recorded)) if on_usage else ():
                 try:
                     on_usage(self.minimum_usage())
                 except Exception:
@@ -2399,12 +2572,19 @@ def chat():
         client=current_app.config["ANTHROPIC_CLIENT"],
     )
 
+    # Reserve the worst case for each call BEFORE it is dispatched, then settle
+    # to the real cost. The earlier shape — check exhausted(), dispatch, record
+    # afterwards — is check-then-act: eight threads all read the same pre-spend
+    # balance and all pass. Measured at $4.43 spent against a $2.00 ceiling
+    # with six concurrent requests.
+    estimate = agent.estimated_cost(budget)
+
     def generate():
-        # budget.record runs per completed API call, not at the end of the
-        # stream: a browser that disconnects mid-answer never runs a
-        # generator's tail, so end-of-stream accounting would let a client
-        # evade the daily ceiling by hanging up every time.
-        for frame in agent.run(messages, on_usage=budget.record):
+        for frame in agent.run(
+            messages,
+            on_reserve=lambda: budget.try_reserve(estimate),
+            on_usage=lambda usage: budget.settle(estimate, usage),
+        ):
             yield frame
         # No usernames, no message content — counts only.
         log.info("chat turn complete, spent_today=%.4f", budget.limit - budget.remaining())
