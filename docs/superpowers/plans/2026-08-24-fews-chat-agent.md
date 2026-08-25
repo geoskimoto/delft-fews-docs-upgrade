@@ -483,6 +483,23 @@ def test_render_rejects_path_traversal(schema_dir):
     assert "Unknown config file" in out
 
 
+def test_field_or_attribute_without_a_name_renders_instead_of_raising(schema_dir):
+    """render_fields must always hand the agent a readable string. If the XSD
+    generator ever emits a field with no 'name', a KeyError would escape as an
+    unhandled exception in the request path instead of a recoverable result."""
+    (schema_dir / "odd.json").write_text(json.dumps({
+        "types": {
+            "OddType": {
+                "attributes": [{"type": "string", "doc": "nameless attribute"}],
+                "fields": [{"type": "string", "required": True}],
+            }
+        },
+    }))
+    out = render_fields(schema_dir, "odd")
+    assert "OddType" in out
+    assert "nameless attribute" in out
+
+
 def test_every_real_schema_renders_without_raising():
     names = schema_names(config.SCHEMA_DIR)
     assert len(names) == 33
@@ -549,7 +566,11 @@ def tool_definition(schema_dir: Path) -> dict:
 
 
 def _render_attribute(attr: dict) -> str:
-    bits = [f"@{attr['name']}"]
+    # .get, not [], on every key including name: this function's contract is to
+    # always hand the agent a readable string. A KeyError here would escape as
+    # an unhandled exception in the request path instead of a recoverable tool
+    # result.
+    bits = [f"@{attr.get('name', '?')}"]
     if attr.get("type"):
         bits.append(f"({attr['type']})")
     if attr.get("use"):
@@ -564,7 +585,7 @@ def _render_attribute(attr: dict) -> str:
 
 
 def _render_field(field: dict) -> str:
-    bits = [field["name"]]
+    bits = [field.get("name", "?")]
     if field.get("type"):
         bits.append(f"({field['type']})")
     bits.append("required" if field.get("required") else "optional")
