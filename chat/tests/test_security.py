@@ -1,3 +1,6 @@
+import json
+import threading
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -130,3 +133,73 @@ def test_budget_tolerates_a_corrupt_state_file(tmp_path):
     path = tmp_path / "b.json"
     path.write_text("{ not json")
     assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_cost_of_handles_none_valued_cache_fields(tmp_path):
+    """The SDK types the cache fields as Optional[int] and sends None — present
+    but null — whenever that class of token was unused, which is nearly every
+    request. getattr's default does not fire for an existing None attribute, so
+    None reaches the multiplication and raises TypeError in the request path."""
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    real_shape = SimpleNamespace(
+        input_tokens=10,
+        output_tokens=5,
+        cache_creation_input_tokens=None,
+        cache_read_input_tokens=80_000,
+    )
+    cost = b.cost_of(real_shape)
+    assert cost == pytest.approx(
+        10 * 3e-6 + 5 * 15e-6 + 80_000 * 0.3e-6, rel=1e-6
+    )
+
+
+def test_cost_of_handles_a_usage_object_missing_fields_entirely(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    assert b.cost_of(SimpleNamespace()) == 0.0
+
+
+@pytest.mark.parametrize("body", ["[1, 2, 3]", '"hello"', "null", "42"])
+def test_budget_tolerates_valid_json_of_the_wrong_shape(tmp_path, body):
+    """.get on a list or string raises AttributeError; this runs in the
+    request path and must degrade to 'nothing spent yet' instead."""
+    path = tmp_path / "b.json"
+    path.write_text(body)
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_budget_tolerates_a_non_numeric_spent_value(tmp_path):
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"date": date.today().isoformat(), "spent_usd": "lots"}))
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_budget_clamps_a_negative_stored_total(tmp_path):
+    """A negative total would hand out more than the configured ceiling."""
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"date": date.today().isoformat(), "spent_usd": -50.0}))
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
+    """The service runs one gunicorn worker with 8 threads, so two requests can
+    interleave load -> compute -> save. Unsynchronised, this loses most of the
+    accounting and can raise FileNotFoundError when two temp renames collide."""
+    b = DailyBudget(tmp_path / "b.json", 100.0)
+    errors = []
+
+    def worker():
+        try:
+            for _ in range(25):
+                b.record(SimpleNamespace(output_tokens=1_000))
+        except Exception as exc:  # noqa: BLE001 — any race must surface
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    expected = 8 * 25 * 1_000 * 15e-6
+    assert b.remaining() == pytest.approx(100.0 - expected, rel=1e-6)

@@ -1,11 +1,27 @@
 """CSRF origin check, per-user rate limiting, and the daily spend ceiling."""
 import json
+import os
+import threading
 import time
 from collections import defaultdict, deque
 from datetime import date
 from pathlib import Path
 
 from chat import config
+
+
+def _num(value) -> float:
+    """Coerce one SDK usage field to a number.
+
+    The Anthropic SDK types cache_creation_input_tokens and
+    cache_read_input_tokens as Optional[int], and they are None — present but
+    null — whenever that class of token was not used, which is true of nearly
+    every request. `getattr(usage, name, 0)` does NOT help: the attribute
+    exists, so the default never fires and None flows into the multiplication.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value)
 
 
 def origin_allowed(origin: str | None, allowed: str) -> bool:
@@ -61,27 +77,45 @@ class DailyBudget:
         self.path = Path(path)
         self.limit = limit_usd
         self.clock = clock
+        # One gunicorn worker, but 8 threads. Without this, two threads
+        # interleave load -> compute -> save and most of the spend is lost.
+        self._lock = threading.Lock()
 
     def cost_of(self, usage) -> float:
         return (
-            getattr(usage, "input_tokens", 0) * config.RATE_INPUT
-            + getattr(usage, "output_tokens", 0) * config.RATE_OUTPUT
-            + getattr(usage, "cache_creation_input_tokens", 0) * config.RATE_CACHE_WRITE
-            + getattr(usage, "cache_read_input_tokens", 0) * config.RATE_CACHE_READ
+            _num(getattr(usage, "input_tokens", 0)) * config.RATE_INPUT
+            + _num(getattr(usage, "output_tokens", 0)) * config.RATE_OUTPUT
+            + _num(getattr(usage, "cache_creation_input_tokens", 0))
+            * config.RATE_CACHE_WRITE
+            + _num(getattr(usage, "cache_read_input_tokens", 0))
+            * config.RATE_CACHE_READ
         )
 
     def _load(self) -> float:
+        """Never raise. This runs in the request path, and a state file that
+        cannot be parsed must degrade to "nothing spent yet", not a 500."""
         try:
             data = json.loads(self.path.read_text())
         except (OSError, json.JSONDecodeError):
             return 0.0
-        if data.get("date") != self.clock():
+        # Valid JSON of the wrong shape ([1,2,3], "hello", null) would make
+        # .get raise AttributeError.
+        if not isinstance(data, dict) or data.get("date") != self.clock():
             return 0.0
-        return float(data.get("spent_usd", 0.0))
+        try:
+            spent = float(data.get("spent_usd", 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+        # A negative total would hand out more than the configured ceiling.
+        return max(0.0, spent)
 
     def _save(self, spent: float) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
+        # Unique temp name per writer: a shared ".tmp" lets two concurrent
+        # renames collide and raise FileNotFoundError.
+        tmp = self.path.with_name(
+            f"{self.path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
         tmp.write_text(json.dumps({"date": self.clock(), "spent_usd": spent}))
         tmp.replace(self.path)
 
@@ -92,6 +126,7 @@ class DailyBudget:
         return self.remaining() <= 0
 
     def record(self, usage) -> float:
-        spent = self._load() + self.cost_of(usage)
-        self._save(spent)
-        return spent
+        with self._lock:
+            spent = self._load() + self.cost_of(usage)
+            self._save(spent)
+            return spent
