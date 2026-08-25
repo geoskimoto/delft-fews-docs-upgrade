@@ -127,29 +127,65 @@ def test_arbitrary_payloads_never_crash(payload):
     assert all(m["role"] in ("user", "assistant") for m in out)
 
 
-# The recursive strategy above almost never produces a well-formed message
 # list, so on its own it exercises the first two type checks and nothing else.
-# This one is shaped like a real payload so it actually reaches role
-# validation, byte counting, and truncation — including the lone surrogate that
-# str.encode refuses.
-_ROLE = st.sampled_from(
-    ["user", "assistant", "system", "SYSTEM", " user", "wizard", ""]
-)
-_CONTENT = st.one_of(
-    st.text(max_size=200),
-    st.text(min_size=1, max_size=40).map(lambda s: s * 500),  # oversized
+#
+# Drawing each message independently from a uniform valid/invalid mix does not
+# fix that. normalise's per-item loop is fail-fast, so ONE bad role anywhere in
+# a 20-message list stops validation before any byte counting happens. Measured:
+# that shape reached the encoder ~10 times per 300 examples and hit the turn-cap
+# branch 0 times in 1000.
+#
+# So these transcripts are well-formed by construction and corrupted
+# deliberately, and long enough that truncation actually fires.
+_BAD_ROLE = st.sampled_from(["system", "SYSTEM", " user", "wizard", ""])
+_BAD_CONTENT = st.one_of(
     st.just("\ud800"),                                        # lone surrogate
     st.just("é" * 5000),                                      # multi-byte
+    st.text(min_size=1, max_size=40).map(lambda s: s * 500),  # oversized
     st.integers(),
     st.none(),
 )
-_MESSAGE = st.fixed_dictionaries({"role": _ROLE, "content": _CONTENT})
+_ODD_MESSAGE = st.one_of(
+    st.fixed_dictionaries({"role": _BAD_ROLE, "content": st.text(max_size=50)}),
+    st.fixed_dictionaries(
+        {"role": st.sampled_from(["user", "assistant"]), "content": _BAD_CONTENT}
+    ),
+)
+
+
+@st.composite
+def _conversations(draw):
+    """Mostly-valid transcripts, sometimes long enough to trip the turn cap and
+    sometimes bulky enough to trip the byte cap, with occasional corruption."""
+    n = draw(st.integers(min_value=1, max_value=30))
+    bulky = draw(st.booleans())
+    # The bulky arm has a min_size so the repetition genuinely produces ~3-4.5KB
+    # per message; a dozen of those exceed MAX_HISTORY_BYTES and exercise the
+    # byte-cap branch. With max_size alone most draws stayed short and that
+    # branch fired once in a thousand examples.
+    body = (
+        st.text(min_size=20, max_size=30).map(lambda s: s * 150)
+        if bulky
+        else st.text(min_size=1, max_size=120)
+    )
+    messages = [
+        {"role": draw(st.sampled_from(["user", "assistant"])), "content": draw(body)}
+        for _ in range(n)
+    ]
+    # Often make it a genuinely well-formed transcript, so the accepted branch
+    # and its invariant assertions run often rather than by luck.
+    if draw(st.booleans()):
+        messages[-1] = {"role": "user", "content": draw(body)}
+    # Corrupt exactly one message about a quarter of the time.
+    if draw(st.integers(min_value=0, max_value=3)) == 0:
+        messages[draw(st.integers(min_value=0, max_value=n - 1))] = draw(_ODD_MESSAGE)
+    return messages
 
 
 # deadline=None: some generated payloads are deliberately large, and hypothesis
 # would otherwise fail them for exceeding its 200ms per-example budget.
 @settings(max_examples=300, deadline=None)
-@given(st.lists(_MESSAGE, min_size=1, max_size=20))
+@given(_conversations())
 def test_wellformed_shaped_payloads_never_crash(messages):
     """Same invariant, but against payloads that actually reach the interesting
     code paths. Every accepted result must be a non-empty list that starts and
