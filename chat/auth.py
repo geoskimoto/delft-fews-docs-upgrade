@@ -43,7 +43,15 @@ def require_streamflows_user(view):
         if not groups & {REQUIRED_GROUP, ADMIN_GROUP}:
             return jsonify({"error": "not_authorized"}), 403
 
-        g.current_user = payload.get("sub", "")
+        # The rate limiter keys on this. Defaulting a missing or blank sub to ""
+        # would drop every such caller into one shared bucket, so one noisy
+        # token could lock out others. A token with no subject identifies
+        # nobody and should not authorize anything.
+        user = payload.get("sub")
+        if not isinstance(user, str) or not user.strip():
+            return jsonify({"error": "not_authenticated"}), 401
+
+        g.current_user = user
         return view(*args, **kwargs)
 
     return wrapped

@@ -180,6 +180,19 @@ def test_budget_clamps_a_negative_stored_total(tmp_path):
     assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
 
 
+def test_record_survives_an_unwritable_state_file(tmp_path):
+    """record() is called from inside a live SSE generator, after a 200 has
+    already been committed. An escaping OSError would reset the connection
+    mid-answer, so losing the accounting is the better failure."""
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+
+    def boom(_spent):
+        raise OSError("disk full")
+
+    b._save = boom
+    assert b.record(SimpleNamespace(output_tokens=1_000)) > 0
+
+
 def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
     """The service runs one gunicorn worker with 8 threads, so two requests can
     interleave load -> compute -> save. Unsynchronised, this loses most of the

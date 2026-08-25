@@ -1,5 +1,6 @@
 """CSRF origin check, per-user rate limiting, and the daily spend ceiling."""
 import json
+import logging
 import os
 import threading
 import time
@@ -8,6 +9,8 @@ from datetime import date
 from pathlib import Path
 
 from chat import config
+
+log = logging.getLogger(__name__)
 
 
 def _num(value) -> float:
@@ -128,5 +131,13 @@ class DailyBudget:
     def record(self, usage) -> float:
         with self._lock:
             spent = self._load() + self.cost_of(usage)
-            self._save(spent)
+            try:
+                self._save(spent)
+            except OSError:
+                # _load already promises never to raise; keep the write side
+                # symmetrical. This is called from inside a live SSE generator
+                # after a 200 has been committed, so an escaping OSError would
+                # reset the connection mid-answer. Losing one turn's accounting
+                # is the better failure — but make it loud.
+                log.exception("could not persist daily spend")
             return spent

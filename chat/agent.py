@@ -181,4 +181,10 @@ class Agent:
             # was still billed upstream, so charge the floor rather than let a
             # client evade the ceiling by hanging up every time.
             if on_usage is not None and not charged:
-                on_usage(self.minimum_usage())
+                try:
+                    on_usage(self.minimum_usage())
+                except Exception:
+                    # Nothing above catches this one — an exception escaping a
+                    # finally block leaves the client with a committed 200 and
+                    # a reset connection instead of an error frame.
+                    log.exception("could not record the floor charge")

@@ -184,6 +184,19 @@ def test_abandoned_stream_is_still_charged(agent, client):
     assert charges[0].cache_read_input_tokens > 0
 
 
+def test_a_failing_usage_callback_cannot_escape_the_generator(agent, client):
+    """The finally block's floor charge is outside every except clause. If it
+    raised, the client would get a committed 200 and a reset connection instead
+    of an error frame."""
+    client.messages.stream.side_effect = RuntimeError("upstream down")
+
+    def boom(_usage):
+        raise OSError("disk full")
+
+    out = collect(agent.run([{"role": "user", "content": "hi"}], on_usage=boom))
+    assert "event: error" in out
+
+
 def test_refusal_surfaces_a_message_rather_than_a_blank_answer(agent, client):
     client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
     out = collect(agent.run([{"role": "user", "content": "hi"}]))

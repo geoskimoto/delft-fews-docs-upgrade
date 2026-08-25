@@ -129,6 +129,19 @@ def test_non_list_groups_claim_denies_cleanly_instead_of_500(client, claim):
     assert resp.get_json()["error"] == "not_authorized"
 
 
+@pytest.mark.parametrize("sub", [None, "", "   ", 5])
+def test_token_without_a_usable_subject_is_rejected(client, sub):
+    """The rate limiter keys on sub. A blank one would put every such caller in
+    a single shared bucket, letting one token lock out others."""
+    claims = {"groups": ["streamflow"], "exp": int(time.time()) + 3600}
+    if sub is not None:
+        claims["sub"] = sub
+    client.set_cookie("streamflows_auth", jwt.encode(claims, SECRET, algorithm="HS256"))
+    resp = client.post("/api/chat")
+    assert resp.status_code == 401
+    assert resp.get_json()["error"] == "not_authenticated"
+
+
 def test_missing_groups_claim_is_forbidden(client):
     token = jwt.encode(
         {"sub": "alice", "exp": int(time.time()) + 3600}, SECRET, algorithm="HS256"
