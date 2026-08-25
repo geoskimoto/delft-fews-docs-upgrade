@@ -33,8 +33,14 @@ def require_streamflows_user(view):
         except jwt.InvalidTokenError:
             return jsonify({"error": "not_authenticated"}), 401
 
-        groups = payload.get("groups") or []
-        if REQUIRED_GROUP not in groups and ADMIN_GROUP not in groups:
+        # Never let an authorization decision depend on the claim's SHAPE.
+        # `in` substring-matches on strings, so a scalar claim of
+        # "streamflow-readonly" or "administrative" would sail past a naive
+        # membership test, and a non-iterable claim would raise TypeError into
+        # a 500. Accept only a list, and only its string elements.
+        raw = payload.get("groups")
+        groups = {g for g in raw if isinstance(g, str)} if isinstance(raw, list) else set()
+        if not groups & {REQUIRED_GROUP, ADMIN_GROUP}:
             return jsonify({"error": "not_authorized"}), 403
 
         g.current_user = payload.get("sub", "")
