@@ -318,13 +318,13 @@ rate is what to plan against):
 
 | | Cost |
 |---|---|
-| First message of a cold conversation (pays the cache write) | ~$0.50 |
-| Each follow-up within the hour | ~$0.04 |
+| First message of a cold conversation (pays the cache write) | ~$0.67 |
+| Each follow-up within the hour | ~$0.03 |
 | One schema lookup, median config file (~6,200 tokens) | ~$0.02 |
 | One schema lookup, largest config file (~45,000 tokens) | ~$0.14 |
 | A five-turn conversation with two median lookups | ~$0.70 |
 
-**$2.00/day is therefore about three five-turn conversations.** That is a real
+**$2.00/day is therefore about two and a half five-turn conversations.** (Measured after launch: the corpus bills 112,090 input tokens, not the ~80,000 estimated from a generic 4-chars-per-token rule — this content tokenizes at ~2.5 chars/token.) That is a real
 constraint and worth knowing before the panel goes live rather than discovering it
 from a "chat is resting" message on the first afternoon. It is a deliberate
 ceiling, not an estimate, so the failure mode is a friendly message rather than a

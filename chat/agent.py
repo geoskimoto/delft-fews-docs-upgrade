@@ -45,8 +45,13 @@ class Agent:
         self.schema_dir = Path(schema_dir)
         self.client = client
         self._tools = [tool_definition(self.schema_dir)]
-        # Rough chars-per-token; only used for the abandoned-request floor.
-        self._corpus_tokens = len(corpus) // 4
+        # Measured against a live call: this corpus is 282,885 chars and
+        # billed 112,090 input tokens, i.e. ~2.5 chars/token — technical prose
+        # full of XML and identifiers tokenizes far denser than the usual ~4.
+        # Divide by 2 so the figure errs HIGH: it drives the pre-dispatch
+        # reservation, where under-estimating is what lets spend outrun the
+        # ceiling, and the abandoned-request floor charge.
+        self._corpus_tokens = len(corpus) // 2
 
     def minimum_usage(self):
         """A conservative floor for a request that upstream billed but whose
