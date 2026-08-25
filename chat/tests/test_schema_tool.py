@@ -79,6 +79,23 @@ def test_render_rejects_path_traversal(schema_dir):
     assert "Unknown config file" in out
 
 
+def test_field_or_attribute_without_a_name_renders_instead_of_raising(schema_dir):
+    """render_fields must always hand the agent a readable string. If the XSD
+    generator ever emits a field with no 'name', a KeyError would escape as an
+    unhandled exception in the request path instead of a recoverable result."""
+    (schema_dir / "odd.json").write_text(json.dumps({
+        "types": {
+            "OddType": {
+                "attributes": [{"type": "string", "doc": "nameless attribute"}],
+                "fields": [{"type": "string", "required": True}],
+            }
+        },
+    }))
+    out = render_fields(schema_dir, "odd")
+    assert "OddType" in out
+    assert "nameless attribute" in out
+
+
 def test_every_real_schema_renders_without_raising():
     names = schema_names(config.SCHEMA_DIR)
     assert len(names) == 33

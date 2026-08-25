@@ -47,7 +47,11 @@ def tool_definition(schema_dir: Path) -> dict:
 
 
 def _render_attribute(attr: dict) -> str:
-    bits = [f"@{attr['name']}"]
+    # .get, not [], on every key including name: this function's contract is to
+    # always hand the agent a readable string. A KeyError here would escape as
+    # an unhandled exception in the request path instead of a recoverable tool
+    # result.
+    bits = [f"@{attr.get('name', '?')}"]
     if attr.get("type"):
         bits.append(f"({attr['type']})")
     if attr.get("use"):
@@ -62,7 +66,7 @@ def _render_attribute(attr: dict) -> str:
 
 
 def _render_field(field: dict) -> str:
-    bits = [field["name"]]
+    bits = [field.get("name", "?")]
     if field.get("type"):
         bits.append(f"({field['type']})")
     bits.append("required" if field.get("required") else "optional")
