@@ -1,0 +1,12 @@
+---
+/**
+ * Starlight `Footer` override. Renders the stock footer, then mounts the chat
+ * panel. Footer is the injection point because it appears on every docs page;
+ * the panel positions itself fixed, so it does not disturb page flow.
+ */
+import Default from '@astrojs/starlight/components/Footer.astro';
+import ChatPanel from './ChatPanel.astro';
+---
+
+<Default><slot /></Default>
+<ChatPanel />
