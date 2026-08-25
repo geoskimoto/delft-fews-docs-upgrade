@@ -1778,6 +1778,46 @@ def test_api_failure_becomes_an_error_frame_not_an_exception(agent, client):
     assert "upstream is down" not in out  # no internals leaked to the browser
 
 
+def test_usage_is_charged_per_api_call_not_at_the_end(agent, client):
+    """Two API calls (one tool round trip) must produce two charges, each as
+    soon as that call finishes."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["done"], message()),
+    ]
+    charges = []
+    collect(agent.run([{"role": "user", "content": "fields?"}], on_usage=charges.append))
+    assert len(charges) == 2
+
+
+def test_abandoned_stream_is_still_charged(agent, client):
+    """A generator abandoned when the browser disconnects never runs its tail.
+    End-of-stream accounting would let a client hang up mid-answer every time
+    and never be charged, while Anthropic bills the account regardless."""
+    client.messages.stream.return_value = FakeStream(["partial ", "text"], message())
+    charges = []
+    gen = agent.run([{"role": "user", "content": "hi"}], on_usage=charges.append)
+    next(gen)      # read one delta...
+    gen.close()    # ...then disconnect
+    assert len(charges) == 1
+    assert charges[0].cache_read_input_tokens > 0
+
+
+def test_refusal_surfaces_a_message_rather_than_a_blank_answer(agent, client):
+    client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
+    out = collect(agent.run([{"role": "user", "content": "hi"}]))
+    assert "event: error" in out
+    assert "declined" in out
+
+
+def test_refusal_is_still_charged(agent, client):
+    client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
+    charges = []
+    collect(agent.run([{"role": "user", "content": "hi"}], on_usage=charges.append))
+    assert len(charges) == 1
+
+
 def test_usage_is_reported_on_the_done_frame(agent, client):
     client.messages.stream.return_value = FakeStream(["x"], message())
     out = collect(agent.run([{"role": "user", "content": "hi"}]))
@@ -1798,6 +1838,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'chat.agent'`
 import json
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterator
 
 from chat import config
@@ -1840,6 +1881,20 @@ class Agent:
         self.schema_dir = Path(schema_dir)
         self.client = client
         self._tools = [tool_definition(self.schema_dir)]
+        # Rough chars-per-token; only used for the abandoned-request floor.
+        self._corpus_tokens = len(corpus) // 4
+
+    def minimum_usage(self):
+        """A conservative floor for a request that upstream billed but whose
+        usage object we never saw, because the browser hung up mid-stream.
+        Without this, disconnecting early every time evades the daily ceiling
+        entirely while Anthropic still charges for the call."""
+        return SimpleNamespace(
+            input_tokens=0,
+            output_tokens=0,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=self._corpus_tokens,
+        )
 
     def system_blocks(self) -> list[dict]:
         """Persona first, corpus last. The cache breakpoint sits on the final
@@ -1865,8 +1920,16 @@ class Agent:
             )
         return {"type": "tool_result", "tool_use_id": block.id, "content": body}
 
-    def run(self, messages: list[dict]) -> Iterator[str]:
-        """Stream one answer, transparently resolving tool calls along the way."""
+    def run(self, messages: list[dict], on_usage=None) -> Iterator[str]:
+        """Stream one answer, transparently resolving tool calls along the way.
+
+        on_usage is invoked with each completed response's usage object, as soon
+        as that API call finishes. It is NOT deferred to the end of the stream:
+        a generator abandoned when the browser disconnects never runs its tail,
+        so end-of-stream accounting would let a client hang up mid-answer every
+        time and never be charged against the daily ceiling, while Anthropic
+        bills the account regardless.
+        """
         convo = list(messages)
         totals = {
             "input_tokens": 0,
@@ -1874,7 +1937,7 @@ class Agent:
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
         }
-        last_usage = None
+        charged = False
 
         try:
             for _ in range(config.MAX_TOOL_CALLS + 1):
@@ -1891,9 +1954,23 @@ class Agent:
                             yield sse("delta", {"text": text})
                     final = stream.get_final_message()
 
-                last_usage = final.usage
+                # Charge for this call before anything else can go wrong.
+                if on_usage is not None:
+                    on_usage(final.usage)
+                    charged = True
                 for key in totals:
-                    totals[key] += getattr(final.usage, key, 0) or 0
+                    value = getattr(final.usage, key, 0)
+                    totals[key] += value if isinstance(value, int) else 0
+
+                if final.stop_reason == "refusal":
+                    yield sse(
+                        "error",
+                        {
+                            "message": "The assistant declined to answer that "
+                            "one. Try rephrasing, or ask something else."
+                        },
+                    )
+                    return
 
                 if final.stop_reason != "tool_use":
                     break
@@ -1911,6 +1988,15 @@ class Agent:
                         "content": [self._handle_tool_use(b) for b in tool_blocks],
                     }
                 )
+            else:
+                # Loop ran to its cap with the model still asking for tools.
+                yield sse(
+                    "delta",
+                    {
+                        "text": "\n\n(I looked up as many config files as I can "
+                        "in one go. Ask a follow-up if you need more.)"
+                    },
+                )
 
             yield sse("done", {"usage": totals})
 
@@ -1925,8 +2011,13 @@ class Agent:
                 },
             )
 
-        self.last_usage = last_usage
-        self.last_totals = totals
+        finally:
+            # Runs on GeneratorExit too, which is what a browser disconnect
+            # looks like from here. If we never saw a usage object the request
+            # was still billed upstream, so charge the floor rather than let a
+            # client evade the ceiling by hanging up every time.
+            if on_usage is not None and not charged:
+                on_usage(self.minimum_usage())
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -2232,13 +2323,14 @@ def chat():
     )
 
     def generate():
-        for frame in agent.run(messages):
+        # budget.record runs per completed API call, not at the end of the
+        # stream: a browser that disconnects mid-answer never runs a
+        # generator's tail, so end-of-stream accounting would let a client
+        # evade the daily ceiling by hanging up every time.
+        for frame in agent.run(messages, on_usage=budget.record):
             yield frame
-        totals = getattr(agent, "last_totals", None)
-        if totals:
-            spent = budget.record(_UsageTotals(totals))
-            # No usernames, no message content — counts only.
-            log.info("chat turn complete tokens=%s spent_today=%.4f", totals, spent)
+        # No usernames, no message content — counts only.
+        log.info("chat turn complete, spent_today=%.4f", budget.limit - budget.remaining())
 
     response = Response(
         stream_with_context(generate()), mimetype="text/event-stream"
@@ -2246,15 +2338,6 @@ def chat():
     response.headers["Cache-Control"] = "no-cache"
     response.headers["X-Accel-Buffering"] = "no"
     return response
-
-
-class _UsageTotals:
-    """Adapts the agent's accumulated token dict to the attribute interface
-    DailyBudget.cost_of expects."""
-
-    def __init__(self, totals: dict):
-        for key, value in totals.items():
-            setattr(self, key, value)
 ```
 
 - [ ] **Step 4: Write `chat/app.py`**
@@ -2821,6 +2904,6 @@ git commit -m "deploy: add chat service systemd unit, nginx snippet, and updated
 
 **Placeholder scan.** The only deferred value is the `anthropic` pin, which Task 1 Step 2 resolves with a concrete command sequence and a verification assertion rather than a guess. Secrets in Task 9 Step 3 are intentionally the operator's to paste.
 
-**Type consistency.** `build_corpus(docs_dir, base_url)` is defined in Task 1 and called with those arguments in Task 7. `tool_definition(schema_dir)` and `render_fields(schema_dir, config_file)` are defined in Task 2 and used in Task 6. `DailyBudget.cost_of` reads four attributes, which is why Task 7 wraps the agent's token dict in `_UsageTotals` rather than passing a plain dict. `Agent(corpus, schema_dir, client)` matches between Tasks 6 and 7. `agent.last_totals` is set in Task 6 and read in Task 7.
+**Type consistency.** `build_corpus(docs_dir, base_url)` is defined in Task 1 and called with those arguments in Task 7. `tool_definition(schema_dir)` and `render_fields(schema_dir, config_file)` are defined in Task 2 and used in Task 6. `DailyBudget.cost_of` reads four attributes off a usage object, which is exactly what `Agent.run` hands its `on_usage` callback, so Task 7 passes `budget.record` straight in with no adapter. `Agent(corpus, schema_dir, client)` and `Agent.run(messages, on_usage=...)` match between Tasks 6 and 7.
 
 **One known ordering constraint.** Tasks 1–6 are independent of each other and can be built in any order, but Task 7 consumes all of them and Task 9 requires Tasks 7 and 8 to be complete.
