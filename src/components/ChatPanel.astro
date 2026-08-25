@@ -1,0 +1,280 @@
+---
+/**
+ * Ask-the-docs panel. Fixed to the right edge: docked on wide viewports, an
+ * overlay drawer below that. Conversation state lives here in the browser — the
+ * service is stateless and receives the transcript with each turn.
+ */
+const loginUrl = 'https://apps.streamflows.org/login';
+---
+
+<button id="fews-chat-toggle" aria-expanded="false" aria-controls="fews-chat">
+  Ask the docs
+</button>
+
+<aside id="fews-chat" data-login={loginUrl} hidden>
+  <header>
+    <h2>Ask the docs</h2>
+    <button id="fews-chat-close" aria-label="Close">&times;</button>
+  </header>
+  <div id="fews-chat-log" role="log" aria-live="polite"></div>
+  <form id="fews-chat-form">
+    <textarea id="fews-chat-input" rows="2"
+      placeholder="How do I map external IDs?" required></textarea>
+    <button type="submit">Send</button>
+  </form>
+</aside>
+
+<style>
+  #fews-chat-toggle {
+    position: fixed; right: 1rem; bottom: 1rem; z-index: 90;
+    padding: 0.6rem 1rem; border-radius: 999px; border: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-accent); color: var(--sl-color-white);
+    font-size: var(--sl-text-sm); cursor: pointer;
+  }
+  #fews-chat {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw);
+    z-index: 100; display: flex; flex-direction: column;
+    background: var(--sl-color-bg); border-left: 1px solid var(--sl-color-gray-5);
+  }
+  #fews-chat[hidden] { display: none; }
+  #fews-chat header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--sl-color-gray-5);
+  }
+  #fews-chat h2 { margin: 0; font-size: var(--sl-text-base); }
+  #fews-chat-close { background: none; border: 0; font-size: 1.5rem; cursor: pointer;
+    color: var(--sl-color-gray-2); }
+  #fews-chat-log { flex: 1; overflow-y: auto; padding: 1rem;
+    font-size: var(--sl-text-sm); }
+  #fews-chat-log .turn { margin-bottom: 1rem; white-space: pre-wrap; }
+  #fews-chat-log .turn.user { color: var(--sl-color-white); font-weight: 600; }
+  #fews-chat-log .turn.notice { color: var(--sl-color-orange-high); }
+  #fews-chat-log .turn a { color: var(--sl-color-text-accent); }
+  #fews-chat-form { display: flex; gap: 0.5rem; padding: 0.75rem;
+    border-top: 1px solid var(--sl-color-gray-5); }
+  #fews-chat-form textarea { flex: 1; resize: vertical;
+    background: var(--sl-color-black); color: inherit;
+    border: 1px solid var(--sl-color-gray-5); border-radius: 4px; padding: 0.4rem; }
+  #fews-chat-form button { padding: 0 1rem; cursor: pointer;
+    background: var(--sl-color-accent); color: var(--sl-color-white);
+    border: 0; border-radius: 4px; }
+  @media (min-width: 1400px) {
+    #fews-chat { box-shadow: none; }
+  }
+</style>
+
+<script>
+  const panel = document.getElementById('fews-chat');
+  const toggle = document.getElementById('fews-chat-toggle');
+  const closeBtn = document.getElementById('fews-chat-close');
+  const log = document.getElementById('fews-chat-log');
+  const form = document.getElementById('fews-chat-form');
+  const input = document.getElementById('fews-chat-input');
+  const sendBtn = form.querySelector('button[type="submit"]');
+  const messages = [];
+  let signedIn = false;
+  let inFlight = false;
+
+  const DOC_LINK = /https:\/\/df-docs\.streamflows\.org\/[^\s)]*/g;
+
+  function addTurn(cls, text) {
+    const el = document.createElement('div');
+    el.className = 'turn ' + cls;
+    el.textContent = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+
+  /* Render an answer as text plus real links to this site's own pages.
+     Everything goes through textContent and createElement, so nothing the
+     model emits is ever parsed as HTML. Only same-site doc URLs become
+     anchors — an arbitrary URL stays inert text. */
+  function renderAnswer(el, text) {
+    el.textContent = '';
+    let last = 0;
+    for (const match of text.matchAll(DOC_LINK)) {
+      /* Prose ends sentences with the URL, so strip trailing punctuation the
+         URL almost certainly does not own — otherwise every cited link that
+         closes a sentence points at a 404. */
+      const url = match[0].replace(/[.,;:!?]+$/, '');
+      el.appendChild(document.createTextNode(text.slice(last, match.index)));
+      const a = document.createElement('a');
+      a.href = url;
+      a.textContent = url;
+      el.appendChild(a);
+      last = match.index + url.length;
+    }
+    el.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  function setOpen(open) {
+    panel.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    try { localStorage.setItem('fewsChatOpen', open ? '1' : '0'); } catch (e) {}
+    if (open) {
+      if (!log.childElementCount) checkStatus();
+      /* Move focus into the drawer, and hand it back to the toggle on close,
+         so a keyboard or screen-reader user is not left on an element behind
+         the panel with no way to tell it opened. */
+      (form.hidden ? closeBtn : input).focus();
+    } else {
+      toggle.focus();
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !panel.hidden) setOpen(false);
+  });
+
+  async function checkStatus() {
+    try {
+      const resp = await fetch('/api/chat/status', { credentials: 'same-origin' });
+      if (resp.status === 401) {
+        signedIn = false;
+        const el = addTurn('notice', 'Sign in to ask questions about these docs. ');
+        const a = document.createElement('a');
+        a.href = panel.dataset.login + '?next=' + encodeURIComponent(location.href);
+        a.textContent = 'Sign in';
+        el.appendChild(a);
+        form.hidden = true;
+        return;
+      }
+      if (resp.status === 403) {
+        signedIn = false;
+        addTurn('notice', 'Your account does not have access to the assistant.');
+        form.hidden = true;
+        return;
+      }
+      const data = await resp.json();
+      signedIn = true;
+      form.hidden = false;
+      if (!data.available) {
+        addTurn('notice',
+          'The assistant has reached its daily limit and is resting until tomorrow.');
+      } else {
+        addTurn('notice', 'Ask anything about configuring Delft-FEWS.');
+      }
+    } catch (e) {
+      addTurn('notice', 'Could not reach the assistant. It may be offline.');
+      form.hidden = true;
+    }
+  }
+
+  async function send(question) {
+    /* Remove THIS turn by identity, never messages.pop(). A blind pop removes
+       whatever happens to be last, which is only this turn's entry if no other
+       send is in flight — and an overlapping send would make it delete another
+       turn's successful answer instead. */
+    const turn = { role: 'user', content: question };
+    function dropTurn() {
+      const i = messages.indexOf(turn);
+      if (i !== -1) messages.splice(i, 1);
+    }
+
+    messages.push(turn);
+    addTurn('user', question);
+    const answerEl = addTurn('assistant', '');
+    let answer = '';
+    let errored = false;
+
+    let resp;
+    try {
+      resp = await fetch('/api/chat', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+    } catch (e) {
+      /* Pop the user turn, exactly as the !resp.ok branch does. `messages`
+         outlives the send, so leaving it would replay the failed question on
+         the next successful turn as a second consecutive user message. */
+      dropTurn();
+      answerEl.remove();
+      addTurn('notice', 'Could not reach the assistant. Check your connection.');
+      return;
+    }
+
+    if (!resp.ok) {
+      let msg = 'Something went wrong. Please try again.';
+      try { msg = (await resp.json()).message || msg; } catch (e) {}
+      answerEl.className = 'turn notice';
+      answerEl.textContent = msg;
+      dropTurn();
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    /* Everything from here is inside try/catch. A malformed frame or a
+       connection dropped mid-stream would otherwise escape as an unhandled
+       rejection — the submit handler does not await this function — leaving a
+       truncated answer on screen, the input still enabled, and no error shown
+       at all. The user would have no idea the turn had failed. */
+    try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const evLine = part.split('\n').find((l) => l.startsWith('event: '));
+        const dataLine = part.split('\n').find((l) => l.startsWith('data: '));
+        if (!dataLine) continue;
+        const payload = JSON.parse(dataLine.slice(6));
+        const ev = evLine ? evLine.slice(7) : 'delta';
+        if (ev === 'delta') {
+          answer += payload.text;
+          renderAnswer(answerEl, answer);
+          log.scrollTop = log.scrollHeight;
+        } else if (ev === 'error') {
+          /* Keep whatever text already arrived — the model may have said
+             something useful before the failure — and put the error beneath it
+             rather than replacing it. Overwriting would silently discard a
+             partial answer the user already watched appear. */
+          errored = true;
+          if (!answer) answerEl.remove();
+          addTurn('notice', payload.message);
+        }
+      }
+    }
+    } catch (e) {
+      errored = true;
+      if (!answer) answerEl.remove();
+      addTurn('notice', 'The reply was interrupted. Please try again.');
+    }
+    /* A partial or failed turn stays on screen but does NOT go into the
+       transcript: the next request would otherwise present a truncated answer
+       to the model as though it were complete. */
+    if (answer && !errored) messages.push({ role: 'assistant', content: answer });
+    else if (errored) dropTurn();
+  }
+
+  toggle.addEventListener('click', () => setOpen(panel.hidden));
+  closeBtn.addEventListener('click', () => setOpen(false));
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = input.value.trim();
+    /* Single-flight. Overlapping sends would interleave two answers into one
+       log and burn budget on a question the user has already moved past; the
+       input is disabled while a reply streams so it cannot happen. */
+    if (!q || !signedIn || inFlight) return;
+    input.value = '';
+    inFlight = true;
+    input.disabled = true;
+    sendBtn.disabled = true;
+    send(q).finally(() => {
+      inFlight = false;
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+    });
+  });
+
+  try {
+    if (localStorage.getItem('fewsChatOpen') === '1') setOpen(true);
+  } catch (e) {}
+</script>

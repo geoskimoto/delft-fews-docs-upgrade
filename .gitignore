@@ -15,3 +15,13 @@ npm-debug.log*
 .env.production
 # macOS
 .DS_Store
+
+# chat service virtualenv and caches (chat/ lives inside the repo)
+chat/venv/
+chat/__pycache__/
+chat/**/__pycache__/
+chat/.pytest_cache/
+chat/data/
+
+# hypothesis example database (test scratch)
+.hypothesis/

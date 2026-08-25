@@ -154,6 +154,15 @@ RATE_LIMIT_CALLS = 20
 RATE_LIMIT_WINDOW_SECONDS = 300
 MAX_HISTORY_TURNS = 12
 MAX_HISTORY_BYTES = 24 * 1024
+# The history byte cap deliberately never drops the final message, so without
+# its own limit a single enormous question sails straight past it: 2 MB is
+# ~500k uncached input tokens, about $1.50 — most of a day's budget in one
+# request.
+MAX_QUESTION_BYTES = 8 * 1024
+# Flask leaves MAX_CONTENT_LENGTH unset, so the request body is unbounded until
+# we say otherwise. Set generously above the history cap; Werkzeug rejects
+# anything larger with a 413 before we parse it.
+MAX_REQUEST_BYTES = 256 * 1024
 MAX_TOOL_CALLS = 3
 ```
 
@@ -238,6 +247,32 @@ def test_corpus_keeps_body_text(docs):
     assert "Plain body." in out
 
 
+def test_prose_line_starting_with_the_word_import_survives(docs):
+    """generalAdapterRun.mdx hard-wraps sentences onto lines that begin
+    'import cycle in full.' and 'import results (...)'. A pattern matching any
+    line starting with 'import ' deletes real documentation with no error."""
+    (docs / "tasks" / "adapter.mdx").write_text(
+        "---\ntitle: Adapter\n---\n\n"
+        "import { Aside } from '@astrojs/starlight/components';\n\n"
+        "The General Adapter runs the export, run and\n"
+        "import cycle in full. This page explains it.\n"
+    )
+    out = build_corpus(docs, BASE)
+    assert "import cycle in full." in out
+    assert "@astrojs/starlight/components" not in out
+
+
+def test_multiline_prose_mentioning_import_from_survives(docs):
+    """Prose can legitimately contain the words 'import' and 'from' on one
+    line; only a real module specifier in quotes makes it an import."""
+    (docs / "tasks" / "prose.mdx").write_text(
+        "---\ntitle: Prose\n---\n\n"
+        "import results from the upstream model are written to disk.\n"
+    )
+    out = build_corpus(docs, BASE)
+    assert "import results from the upstream model" in out
+
+
 def test_field_reference_becomes_a_tool_pointer(docs):
     out = build_corpus(docs, BASE)
     assert "<FieldReference" not in out
@@ -280,7 +315,13 @@ from pathlib import Path
 
 _FRONTMATTER = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 _TITLE = re.compile(r"^title:\s*(.+?)\s*$", re.MULTILINE)
-_IMPORT_LINE = re.compile(r"^import\s+.*?;?\s*$\n?", re.MULTILINE)
+# Requires real import syntax (`... from '...'`). A looser pattern that matched
+# any line starting with "import " silently ate prose — generalAdapterRun.mdx
+# hard-wraps sentences onto lines beginning "import cycle in full." and
+# "import results (...)", and those disappeared from the corpus with no error.
+_IMPORT_LINE = re.compile(
+    r"^import\s+.+?\s+from\s+['\"][^'\"]+['\"]\s*;?[ \t]*$\n?", re.MULTILINE
+)
 _SCHEMA_IMPORT = re.compile(r"^import\s+data\s+from\s+.*?/schema/([\w-]+)\.json.*$", re.MULTILINE)
 _FIELD_REF_TAG = re.compile(r"^<FieldReference\b[^>]*/>\s*$", re.MULTILINE)
 
@@ -451,6 +492,23 @@ def test_render_rejects_path_traversal(schema_dir):
     assert "Unknown config file" in out
 
 
+def test_field_or_attribute_without_a_name_renders_instead_of_raising(schema_dir):
+    """render_fields must always hand the agent a readable string. If the XSD
+    generator ever emits a field with no 'name', a KeyError would escape as an
+    unhandled exception in the request path instead of a recoverable result."""
+    (schema_dir / "odd.json").write_text(json.dumps({
+        "types": {
+            "OddType": {
+                "attributes": [{"type": "string", "doc": "nameless attribute"}],
+                "fields": [{"type": "string", "required": True}],
+            }
+        },
+    }))
+    out = render_fields(schema_dir, "odd")
+    assert "OddType" in out
+    assert "nameless attribute" in out
+
+
 def test_every_real_schema_renders_without_raising():
     names = schema_names(config.SCHEMA_DIR)
     assert len(names) == 33
@@ -517,7 +575,11 @@ def tool_definition(schema_dir: Path) -> dict:
 
 
 def _render_attribute(attr: dict) -> str:
-    bits = [f"@{attr['name']}"]
+    # .get, not [], on every key including name: this function's contract is to
+    # always hand the agent a readable string. A KeyError here would escape as
+    # an unhandled exception in the request path instead of a recoverable tool
+    # result.
+    bits = [f"@{attr.get('name', '?')}"]
     if attr.get("type"):
         bits.append(f"({attr['type']})")
     if attr.get("use"):
@@ -532,7 +594,7 @@ def _render_attribute(attr: dict) -> str:
 
 
 def _render_field(field: dict) -> str:
-    bits = [field["name"]]
+    bits = [field.get("name", "?")]
     if field.get("type"):
         bits.append(f"({field['type']})")
     bits.append("required" if field.get("required") else "optional")
@@ -702,6 +764,52 @@ def test_admin_group_is_allowed(client):
     assert resp.status_code == 200
 
 
+@pytest.mark.parametrize(
+    "claim", ["streamflow-readonly", "administrative", "nonstreamflowgroup", "subadmin"]
+)
+def test_scalar_string_groups_claim_is_rejected(client, claim):
+    """`in` substring-matches on strings: "admin" in "administrative" is True.
+    A validly-signed token whose groups claim is a scalar must not be admitted
+    by accident — an authorization decision cannot depend on claim shape."""
+    bad = jwt.encode(
+        {"sub": "mallory", "groups": claim, "exp": int(time.time()) + 3600},
+        SECRET,
+        algorithm="HS256",
+    )
+    client.set_cookie("streamflows_auth", bad)
+    resp = client.post("/api/chat")
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "not_authorized"
+
+
+@pytest.mark.parametrize("claim", [5, {"a": "streamflow"}, None, [["streamflow"]]])
+def test_non_list_groups_claim_denies_cleanly_instead_of_500(client, claim):
+    """A malformed claim must fail closed with JSON, not raise TypeError into
+    an unhandled 500 that could leak a stack trace."""
+    bad = jwt.encode(
+        {"sub": "mallory", "groups": claim, "exp": int(time.time()) + 3600},
+        SECRET,
+        algorithm="HS256",
+    )
+    client.set_cookie("streamflows_auth", bad)
+    resp = client.post("/api/chat")
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "not_authorized"
+
+
+@pytest.mark.parametrize("sub", [None, "", "   ", 5])
+def test_token_without_a_usable_subject_is_rejected(client, sub):
+    """The rate limiter keys on sub. A blank one would put every such caller in
+    a single shared bucket, letting one token lock out others."""
+    claims = {"groups": ["streamflow"], "exp": int(time.time()) + 3600}
+    if sub is not None:
+        claims["sub"] = sub
+    client.set_cookie("streamflows_auth", jwt.encode(claims, SECRET, algorithm="HS256"))
+    resp = client.post("/api/chat")
+    assert resp.status_code == 401
+    assert resp.get_json()["error"] == "not_authenticated"
+
+
 def test_missing_groups_claim_is_forbidden(client):
     token = jwt.encode(
         {"sub": "alice", "exp": int(time.time()) + 3600}, SECRET, algorithm="HS256"
@@ -754,11 +862,25 @@ def require_streamflows_user(view):
         except jwt.InvalidTokenError:
             return jsonify({"error": "not_authenticated"}), 401
 
-        groups = payload.get("groups") or []
-        if REQUIRED_GROUP not in groups and ADMIN_GROUP not in groups:
+        # Never let an authorization decision depend on the claim's SHAPE.
+        # `in` substring-matches on strings, so a scalar claim of
+        # "streamflow-readonly" or "administrative" would sail past a naive
+        # membership test, and a non-iterable claim would raise TypeError into
+        # a 500. Accept only a list, and only its string elements.
+        raw = payload.get("groups")
+        groups = {g for g in raw if isinstance(g, str)} if isinstance(raw, list) else set()
+        if not groups & {REQUIRED_GROUP, ADMIN_GROUP}:
             return jsonify({"error": "not_authorized"}), 403
 
-        g.current_user = payload.get("sub", "")
+        # The rate limiter keys on this. Defaulting a missing or blank sub to ""
+        # would drop every such caller into one shared bucket, so one noisy
+        # token could lock out others. A token with no subject identifies
+        # nobody and should not authorize anything.
+        user = payload.get("sub")
+        if not isinstance(user, str) or not user.strip():
+            return jsonify({"error": "not_authenticated"}), 401
+
+        g.current_user = user
         return view(*args, **kwargs)
 
     return wrapped
@@ -793,6 +915,9 @@ git commit -m "feat: add JSON-returning SSO guard that avoids the protect_app /a
 Create `chat/tests/test_security.py`:
 
 ```python
+import json
+import threading
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -829,6 +954,17 @@ def test_lookalike_prefix_origin_is_rejected():
 
 def test_http_variant_of_allowed_origin_is_rejected():
     assert origin_allowed("http://df-docs.streamflows.org", ALLOWED) is False
+
+
+def test_non_ascii_origin_is_rejected_without_raising():
+    """Werkzeug latin-1 decodes header bytes, so a non-ASCII Origin reaches us
+    as a str. secrets.compare_digest raises TypeError on those, which would let
+    anyone turn a header into an unhandled 500."""
+    assert origin_allowed("https://exÃ¤mple.com", ALLOWED) is False
+
+
+def test_empty_string_origin_is_rejected():
+    assert origin_allowed("", ALLOWED) is False
 
 
 def test_rate_limiter_allows_up_to_the_cap():
@@ -914,6 +1050,143 @@ def test_budget_tolerates_a_corrupt_state_file(tmp_path):
     path = tmp_path / "b.json"
     path.write_text("{ not json")
     assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_cost_of_handles_none_valued_cache_fields(tmp_path):
+    """The SDK types the cache fields as Optional[int] and sends None — present
+    but null — whenever that class of token was unused, which is nearly every
+    request. getattr's default does not fire for an existing None attribute, so
+    None reaches the multiplication and raises TypeError in the request path."""
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    real_shape = SimpleNamespace(
+        input_tokens=10,
+        output_tokens=5,
+        cache_creation_input_tokens=None,
+        cache_read_input_tokens=80_000,
+    )
+    cost = b.cost_of(real_shape)
+    assert cost == pytest.approx(
+        10 * 3e-6 + 5 * 15e-6 + 80_000 * 0.3e-6, rel=1e-6
+    )
+
+
+def test_cost_of_handles_a_usage_object_missing_fields_entirely(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    assert b.cost_of(SimpleNamespace()) == 0.0
+
+
+@pytest.mark.parametrize("body", ["[1, 2, 3]", '"hello"', "null", "42"])
+def test_budget_tolerates_valid_json_of_the_wrong_shape(tmp_path, body):
+    """.get on a list or string raises AttributeError; this runs in the
+    request path and must degrade to 'nothing spent yet' instead."""
+    path = tmp_path / "b.json"
+    path.write_text(body)
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_budget_tolerates_a_non_numeric_spent_value(tmp_path):
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"date": date.today().isoformat(), "spent_usd": "lots"}))
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_budget_clamps_a_negative_stored_total(tmp_path):
+    """A negative total would hand out more than the configured ceiling."""
+    path = tmp_path / "b.json"
+    path.write_text(json.dumps({"date": date.today().isoformat(), "spent_usd": -50.0}))
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(2.00, rel=1e-6)
+
+
+def test_record_survives_an_unwritable_state_file(tmp_path):
+    """record() is called from inside a live SSE generator, after a 200 has
+    already been committed. An escaping OSError would reset the connection
+    mid-answer, so losing the accounting is the better failure."""
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+
+    def boom(_spent):
+        raise OSError("disk full")
+
+    b._save = boom
+    assert b.record(SimpleNamespace(output_tokens=1_000)) > 0
+
+
+def test_concurrent_reservations_cannot_exceed_the_ceiling(tmp_path):
+    """The bug this exists to prevent: exhausted() then dispatch then record is
+    check-then-act. With eight threads every one read the same pre-spend
+    balance and all passed — measured at $4.43 spent against a $2.00 ceiling.
+    Reserving under the lock must admit only what actually fits."""
+    b = DailyBudget(tmp_path / "b.json", 1.00)
+    granted = []
+
+    def worker():
+        granted.append(b.try_reserve(0.30))
+
+    threads = [threading.Thread(target=worker) for _ in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # 0.30 each into a 1.00 ceiling: at most three may be granted.
+    assert sum(granted) == 3
+    assert b.remaining() == pytest.approx(0.10, rel=1e-6)
+
+
+def test_settle_replaces_the_reservation_with_the_real_cost(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 2.00)
+    assert b.try_reserve(0.50) is True
+    b.settle(0.50, SimpleNamespace(output_tokens=1_000))  # actually $0.015
+    assert b.remaining() == pytest.approx(2.00 - 0.015, rel=1e-6)
+
+
+def test_reserve_refuses_once_the_ceiling_is_reached(tmp_path):
+    b = DailyBudget(tmp_path / "b.json", 1.00)
+    assert b.try_reserve(0.90) is True
+    assert b.try_reserve(0.20) is False
+    assert b.remaining() == pytest.approx(0.10, rel=1e-6)
+
+
+def test_rate_limiter_holds_its_cap_under_concurrency(tmp_path):
+    """Same class of bug as the budget: an unlocked read-modify-write across
+    eight threads."""
+    rl = RateLimiter(20, 300)
+    allowed = []
+
+    def worker():
+        for _ in range(10):
+            allowed.append(rl.allow("alice"))
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sum(allowed) == 20
+
+
+def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
+    """The service runs one gunicorn worker with 8 threads, so two requests can
+    interleave load -> compute -> save. Unsynchronised, this loses most of the
+    accounting and can raise FileNotFoundError when two temp renames collide."""
+    b = DailyBudget(tmp_path / "b.json", 100.0)
+    errors = []
+
+    def worker():
+        try:
+            for _ in range(25):
+                b.record(SimpleNamespace(output_tokens=1_000))
+        except Exception as exc:  # noqa: BLE001 — any race must surface
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    expected = 8 * 25 * 1_000 * 15e-6
+    assert b.remaining() == pytest.approx(100.0 - expected, rel=1e-6)
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -926,7 +1199,9 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'chat.security'`
 ```python
 """CSRF origin check, per-user rate limiting, and the daily spend ceiling."""
 import json
-import secrets
+import logging
+import os
+import threading
 import time
 from collections import defaultdict, deque
 from datetime import date
@@ -934,14 +1209,36 @@ from pathlib import Path
 
 from chat import config
 
+log = logging.getLogger(__name__)
+
+
+def _num(value) -> float:
+    """Coerce one SDK usage field to a number.
+
+    The Anthropic SDK types cache_creation_input_tokens and
+    cache_read_input_tokens as Optional[int], and they are None — present but
+    null — whenever that class of token was not used, which is true of nearly
+    every request. `getattr(usage, name, 0)` does NOT help: the attribute
+    exists, so the default never fires and None flows into the multiplication.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value)
+
 
 def origin_allowed(origin: str | None, allowed: str) -> bool:
     """Exact-match Origin check. The chat endpoint is a cookie-authenticated
     state-changing POST, and these pages are static HTML with no server-rendered
-    place to seed a CSRF token, so the Origin header is the check that fits."""
+    place to seed a CSRF token, so the Origin header is the check that fits.
+
+    Plain `==`, deliberately, not secrets.compare_digest. Origin is attacker-
+    supplied and not a secret, so there is no timing channel worth closing —
+    and compare_digest raises TypeError on non-ASCII strings, which would turn
+    a header anyone can send into an unhandled 500.
+    """
     if not origin:
         return False
-    return secrets.compare_digest(origin, allowed)
+    return origin == allowed
 
 
 class RateLimiter:
@@ -953,16 +1250,20 @@ class RateLimiter:
         self.window = window_seconds
         self.clock = clock
         self._hits: dict[str, deque] = defaultdict(deque)
+        # Eight threads share this. The GIL makes the window narrow, but the
+        # read-modify-write is still not atomic.
+        self._lock = threading.Lock()
 
     def allow(self, key: str) -> bool:
-        now = self.clock()
-        hits = self._hits[key]
-        while hits and now - hits[0] > self.window:
-            hits.popleft()
-        if len(hits) >= self.max_calls:
-            return False
-        hits.append(now)
-        return True
+        with self._lock:
+            now = self.clock()
+            hits = self._hits[key]
+            while hits and now - hits[0] > self.window:
+                hits.popleft()
+            if len(hits) >= self.max_calls:
+                return False
+            hits.append(now)
+            return True
 
 
 def _today() -> str:
@@ -982,27 +1283,45 @@ class DailyBudget:
         self.path = Path(path)
         self.limit = limit_usd
         self.clock = clock
+        # One gunicorn worker, but 8 threads. Without this, two threads
+        # interleave load -> compute -> save and most of the spend is lost.
+        self._lock = threading.Lock()
 
     def cost_of(self, usage) -> float:
         return (
-            getattr(usage, "input_tokens", 0) * config.RATE_INPUT
-            + getattr(usage, "output_tokens", 0) * config.RATE_OUTPUT
-            + getattr(usage, "cache_creation_input_tokens", 0) * config.RATE_CACHE_WRITE
-            + getattr(usage, "cache_read_input_tokens", 0) * config.RATE_CACHE_READ
+            _num(getattr(usage, "input_tokens", 0)) * config.RATE_INPUT
+            + _num(getattr(usage, "output_tokens", 0)) * config.RATE_OUTPUT
+            + _num(getattr(usage, "cache_creation_input_tokens", 0))
+            * config.RATE_CACHE_WRITE
+            + _num(getattr(usage, "cache_read_input_tokens", 0))
+            * config.RATE_CACHE_READ
         )
 
     def _load(self) -> float:
+        """Never raise. This runs in the request path, and a state file that
+        cannot be parsed must degrade to "nothing spent yet", not a 500."""
         try:
             data = json.loads(self.path.read_text())
         except (OSError, json.JSONDecodeError):
             return 0.0
-        if data.get("date") != self.clock():
+        # Valid JSON of the wrong shape ([1,2,3], "hello", null) would make
+        # .get raise AttributeError.
+        if not isinstance(data, dict) or data.get("date") != self.clock():
             return 0.0
-        return float(data.get("spent_usd", 0.0))
+        try:
+            spent = float(data.get("spent_usd", 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+        # A negative total would hand out more than the configured ceiling.
+        return max(0.0, spent)
 
     def _save(self, spent: float) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
+        # Unique temp name per writer: a shared ".tmp" lets two concurrent
+        # renames collide and raise FileNotFoundError.
+        tmp = self.path.with_name(
+            f"{self.path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
         tmp.write_text(json.dumps({"date": self.clock(), "spent_usd": spent}))
         tmp.replace(self.path)
 
@@ -1012,10 +1331,54 @@ class DailyBudget:
     def exhausted(self) -> bool:
         return self.remaining() <= 0
 
+    def try_reserve(self, amount_usd: float) -> bool:
+        """Atomically refuse or HOLD budget before a call is dispatched.
+
+        Calling exhausted() and recording the cost afterwards is check-then-act:
+        with eight threads every one reads the same pre-spend balance and they
+        all pass. Measured on this branch — six concurrent requests against
+        $0.10 remaining all returned 200, and the ledger finished at $4.43
+        against a $2.00 ceiling. Reserving under the lock is what makes the
+        ceiling a ceiling.
+        """
+        with self._lock:
+            spent = self._load()
+            if spent + amount_usd > self.limit:
+                return False
+            self._write(spent + amount_usd)
+            return True
+
+    def settle(self, reserved_usd: float, usage) -> float:
+        """Swap a reservation for the real cost once the call has finished."""
+        with self._lock:
+            spent = max(0.0, self._load() - reserved_usd + self.cost_of(usage))
+            self._write(spent)
+            return spent
+
+    def _write(self, spent: float) -> None:
+        try:
+            self._save(spent)
+        except OSError:
+            # _load already promises never to raise; keep the write side
+            # symmetrical. This runs inside a live SSE generator after a 200
+            # has been committed, so an escaping OSError would reset the
+            # connection mid-answer. Losing one turn's accounting is the
+            # better failure — but make it loud.
+            log.exception("could not persist daily spend")
+
     def record(self, usage) -> float:
-        spent = self._load() + self.cost_of(usage)
-        self._save(spent)
-        return spent
+        with self._lock:
+            spent = self._load() + self.cost_of(usage)
+            try:
+                self._save(spent)
+            except OSError:
+                # _load already promises never to raise; keep the write side
+                # symmetrical. This is called from inside a live SSE generator
+                # after a 200 has been committed, so an escaping OSError would
+                # reset the connection mid-answer. Losing one turn's accounting
+                # is the better failure — but make it loud.
+                log.exception("could not persist daily spend")
+            return spent
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -1104,6 +1467,32 @@ def test_rejects_a_blank_final_message():
         normalise({"messages": [msg("user", "   ")]})
 
 
+def test_rejects_an_oversized_question():
+    """The truncation loop always keeps the final message, so without its own
+    ceiling a 2 MB question reaches the API as ~500k uncached input tokens —
+    roughly $1.50, most of a day's budget, in a single request."""
+    from chat import config
+
+    with pytest.raises(InvalidHistory):
+        normalise({"messages": [msg("user", "x" * (config.MAX_QUESTION_BYTES + 1))]})
+
+
+def test_accepts_a_question_exactly_at_the_limit():
+    from chat import config
+
+    out = normalise({"messages": [msg("user", "x" * config.MAX_QUESTION_BYTES)]})
+    assert len(out) == 1
+
+
+def test_question_limit_counts_bytes_not_characters():
+    """A multi-byte character must not let the caller smuggle past the cap."""
+    from chat import config
+
+    payload = "é" * config.MAX_QUESTION_BYTES  # 2 bytes each in UTF-8
+    with pytest.raises(InvalidHistory):
+        normalise({"messages": [msg("user", payload)]})
+
+
 def test_truncates_to_the_turn_cap():
     from chat import config
 
@@ -1139,14 +1528,115 @@ def test_truncation_keeps_the_history_starting_on_a_user_turn():
     max_leaves=20,
 ))
 def test_arbitrary_payloads_never_crash(payload):
-    """Any client payload yields a clean list or InvalidHistory — never an
-    unhandled exception that would surface as a 500."""
+    """Garbage of any shape yields InvalidHistory, never an unhandled
+    exception. This covers the outer type guards only — see the shaped
+    strategy below for the parsing and truncation logic."""
     try:
         out = normalise(payload)
     except InvalidHistory:
         return
     assert isinstance(out, list)
     assert all(m["role"] in ("user", "assistant") for m in out)
+
+
+# The recursive strategy above almost never produces a well-formed message
+# list, so on its own it exercises the first two type checks and nothing else.
+#
+# Drawing each message independently from a uniform valid/invalid mix does not
+# fix that. normalise's per-item loop is fail-fast, so ONE bad role anywhere in
+# a 20-message list stops validation before any byte counting happens. Measured:
+# that shape reached the encoder ~10 times per 300 examples and hit the turn-cap
+# branch 0 times in 1000.
+#
+# So these transcripts are well-formed by construction and corrupted
+# deliberately, and long enough that truncation actually fires.
+_BAD_ROLE = st.sampled_from(["system", "SYSTEM", " user", "wizard", ""])
+_BAD_CONTENT = st.one_of(
+    st.just("\ud800"),                                        # lone surrogate
+    st.just("é" * 5000),                                      # multi-byte
+    st.text(min_size=1, max_size=40).map(lambda s: s * 500),  # oversized
+    st.integers(),
+    st.none(),
+)
+_ODD_MESSAGE = st.one_of(
+    st.fixed_dictionaries({"role": _BAD_ROLE, "content": st.text(max_size=50)}),
+    st.fixed_dictionaries(
+        {"role": st.sampled_from(["user", "assistant"]), "content": _BAD_CONTENT}
+    ),
+)
+
+
+@st.composite
+def _conversations(draw):
+    """Mostly-valid transcripts, sometimes long enough to trip the turn cap and
+    sometimes bulky enough to trip the byte cap, with occasional corruption."""
+    n = draw(st.integers(min_value=1, max_value=30))
+    bulky = draw(st.booleans())
+    # The bulky arm has a min_size so the repetition genuinely produces ~3-4.5KB
+    # per message; a dozen of those exceed MAX_HISTORY_BYTES and exercise the
+    # byte-cap branch. With max_size alone most draws stayed short and that
+    # branch fired once in a thousand examples.
+    body = (
+        st.text(min_size=20, max_size=30).map(lambda s: s * 150)
+        if bulky
+        else st.text(min_size=1, max_size=120)
+    )
+    messages = [
+        {"role": draw(st.sampled_from(["user", "assistant"])), "content": draw(body)}
+        for _ in range(n)
+    ]
+    # Often make it a genuinely well-formed transcript, so the accepted branch
+    # and its invariant assertions run often rather than by luck.
+    if draw(st.booleans()):
+        messages[-1] = {"role": "user", "content": draw(body)}
+    # Corrupt exactly one message about a quarter of the time.
+    if draw(st.integers(min_value=0, max_value=3)) == 0:
+        messages[draw(st.integers(min_value=0, max_value=n - 1))] = draw(_ODD_MESSAGE)
+    return messages
+
+
+# deadline=None: some generated payloads are deliberately large, and hypothesis
+# would otherwise fail them for exceeding its 200ms per-example budget.
+@settings(max_examples=300, deadline=None)
+@given(_conversations())
+def test_wellformed_shaped_payloads_never_crash(messages):
+    """Same invariant, but against payloads that actually reach the interesting
+    code paths. Every accepted result must be a non-empty list that starts and
+    ends on a user turn and respects the byte cap."""
+    from chat import config
+
+    try:
+        out = normalise({"messages": messages})
+    except InvalidHistory:
+        return
+
+    assert isinstance(out, list) and out
+    assert all(m["role"] in ("user", "assistant") for m in out)
+    assert out[0]["role"] == "user"
+    assert out[-1]["role"] == "user"
+    assert len(out) <= config.MAX_HISTORY_TURNS
+    total = sum(len(m["content"].encode("utf-8")) for m in out)
+    assert total <= config.MAX_HISTORY_BYTES
+
+
+def test_lone_surrogate_content_raises_invalid_history():
+    """json.loads turns the escape "\\ud800" into a str that str.encode cannot
+    encode. Unguarded that is a 500 on a crafted request."""
+    with pytest.raises(InvalidHistory):
+        normalise({"messages": [msg("user", "\ud800")]})
+
+
+def test_lone_surrogate_in_history_raises_invalid_history():
+    with pytest.raises(InvalidHistory):
+        normalise(
+            {
+                "messages": [
+                    msg("user", "\ud800"),
+                    msg("assistant", "ok"),
+                    msg("user", "real question"),
+                ]
+            }
+        )
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1169,6 +1659,20 @@ _ROLES = ("user", "assistant")
 
 class InvalidHistory(Exception):
     """Raised for any payload that cannot be turned into a valid message list."""
+
+
+def _byte_len(text: str) -> int:
+    """UTF-8 byte length, or InvalidHistory.
+
+    json.loads happily turns the escape "\\ud800" into a Python str holding a
+    lone surrogate, and str.encode refuses to encode it. Unguarded, that is a
+    500 on a crafted request — this module's whole job is to be the place where
+    bad input becomes a 400 instead.
+    """
+    try:
+        return len(text.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise InvalidHistory("message content is not valid UTF-8") from exc
 
 
 def normalise(payload) -> list[dict]:
@@ -1196,12 +1700,21 @@ def normalise(payload) -> list[dict]:
     if not cleaned[-1]["content"].strip():
         raise InvalidHistory("the last message is empty")
 
+    # The truncation loop below always keeps the final message, so it needs its
+    # own ceiling or a single huge question bypasses the history cap entirely.
+    question_bytes = _byte_len(cleaned[-1]["content"])
+    if question_bytes > config.MAX_QUESTION_BYTES:
+        raise InvalidHistory(
+            f"that question is {question_bytes} bytes; the limit is "
+            f"{config.MAX_QUESTION_BYTES}"
+        )
+
     cleaned = cleaned[-config.MAX_HISTORY_TURNS :]
 
     total = 0
     kept: list[dict] = []
     for item in reversed(cleaned):
-        size = len(item["content"].encode("utf-8"))
+        size = _byte_len(item["content"])
         if kept and total + size > config.MAX_HISTORY_BYTES:
             break
         total += size
@@ -1403,6 +1916,104 @@ def test_api_failure_becomes_an_error_frame_not_an_exception(agent, client):
     assert "upstream is down" not in out  # no internals leaked to the browser
 
 
+def test_usage_is_charged_per_api_call_not_at_the_end(agent, client):
+    """Two API calls (one tool round trip) must produce two charges, each as
+    soon as that call finishes."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["done"], message()),
+    ]
+    charges = []
+    collect(agent.run([{"role": "user", "content": "fields?"}], on_usage=charges.append))
+    assert len(charges) == 2
+
+
+def test_abandoned_stream_is_still_charged(agent, client):
+    """A generator abandoned when the browser disconnects never runs its tail.
+    End-of-stream accounting would let a client hang up mid-answer every time
+    and never be charged, while Anthropic bills the account regardless."""
+    client.messages.stream.return_value = FakeStream(["partial ", "text"], message())
+    charges = []
+    gen = agent.run([{"role": "user", "content": "hi"}], on_usage=charges.append)
+    next(gen)      # read one delta...
+    gen.close()    # ...then disconnect
+    assert len(charges) == 1
+    assert charges[0].cache_read_input_tokens > 0
+
+
+def test_a_failing_usage_callback_cannot_escape_the_generator(agent, client):
+    """The finally block's floor charge is outside every except clause. If it
+    raised, the client would get a committed 200 and a reset connection instead
+    of an error frame."""
+    client.messages.stream.side_effect = RuntimeError("upstream down")
+
+    def boom(_usage):
+        raise OSError("disk full")
+
+    out = collect(agent.run([{"role": "user", "content": "hi"}], on_usage=boom))
+    assert "event: error" in out
+
+
+def test_disconnect_during_a_later_tool_round_is_still_charged(agent, client):
+    """A single `charged` flag was set by the first completed call and never
+    reset, so a disconnect during round 2 of a tool loop left that call — billed
+    upstream regardless — recorded nowhere. Deterministic, not a race."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["second ", "round ", "text"], message()),
+    ]
+    charges = []
+    gen = agent.run([{"role": "user", "content": "fields?"}], on_usage=charges.append)
+    next(gen)          # drive into round 2's stream...
+    next(gen)
+    gen.close()        # ...then disconnect
+
+    assert client.messages.stream.call_count == 2, "second call was dispatched"
+    assert len(charges) == 2, "both dispatched calls must be charged"
+
+
+def test_reserve_refusal_stops_before_dispatching(agent, client):
+    client.messages.stream.return_value = FakeStream(["x"], message())
+    out = collect(agent.run([{"role": "user", "content": "hi"}], on_reserve=lambda: False))
+    client.messages.stream.assert_not_called()
+    assert "event: error" in out
+    assert "daily limit" in out
+
+
+def test_reserve_is_consulted_before_every_call_in_the_tool_loop(agent, client):
+    """The second call costs as much as the first; reserving only once would
+    let a tool loop spend a multiple of what was checked."""
+    first = message(stop_reason="tool_use", content=[tool_use_block()])
+    client.messages.stream.side_effect = [
+        FakeStream([""], first),
+        FakeStream(["ok"], message()),
+    ]
+    reserves = []
+    collect(
+        agent.run(
+            [{"role": "user", "content": "fields?"}],
+            on_reserve=lambda: (reserves.append(1), True)[1],
+        )
+    )
+    assert len(reserves) == 2
+
+
+def test_refusal_surfaces_a_message_rather_than_a_blank_answer(agent, client):
+    client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
+    out = collect(agent.run([{"role": "user", "content": "hi"}]))
+    assert "event: error" in out
+    assert "declined" in out
+
+
+def test_refusal_is_still_charged(agent, client):
+    client.messages.stream.return_value = FakeStream([""], message(stop_reason="refusal"))
+    charges = []
+    collect(agent.run([{"role": "user", "content": "hi"}], on_usage=charges.append))
+    assert len(charges) == 1
+
+
 def test_usage_is_reported_on_the_done_frame(agent, client):
     client.messages.stream.return_value = FakeStream(["x"], message())
     out = collect(agent.run([{"role": "user", "content": "hi"}]))
@@ -1423,6 +2034,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'chat.agent'`
 import json
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterator
 
 from chat import config
@@ -1465,6 +2077,20 @@ class Agent:
         self.schema_dir = Path(schema_dir)
         self.client = client
         self._tools = [tool_definition(self.schema_dir)]
+        # Rough chars-per-token; only used for the abandoned-request floor.
+        self._corpus_tokens = len(corpus) // 4
+
+    def minimum_usage(self):
+        """A conservative floor for a request that upstream billed but whose
+        usage object we never saw, because the browser hung up mid-stream.
+        Without this, disconnecting early every time evades the daily ceiling
+        entirely while Anthropic still charges for the call."""
+        return SimpleNamespace(
+            input_tokens=0,
+            output_tokens=0,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=self._corpus_tokens,
+        )
 
     def system_blocks(self) -> list[dict]:
         """Persona first, corpus last. The cache breakpoint sits on the final
@@ -1490,8 +2116,31 @@ class Agent:
             )
         return {"type": "tool_result", "tool_use_id": block.id, "content": body}
 
-    def run(self, messages: list[dict]) -> Iterator[str]:
-        """Stream one answer, transparently resolving tool calls along the way."""
+    def estimated_cost(self, budget) -> float:
+        """Worst case for ONE call: a cold cache write plus a full-length
+        answer. Reserved before dispatch and settled to the real figure after,
+        so the reservation is held only for the duration of that call. Erring
+        high is the correct direction for a spend ceiling — it refuses near the
+        cap rather than sailing past it."""
+        return budget.cost_of(
+            SimpleNamespace(
+                input_tokens=0,
+                output_tokens=config.MAX_TOKENS,
+                cache_creation_input_tokens=self._corpus_tokens,
+                cache_read_input_tokens=0,
+            )
+        )
+
+    def run(self, messages: list[dict], on_usage=None, on_reserve=None) -> Iterator[str]:
+        """Stream one answer, transparently resolving tool calls along the way.
+
+        on_usage is invoked with each completed response's usage object, as soon
+        as that API call finishes. It is NOT deferred to the end of the stream:
+        a generator abandoned when the browser disconnects never runs its tail,
+        so end-of-stream accounting would let a client hang up mid-answer every
+        time and never be charged against the daily ceiling, while Anthropic
+        bills the account regardless.
+        """
         convo = list(messages)
         totals = {
             "input_tokens": 0,
@@ -1499,10 +2148,28 @@ class Agent:
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
         }
-        last_usage = None
+        # Counters, not a boolean. A single `charged` flag is set by the first
+        # completed call and never reset, so a disconnect during round 2 of a
+        # tool loop left that call — already billed upstream — recorded
+        # nowhere. Deterministic, not a race: it fired on every disconnect in
+        # any second-or-later round.
+        dispatched = 0
+        recorded = 0
 
         try:
             for _ in range(config.MAX_TOOL_CALLS + 1):
+                if on_reserve is not None and not on_reserve():
+                    yield sse(
+                        "error",
+                        {
+                            "message": "The assistant has reached its daily "
+                            "limit and is resting until tomorrow. The "
+                            "documentation is still all here."
+                        },
+                    )
+                    return
+
+                dispatched += 1
                 with self.client.messages.stream(
                     model=config.MODEL,
                     max_tokens=config.MAX_TOKENS,
@@ -1516,9 +2183,23 @@ class Agent:
                             yield sse("delta", {"text": text})
                     final = stream.get_final_message()
 
-                last_usage = final.usage
+                # Charge for this call before anything else can go wrong.
+                if on_usage is not None:
+                    on_usage(final.usage)
+                    recorded += 1
                 for key in totals:
-                    totals[key] += getattr(final.usage, key, 0) or 0
+                    value = getattr(final.usage, key, 0)
+                    totals[key] += value if isinstance(value, int) else 0
+
+                if final.stop_reason == "refusal":
+                    yield sse(
+                        "error",
+                        {
+                            "message": "The assistant declined to answer that "
+                            "one. Try rephrasing, or ask something else."
+                        },
+                    )
+                    return
 
                 if final.stop_reason != "tool_use":
                     break
@@ -1536,6 +2217,15 @@ class Agent:
                         "content": [self._handle_tool_use(b) for b in tool_blocks],
                     }
                 )
+            else:
+                # Loop ran to its cap with the model still asking for tools.
+                yield sse(
+                    "delta",
+                    {
+                        "text": "\n\n(I looked up as many config files as I can "
+                        "in one go. Ask a follow-up if you need more.)"
+                    },
+                )
 
             yield sse("done", {"usage": totals})
 
@@ -1550,8 +2240,21 @@ class Agent:
                 },
             )
 
-        self.last_usage = last_usage
-        self.last_totals = totals
+        finally:
+            # Runs on GeneratorExit too, which is what a browser disconnect
+            # looks like from here. If we never saw a usage object the request
+            # was still billed upstream, so charge the floor rather than let a
+            # client evade the ceiling by hanging up every time.
+            # One floor charge per call that was dispatched but never recorded,
+            # not one per run. Each was billed upstream regardless.
+            for _ in range(max(0, dispatched - recorded)) if on_usage else ():
+                try:
+                    on_usage(self.minimum_usage())
+                except Exception:
+                    # Nothing above catches this one — an exception escaping a
+                    # finally block leaves the client with a committed 200 and
+                    # a reset connection instead of an error frame.
+                    log.exception("could not record the floor charge")
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -1753,6 +2456,49 @@ def test_exhausted_budget_returns_429_before_dispatch(app, client, anthropic):
 def test_spend_is_recorded_after_a_completed_stream(app, client):
     post(client).get_data()
     assert app.config["BUDGET"].remaining() < 2.00
+
+
+def test_oversized_request_body_is_rejected_before_parsing(client):
+    """Flask leaves MAX_CONTENT_LENGTH unset by default, which means an
+    unbounded request body. Werkzeug must reject this with a 413."""
+    from chat import config
+
+    client.set_cookie("streamflows_auth", token())
+    resp = client.post(
+        "/api/chat",
+        data="x" * (config.MAX_REQUEST_BYTES + 1024),
+        headers={"Content-Type": "application/json", "Origin": ORIGIN},
+    )
+    assert resp.status_code == 413
+
+
+def test_startup_fails_loudly_when_jwt_secret_is_missing(tmp_path, anthropic, monkeypatch):
+    """decode_token indexes os.environ["JWT_SECRET"] directly, so an unset
+    value is a KeyError on every request rather than a service that refuses
+    to start."""
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="JWT_SECRET"):
+        create_app({
+            "ANTHROPIC_CLIENT": anthropic,
+            "CORPUS": "TEST CORPUS",
+            "STATE_DIR": tmp_path,
+        })
+
+
+def test_startup_fails_loudly_when_schema_data_is_missing(tmp_path, anthropic):
+    """src/data/schema/ is gitignored and regenerated by `npm run gen:schema`.
+    An empty directory would give the tool an empty enum, and strict:true
+    against an empty enum makes the API reject every request. Fail at startup,
+    not at the user's first question."""
+    empty = tmp_path / "no-schema"
+    empty.mkdir()
+    with pytest.raises(RuntimeError, match="gen:schema"):
+        create_app({
+            "ANTHROPIC_CLIENT": anthropic,
+            "CORPUS": "TEST CORPUS",
+            "STATE_DIR": tmp_path,
+            "SCHEMA_DIR": empty,
+        })
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -1826,14 +2572,22 @@ def chat():
         client=current_app.config["ANTHROPIC_CLIENT"],
     )
 
+    # Reserve the worst case for each call BEFORE it is dispatched, then settle
+    # to the real cost. The earlier shape — check exhausted(), dispatch, record
+    # afterwards — is check-then-act: eight threads all read the same pre-spend
+    # balance and all pass. Measured at $4.43 spent against a $2.00 ceiling
+    # with six concurrent requests.
+    estimate = agent.estimated_cost(budget)
+
     def generate():
-        for frame in agent.run(messages):
+        for frame in agent.run(
+            messages,
+            on_reserve=lambda: budget.try_reserve(estimate),
+            on_usage=lambda usage: budget.settle(estimate, usage),
+        ):
             yield frame
-        totals = getattr(agent, "last_totals", None)
-        if totals:
-            spent = budget.record(_UsageTotals(totals))
-            # No usernames, no message content — counts only.
-            log.info("chat turn complete tokens=%s spent_today=%.4f", totals, spent)
+        # No usernames, no message content — counts only.
+        log.info("chat turn complete, spent_today=%.4f", budget.limit - budget.remaining())
 
     response = Response(
         stream_with_context(generate()), mimetype="text/event-stream"
@@ -1841,15 +2595,6 @@ def chat():
     response.headers["Cache-Control"] = "no-cache"
     response.headers["X-Accel-Buffering"] = "no"
     return response
-
-
-class _UsageTotals:
-    """Adapts the agent's accumulated token dict to the attribute interface
-    DailyBudget.cost_of expects."""
-
-    def __init__(self, totals: dict):
-        for key, value in totals.items():
-            setattr(self, key, value)
 ```
 
 - [ ] **Step 4: Write `chat/app.py`**
@@ -1857,6 +2602,7 @@ class _UsageTotals:
 ```python
 """Application factory."""
 import logging
+import os
 
 from dotenv import load_dotenv
 from flask import Flask
@@ -1864,6 +2610,7 @@ from flask import Flask
 from chat import config
 from chat.corpus import build_corpus
 from chat.routes import chat_bp
+from chat.schema_tool import schema_names
 from chat.security import DailyBudget, RateLimiter
 
 
@@ -1878,6 +2625,9 @@ def create_app(overrides: dict | None = None) -> Flask:
     budget_limit = overrides.get("DAILY_BUDGET_USD", config.DAILY_BUDGET_USD)
 
     app.config.update(
+        # Flask leaves this unset, meaning an unbounded request body. Werkzeug
+        # rejects anything larger with a 413 before we parse a byte of it.
+        MAX_CONTENT_LENGTH=config.MAX_REQUEST_BYTES,
         SCHEMA_DIR=overrides.get("SCHEMA_DIR", config.SCHEMA_DIR),
         ALLOWED_ORIGIN=overrides.get("ALLOWED_ORIGIN", config.ALLOWED_ORIGIN),
         RATE_LIMITER=RateLimiter(
@@ -1891,6 +2641,29 @@ def create_app(overrides: dict | None = None) -> Flask:
     app.config["CORPUS"] = overrides.get("CORPUS") or build_corpus(
         config.DOCS_DIR, config.SITE_BASE_URL
     )
+
+    # src/data/schema/ is gitignored and regenerated by `npm run gen:schema`
+    # (which runs on prebuild). On a fresh clone that has not been built, the
+    # directory is empty, the tool's enum would be empty, and `strict: true`
+    # against an empty enum makes the API reject every single request. Fail
+    # loudly at startup instead of at the user's first question.
+    if not schema_names(app.config["SCHEMA_DIR"]):
+        raise RuntimeError(
+            f"No schema files in {app.config['SCHEMA_DIR']}. "
+            "Run `npm run gen:schema` (or `npm run build`) before starting "
+            "the chat service."
+        )
+
+    # streamflows_auth.tokens.decode_token reads os.environ["JWT_SECRET"] with
+    # direct indexing, so an unset value is a KeyError on EVERY request — a
+    # 500 per user rather than a service that refuses to start. Fail at boot.
+    if not os.environ.get("JWT_SECRET"):
+        raise RuntimeError(
+            "JWT_SECRET is not set, so every request would fail while "
+            "verifying the session cookie. Set it in the service's "
+            "EnvironmentFile to the same value the other streamflows.org "
+            "apps use."
+        )
 
     if "ANTHROPIC_CLIENT" in overrides:
         app.config["ANTHROPIC_CLIENT"] = overrides["ANTHROPIC_CLIENT"]
@@ -2012,6 +2785,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
   #fews-chat-log .turn { margin-bottom: 1rem; white-space: pre-wrap; }
   #fews-chat-log .turn.user { color: var(--sl-color-white); font-weight: 600; }
   #fews-chat-log .turn.notice { color: var(--sl-color-orange-high); }
+  #fews-chat-log .turn a { color: var(--sl-color-text-accent); }
   #fews-chat-form { display: flex; gap: 0.5rem; padding: 0.75rem;
     border-top: 1px solid var(--sl-color-gray-5); }
   #fews-chat-form textarea { flex: 1; resize: vertical;
@@ -2032,8 +2806,12 @@ const loginUrl = 'https://apps.streamflows.org/login';
   const log = document.getElementById('fews-chat-log');
   const form = document.getElementById('fews-chat-form');
   const input = document.getElementById('fews-chat-input');
+  const sendBtn = form.querySelector('button[type="submit"]');
   const messages = [];
   let signedIn = false;
+  let inFlight = false;
+
+  const DOC_LINK = /https:\/\/df-docs\.streamflows\.org\/[^\s)]*/g;
 
   function addTurn(cls, text) {
     const el = document.createElement('div');
@@ -2044,12 +2822,46 @@ const loginUrl = 'https://apps.streamflows.org/login';
     return el;
   }
 
+  /* Render an answer as text plus real links to this site's own pages.
+     Everything goes through textContent and createElement, so nothing the
+     model emits is ever parsed as HTML. Only same-site doc URLs become
+     anchors — an arbitrary URL stays inert text. */
+  function renderAnswer(el, text) {
+    el.textContent = '';
+    let last = 0;
+    for (const match of text.matchAll(DOC_LINK)) {
+      /* Prose ends sentences with the URL, so strip trailing punctuation the
+         URL almost certainly does not own — otherwise every cited link that
+         closes a sentence points at a 404. */
+      const url = match[0].replace(/[.,;:!?]+$/, '');
+      el.appendChild(document.createTextNode(text.slice(last, match.index)));
+      const a = document.createElement('a');
+      a.href = url;
+      a.textContent = url;
+      el.appendChild(a);
+      last = match.index + url.length;
+    }
+    el.appendChild(document.createTextNode(text.slice(last)));
+  }
+
   function setOpen(open) {
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     try { localStorage.setItem('fewsChatOpen', open ? '1' : '0'); } catch (e) {}
-    if (open && !log.childElementCount) checkStatus();
+    if (open) {
+      if (!log.childElementCount) checkStatus();
+      /* Move focus into the drawer, and hand it back to the toggle on close,
+         so a keyboard or screen-reader user is not left on an element behind
+         the panel with no way to tell it opened. */
+      (form.hidden ? closeBtn : input).focus();
+    } else {
+      toggle.focus();
+    }
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !panel.hidden) setOpen(false);
+  });
 
   async function checkStatus() {
     try {
@@ -2086,10 +2898,21 @@ const loginUrl = 'https://apps.streamflows.org/login';
   }
 
   async function send(question) {
-    messages.push({ role: 'user', content: question });
+    /* Remove THIS turn by identity, never messages.pop(). A blind pop removes
+       whatever happens to be last, which is only this turn's entry if no other
+       send is in flight — and an overlapping send would make it delete another
+       turn's successful answer instead. */
+    const turn = { role: 'user', content: question };
+    function dropTurn() {
+      const i = messages.indexOf(turn);
+      if (i !== -1) messages.splice(i, 1);
+    }
+
+    messages.push(turn);
     addTurn('user', question);
     const answerEl = addTurn('assistant', '');
     let answer = '';
+    let errored = false;
 
     let resp;
     try {
@@ -2100,8 +2923,12 @@ const loginUrl = 'https://apps.streamflows.org/login';
         body: JSON.stringify({ messages }),
       });
     } catch (e) {
-      answerEl.className = 'turn notice';
-      answerEl.textContent = 'Could not reach the assistant. Check your connection.';
+      /* Pop the user turn, exactly as the !resp.ok branch does. `messages`
+         outlives the send, so leaving it would replay the failed question on
+         the next successful turn as a second consecutive user message. */
+      dropTurn();
+      answerEl.remove();
+      addTurn('notice', 'Could not reach the assistant. Check your connection.');
       return;
     }
 
@@ -2110,13 +2937,19 @@ const loginUrl = 'https://apps.streamflows.org/login';
       try { msg = (await resp.json()).message || msg; } catch (e) {}
       answerEl.className = 'turn notice';
       answerEl.textContent = msg;
-      messages.pop();
+      dropTurn();
       return;
     }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    /* Everything from here is inside try/catch. A malformed frame or a
+       connection dropped mid-stream would otherwise escape as an unhandled
+       rejection — the submit handler does not await this function — leaving a
+       truncated answer on screen, the input still enabled, and no error shown
+       at all. The user would have no idea the turn had failed. */
+    try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -2131,15 +2964,29 @@ const loginUrl = 'https://apps.streamflows.org/login';
         const ev = evLine ? evLine.slice(7) : 'delta';
         if (ev === 'delta') {
           answer += payload.text;
-          answerEl.textContent = answer;
+          renderAnswer(answerEl, answer);
           log.scrollTop = log.scrollHeight;
         } else if (ev === 'error') {
-          answerEl.className = 'turn notice';
-          answerEl.textContent = payload.message;
+          /* Keep whatever text already arrived — the model may have said
+             something useful before the failure — and put the error beneath it
+             rather than replacing it. Overwriting would silently discard a
+             partial answer the user already watched appear. */
+          errored = true;
+          if (!answer) answerEl.remove();
+          addTurn('notice', payload.message);
         }
       }
     }
-    if (answer) messages.push({ role: 'assistant', content: answer });
+    } catch (e) {
+      errored = true;
+      if (!answer) answerEl.remove();
+      addTurn('notice', 'The reply was interrupted. Please try again.');
+    }
+    /* A partial or failed turn stays on screen but does NOT go into the
+       transcript: the next request would otherwise present a truncated answer
+       to the model as though it were complete. */
+    if (answer && !errored) messages.push({ role: 'assistant', content: answer });
+    else if (errored) dropTurn();
   }
 
   toggle.addEventListener('click', () => setOpen(panel.hidden));
@@ -2147,9 +2994,20 @@ const loginUrl = 'https://apps.streamflows.org/login';
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const q = input.value.trim();
-    if (!q || !signedIn) return;
+    /* Single-flight. Overlapping sends would interleave two answers into one
+       log and burn budget on a question the user has already moved past; the
+       input is disabled while a reply streams so it cannot happen. */
+    if (!q || !signedIn || inFlight) return;
     input.value = '';
-    send(q);
+    inFlight = true;
+    input.disabled = true;
+    sendBtn.disabled = true;
+    send(q).finally(() => {
+      inFlight = false;
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+    });
   });
 
   try {
@@ -2204,6 +3062,37 @@ test -f dist/404.html && echo "404 page OK"
 
 Expected: both lines print.
 
+- [ ] **Step 5b: Verify the answer renderer cannot inject HTML**
+
+The model's output is attacker-influenced (a user can ask it to repeat
+anything), so confirm `renderAnswer` never parses markup. Extract the function
+into a scratch file and run it under node against hostile inputs:
+
+```bash
+node -e '
+const { JSDOM } = require("jsdom");
+' 2>/dev/null || echo "jsdom not present — do the DOM-free check below instead"
+```
+
+If `jsdom` is unavailable, verify by inspection against these three inputs and
+state the reasoning in the report:
+
+1. `<img src=x onerror=alert(1)>` — must appear as literal text, because every
+   insertion goes through `document.createTextNode` or `.textContent`, and no
+   code path assigns to `innerHTML`.
+2. `https://evil.example/steal` — must remain inert text, because the link
+   regex only matches `https://df-docs.streamflows.org/...`.
+3. `https://df-docs.streamflows.org/tasks/locations/` — must become an anchor
+   whose `href` equals its text.
+
+Grep the component to prove the first point mechanically:
+
+```bash
+grep -n "innerHTML\|outerHTML\|insertAdjacentHTML\|document.write" src/components/ChatPanel.astro || echo "no HTML sinks — safe"
+```
+
+Expected: `no HTML sinks — safe`.
+
 - [ ] **Step 6: Commit**
 
 ```bash
@@ -2229,12 +3118,22 @@ git commit -m "feat: add ask-the-docs chat panel as a Starlight footer override"
 [Unit]
 Description=Delft-FEWS docs chat service
 After=network.target
+# create_app() raises at boot on a missing schema directory or an unset
+# JWT_SECRET. Neither self-heals, so without a start limit systemd would
+# crash-loop every 5s forever, filling the journal instead of surfacing a
+# failed state anyone would notice.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=fewsdocs
 Group=fewsdocs
-WorkingDirectory=/home/fewsdocs/repo/chat
+# Repo ROOT, not repo/chat. gunicorn puts its working directory on sys.path,
+# and the importable package is `chat`, which lives at <repo>/chat — so from
+# inside repo/chat, `chat.app:app` fails with ModuleNotFoundError and the
+# service never starts.
+WorkingDirectory=/home/fewsdocs/repo
 EnvironmentFile=/home/fewsdocs/chat.env
 ExecStart=/home/fewsdocs/repo/chat/venv/bin/gunicorn \
     --workers 1 \
@@ -2248,6 +3147,10 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+# Must already exist when the unit starts — systemd does NOT create it, and an
+# absent path fails the unit with exit 226 (EXIT_NAMESPACE) before ExecStart
+# runs, which reads as an opaque namespace error rather than "directory
+# missing". Deploy Step 4 creates it; keep that ordering.
 ReadWritePaths=/home/fewsdocs/repo/chat/data
 
 [Install]
@@ -2400,6 +3303,6 @@ git commit -m "deploy: add chat service systemd unit, nginx snippet, and updated
 
 **Placeholder scan.** The only deferred value is the `anthropic` pin, which Task 1 Step 2 resolves with a concrete command sequence and a verification assertion rather than a guess. Secrets in Task 9 Step 3 are intentionally the operator's to paste.
 
-**Type consistency.** `build_corpus(docs_dir, base_url)` is defined in Task 1 and called with those arguments in Task 7. `tool_definition(schema_dir)` and `render_fields(schema_dir, config_file)` are defined in Task 2 and used in Task 6. `DailyBudget.cost_of` reads four attributes, which is why Task 7 wraps the agent's token dict in `_UsageTotals` rather than passing a plain dict. `Agent(corpus, schema_dir, client)` matches between Tasks 6 and 7. `agent.last_totals` is set in Task 6 and read in Task 7.
+**Type consistency.** `build_corpus(docs_dir, base_url)` is defined in Task 1 and called with those arguments in Task 7. `tool_definition(schema_dir)` and `render_fields(schema_dir, config_file)` are defined in Task 2 and used in Task 6. `DailyBudget.cost_of` reads four attributes off a usage object, which is exactly what `Agent.run` hands its `on_usage` callback, so Task 7 passes `budget.record` straight in with no adapter. `Agent(corpus, schema_dir, client)` and `Agent.run(messages, on_usage=...)` match between Tasks 6 and 7.
 
 **One known ordering constraint.** Tasks 1–6 are independent of each other and can be built in any order, but Task 7 consumes all of them and Task 9 requires Tasks 7 and 8 to be complete.

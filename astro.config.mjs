@@ -13,6 +13,9 @@ export default defineConfig({
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
       // Show an "edit this page" style banner-free, clean reading experience.
       customCss: ['./src/styles/custom.css'],
+      components: {
+        Footer: './src/components/ChatPanelFooter.astro',
+      },
       sidebar: [
         {
           label: 'Start Here',
