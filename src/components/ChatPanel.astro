@@ -92,12 +92,16 @@ const loginUrl = 'https://apps.streamflows.org/login';
     el.textContent = '';
     let last = 0;
     for (const match of text.matchAll(DOC_LINK)) {
+      /* Prose ends sentences with the URL, so strip trailing punctuation the
+         URL almost certainly does not own — otherwise every cited link that
+         closes a sentence points at a 404. */
+      const url = match[0].replace(/[.,;:!?]+$/, '');
       el.appendChild(document.createTextNode(text.slice(last, match.index)));
       const a = document.createElement('a');
-      a.href = match[0];
-      a.textContent = match[0];
+      a.href = url;
+      a.textContent = url;
       el.appendChild(a);
-      last = match.index + match[0].length;
+      last = match.index + url.length;
     }
     el.appendChild(document.createTextNode(text.slice(last)));
   }
@@ -106,8 +110,20 @@ const loginUrl = 'https://apps.streamflows.org/login';
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     try { localStorage.setItem('fewsChatOpen', open ? '1' : '0'); } catch (e) {}
-    if (open && !log.childElementCount) checkStatus();
+    if (open) {
+      if (!log.childElementCount) checkStatus();
+      /* Move focus into the drawer, and hand it back to the toggle on close,
+         so a keyboard or screen-reader user is not left on an element behind
+         the panel with no way to tell it opened. */
+      (form.hidden ? closeBtn : input).focus();
+    } else {
+      toggle.focus();
+    }
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !panel.hidden) setOpen(false);
+  });
 
   async function checkStatus() {
     try {
@@ -159,8 +175,12 @@ const loginUrl = 'https://apps.streamflows.org/login';
         body: JSON.stringify({ messages }),
       });
     } catch (e) {
-      answerEl.className = 'turn notice';
-      answerEl.textContent = 'Could not reach the assistant. Check your connection.';
+      /* Pop the user turn, exactly as the !resp.ok branch does. `messages`
+         outlives the send, so leaving it would replay the failed question on
+         the next successful turn as a second consecutive user message. */
+      messages.pop();
+      answerEl.remove();
+      addTurn('notice', 'Could not reach the assistant. Check your connection.');
       return;
     }
 
@@ -176,6 +196,12 @@ const loginUrl = 'https://apps.streamflows.org/login';
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    /* Everything from here is inside try/catch. A malformed frame or a
+       connection dropped mid-stream would otherwise escape as an unhandled
+       rejection — the submit handler does not await this function — leaving a
+       truncated answer on screen, the input still enabled, and no error shown
+       at all. The user would have no idea the turn had failed. */
+    try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -203,10 +229,16 @@ const loginUrl = 'https://apps.streamflows.org/login';
         }
       }
     }
+    } catch (e) {
+      errored = true;
+      if (!answer) answerEl.remove();
+      addTurn('notice', 'The reply was interrupted. Please try again.');
+    }
     /* A partial or failed turn stays on screen but does NOT go into the
        transcript: the next request would otherwise present a truncated answer
        to the model as though it were complete. */
     if (answer && !errored) messages.push({ role: 'assistant', content: answer });
+    else if (errored) messages.pop();
   }
 
   toggle.addEventListener('click', () => setOpen(panel.hidden));
