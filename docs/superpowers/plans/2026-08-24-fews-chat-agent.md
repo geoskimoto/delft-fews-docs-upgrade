@@ -755,6 +755,39 @@ def test_admin_group_is_allowed(client):
     assert resp.status_code == 200
 
 
+@pytest.mark.parametrize(
+    "claim", ["streamflow-readonly", "administrative", "nonstreamflowgroup", "subadmin"]
+)
+def test_scalar_string_groups_claim_is_rejected(client, claim):
+    """`in` substring-matches on strings: "admin" in "administrative" is True.
+    A validly-signed token whose groups claim is a scalar must not be admitted
+    by accident — an authorization decision cannot depend on claim shape."""
+    bad = jwt.encode(
+        {"sub": "mallory", "groups": claim, "exp": int(time.time()) + 3600},
+        SECRET,
+        algorithm="HS256",
+    )
+    client.set_cookie("streamflows_auth", bad)
+    resp = client.post("/api/chat")
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "not_authorized"
+
+
+@pytest.mark.parametrize("claim", [5, {"a": "streamflow"}, None, [["streamflow"]]])
+def test_non_list_groups_claim_denies_cleanly_instead_of_500(client, claim):
+    """A malformed claim must fail closed with JSON, not raise TypeError into
+    an unhandled 500 that could leak a stack trace."""
+    bad = jwt.encode(
+        {"sub": "mallory", "groups": claim, "exp": int(time.time()) + 3600},
+        SECRET,
+        algorithm="HS256",
+    )
+    client.set_cookie("streamflows_auth", bad)
+    resp = client.post("/api/chat")
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "not_authorized"
+
+
 def test_missing_groups_claim_is_forbidden(client):
     token = jwt.encode(
         {"sub": "alice", "exp": int(time.time()) + 3600}, SECRET, algorithm="HS256"
@@ -807,8 +840,14 @@ def require_streamflows_user(view):
         except jwt.InvalidTokenError:
             return jsonify({"error": "not_authenticated"}), 401
 
-        groups = payload.get("groups") or []
-        if REQUIRED_GROUP not in groups and ADMIN_GROUP not in groups:
+        # Never let an authorization decision depend on the claim's SHAPE.
+        # `in` substring-matches on strings, so a scalar claim of
+        # "streamflow-readonly" or "administrative" would sail past a naive
+        # membership test, and a non-iterable claim would raise TypeError into
+        # a 500. Accept only a list, and only its string elements.
+        raw = payload.get("groups")
+        groups = {g for g in raw if isinstance(g, str)} if isinstance(raw, list) else set()
+        if not groups & {REQUIRED_GROUP, ADMIN_GROUP}:
             return jsonify({"error": "not_authorized"}), 403
 
         g.current_user = payload.get("sub", "")
