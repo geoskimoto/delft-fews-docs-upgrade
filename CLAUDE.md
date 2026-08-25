@@ -19,9 +19,14 @@ Live at **https://df-docs.streamflows.org** — static site, no gunicorn/systemd
 ```bash
 sudo -u fewsdocs git -C /home/fewsdocs/repo pull
 sudo -u fewsdocs bash -c 'cd /home/fewsdocs/repo && npm ci && npm run build'
+sudo -u fewsdocs bash -c 'cd /home/fewsdocs/repo/chat && venv/bin/pip install -r requirements.txt'
+sudo systemctl restart fewsdocs-chat
 ```
 
-No restart needed — nginx serves whatever is in `dist/`.
+The chat service reads the documentation corpus once at startup, so it **must**
+be restarted after a content change or the assistant keeps answering from the
+previous build. The restart also drops the prompt cache, so the first question
+afterwards costs a full cache write.
 
 ### nginx vhost caveat
 
@@ -35,3 +40,7 @@ error_page 404 /404.html;
 These make section URLs without an index page (e.g. `/tasks/`) and unknown URLs serve the
 site's styled 404 page. CloudPanel regenerates this file if the site's vhost is saved in the
 UI — if that happens, re-add these lines (via the CloudPanel vhost editor so they persist).
+
+The `location /api/chat` block (see `deploy/nginx-chat-location.conf`) is subject to the same
+CloudPanel regeneration problem — if it disappears after a vhost save in the UI, re-add it the
+same way, through the CloudPanel vhost editor.
