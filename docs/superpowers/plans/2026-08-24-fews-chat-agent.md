@@ -2920,7 +2920,11 @@ After=network.target
 Type=simple
 User=fewsdocs
 Group=fewsdocs
-WorkingDirectory=/home/fewsdocs/repo/chat
+# Repo ROOT, not repo/chat. gunicorn puts its working directory on sys.path,
+# and the importable package is `chat`, which lives at <repo>/chat — so from
+# inside repo/chat, `chat.app:app` fails with ModuleNotFoundError and the
+# service never starts.
+WorkingDirectory=/home/fewsdocs/repo
 EnvironmentFile=/home/fewsdocs/chat.env
 ExecStart=/home/fewsdocs/repo/chat/venv/bin/gunicorn \
     --workers 1 \
