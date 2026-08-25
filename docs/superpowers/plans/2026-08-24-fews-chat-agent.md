@@ -923,6 +923,17 @@ def test_http_variant_of_allowed_origin_is_rejected():
     assert origin_allowed("http://df-docs.streamflows.org", ALLOWED) is False
 
 
+def test_non_ascii_origin_is_rejected_without_raising():
+    """Werkzeug latin-1 decodes header bytes, so a non-ASCII Origin reaches us
+    as a str. secrets.compare_digest raises TypeError on those, which would let
+    anyone turn a header into an unhandled 500."""
+    assert origin_allowed("https://exÃ¤mple.com", ALLOWED) is False
+
+
+def test_empty_string_origin_is_rejected():
+    assert origin_allowed("", ALLOWED) is False
+
+
 def test_rate_limiter_allows_up_to_the_cap():
     now = [0.0]
     rl = RateLimiter(3, 60, clock=lambda: now[0])
@@ -1018,7 +1029,6 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'chat.security'`
 ```python
 """CSRF origin check, per-user rate limiting, and the daily spend ceiling."""
 import json
-import secrets
 import time
 from collections import defaultdict, deque
 from datetime import date
@@ -1030,10 +1040,16 @@ from chat import config
 def origin_allowed(origin: str | None, allowed: str) -> bool:
     """Exact-match Origin check. The chat endpoint is a cookie-authenticated
     state-changing POST, and these pages are static HTML with no server-rendered
-    place to seed a CSRF token, so the Origin header is the check that fits."""
+    place to seed a CSRF token, so the Origin header is the check that fits.
+
+    Plain `==`, deliberately, not secrets.compare_digest. Origin is attacker-
+    supplied and not a secret, so there is no timing channel worth closing —
+    and compare_digest raises TypeError on non-ASCII strings, which would turn
+    a header anyone can send into an unhandled 500.
+    """
     if not origin:
         return False
-    return secrets.compare_digest(origin, allowed)
+    return origin == allowed
 
 
 class RateLimiter:
