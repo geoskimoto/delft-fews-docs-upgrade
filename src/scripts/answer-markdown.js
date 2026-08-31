@@ -31,13 +31,13 @@ function safeHref(raw) {
 // by the bare-URL branch.
 //   1 inline code   2 link text   3 link href   4 bold   5 bare URL
 // Quantifiers are bounded to prevent catastrophic backtracking on unmatched
-// brackets. A label or href longer than 2000 chars renders as literal text
-// rather than a link — acceptable since a 2000-character link label is not
-// real output from an LLM.
+// brackets. A label or href longer than 500 chars renders as literal text
+// rather than a link — acceptable since link labels, hrefs, and bold phrases
+// from LLM output are typically under 100 characters.
 const INLINE = new RegExp(
   '`([^`\\n]+)`' +
-    '|\\[([^\\]\\n]{0,2000})\\]\\(([^)\\s]{0,2000})\\)' +
-    '|\\*\\*([^\\n]{1,2000}?)\\*\\*' +
+    '|\\[([^\\]\\n]{0,500})\\]\\(([^)\\s]{0,500})\\)' +
+    '|\\*\\*([^\\n]{1,500}?)\\*\\*' +
     '|(https?://[^\\s<>()\\[\\]]+)',
   'g',
 );

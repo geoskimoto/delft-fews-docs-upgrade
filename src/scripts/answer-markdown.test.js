@@ -108,5 +108,5 @@ test('pathological bracket runs do not backtrack quadratically', () => {
   parseInline('['.repeat(100000));
   parseInline('[x]('.repeat(50000));
   const ms = Number(process.hrtime.bigint() - start) / 1e6;
-  assert.ok(ms < 2000, `parsing took ${ms.toFixed(0)}ms`);
+  assert.ok(ms < 1000, `parsing took ${ms.toFixed(0)}ms`);
 });
