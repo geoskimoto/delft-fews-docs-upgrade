@@ -100,3 +100,13 @@ test('code spans are opaque to bold and links', () => {
     { type: 'code', text: '**a** [b](c)' },
   ]);
 });
+
+test('pathological bracket runs do not backtrack quadratically', () => {
+  // The old unbounded label class took ~15s on this input; parseInline runs
+  // on every streaming delta, so quadratic here freezes the panel.
+  const start = process.hrtime.bigint();
+  parseInline('['.repeat(100000));
+  parseInline('[x]('.repeat(50000));
+  const ms = Number(process.hrtime.bigint() - start) / 1e6;
+  assert.ok(ms < 2000, `parsing took ${ms.toFixed(0)}ms`);
+});
