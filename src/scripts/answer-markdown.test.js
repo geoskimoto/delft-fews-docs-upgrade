@@ -338,3 +338,22 @@ test('a pipe inside inline code does not split a cell', () => {
   const t = parseAnswer('| a | b |\n| --- | --- |\n| x | y |')[0];
   assert.equal(t.rows[0].length, 2);
 });
+
+test('a list item containing a pipe is not claimed as a table header', () => {
+  const blocks = parseAnswer('- a | b\n| --- |');
+  assert.equal(blocks[0].type, 'list');
+  assert.deepEqual(blocks[0].items[0], [{ type: 'text', text: 'a | b' }]);
+});
+
+test('a numbered item containing a pipe is not claimed as a table header', () => {
+  assert.equal(parseAnswer('1. a | b\n| --- |')[0].type, 'list');
+});
+
+test('a pipe inside inline code really does not split a cell', () => {
+  // The similarly named test above uses input with no backticks in it and so
+  // passes either way; this one exercises the actual behaviour.
+  const t = parseAnswer('| `a|b` | c |\n| --- | --- |')[0];
+  assert.equal(t.type, 'table');
+  assert.equal(t.header.length, 2);
+  assert.deepEqual(t.header[0], [{ type: 'code', text: 'a|b' }]);
+});

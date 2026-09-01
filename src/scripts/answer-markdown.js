@@ -99,7 +99,23 @@ function splitRow(line) {
   let s = line.trim();
   if (s.startsWith('|')) s = s.slice(1);
   if (s.endsWith('|')) s = s.slice(0, -1);
-  return s.split('|').map((cell) => cell.trim());
+  // Split on pipes that are not inside an inline code span. A cell like
+  // `| `a|b` |` is one cell, not two — splitting it would also break the
+  // backtick pairing and render two garbled fragments instead of code.
+  const cells = [];
+  let cur = '';
+  let inCode = false;
+  for (const ch of s) {
+    if (ch === '`') inCode = !inCode;
+    if (ch === '|' && !inCode) {
+      cells.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  cells.push(cur.trim());
+  return cells;
 }
 
 /**
@@ -178,7 +194,15 @@ export function parseAnswer(text) {
       continue;
     }
 
-    if (line.includes('|') && isDelimiterRow(lines[i + 1])) {
+    if (
+      line.includes('|') &&
+      !BULLET.test(line) &&
+      !ORDERED.test(line) &&
+      isDelimiterRow(lines[i + 1])
+    ) {
+      // Exclude list markers because the table branch runs first; without the
+      // guard a bullet containing a pipe becomes a header row with the marker
+      // embedded in the cell.
       flushPara();
       const header = splitRow(line).map(parseInline);
       i += 2;
