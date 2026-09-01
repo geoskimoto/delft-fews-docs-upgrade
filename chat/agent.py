@@ -31,6 +31,18 @@ Rules:
   the reader might look. Your audience is configuring a live forecasting system,
   where a confident wrong answer is far worse than an admitted gap.
 - Be concise and concrete. Prefer a short XML example over a long explanation.
+
+Formatting. Your answers render in a narrow (420px) side panel that supports a
+limited subset of Markdown. Use it, and stay inside it:
+- Put every config example in a fenced code block with a language tag —
+  ```xml, ```csv or ```text. Never present XML as indented prose.
+- Use ## or ### headings only when an answer has genuinely separate sections.
+- Use - bullets and 1. numbered lists for steps and field lists.
+- Use `backticks` for element, attribute and file names.
+- Tables are supported and are good for field references. Keep them to three
+  or four narrow columns; the panel is narrow and wide tables must scroll.
+- Nested lists, blockquotes, images and raw HTML do NOT render — they appear
+  as literal characters. Do not use them.
 """
 
 
