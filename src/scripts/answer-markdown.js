@@ -95,6 +95,25 @@ const BULLET = /^ {0,3}[-*+][ \t]+(.*)$/;
 const ORDERED = /^ {0,3}\d{1,9}[.)][ \t]+(.*)$/;
 const CONTINUATION = /^[ \t]+\S/;
 
+function splitRow(line) {
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|')) s = s.slice(0, -1);
+  return s.split('|').map((cell) => cell.trim());
+}
+
+/**
+ * A delimiter row must contain a pipe. Without that check a `---` thematic
+ * break directly under a line of prose would turn it into a table.
+ */
+function isDelimiterRow(line) {
+  if (typeof line !== 'string' || !line.includes('|') || !line.includes('-')) {
+    return false;
+  }
+  const cells = splitRow(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-+:?$/.test(cell));
+}
+
 /**
  * Parse a whole answer into blocks.
  *
@@ -156,6 +175,23 @@ export function parseAnswer(text) {
         spans: parseInline(heading[2].trim()),
       });
       i += 1;
+      continue;
+    }
+
+    if (line.includes('|') && isDelimiterRow(lines[i + 1])) {
+      flushPara();
+      const header = splitRow(line).map(parseInline);
+      i += 2;
+      const rows = [];
+      while (i < lines.length && lines[i].trim() && lines[i].includes('|')) {
+        const cells = splitRow(lines[i]).map(parseInline);
+        // Pad short rows so the table stays rectangular; keep the extra cells
+        // of a long one rather than discarding model output.
+        while (cells.length < header.length) cells.push([]);
+        rows.push(cells);
+        i += 1;
+      }
+      blocks.push({ type: 'table', header, rows });
       continue;
     }
 

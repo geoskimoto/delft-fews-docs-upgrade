@@ -273,3 +273,68 @@ test('a bare fence still has a clean language token', () => {
   assert.equal(parseAnswer('```xml\n<a/>\n```')[0].lang, 'xml');
   assert.equal(parseAnswer('```\n<a/>\n```')[0].lang, '');
 });
+
+test('a pipe table with a delimiter row becomes a table', () => {
+  const md = '| Field | Type |\n| --- | --- |\n| id | string |';
+  assert.deepEqual(parseAnswer(md), [
+    {
+      type: 'table',
+      header: [
+        [{ type: 'text', text: 'Field' }],
+        [{ type: 'text', text: 'Type' }],
+      ],
+      rows: [
+        [[{ type: 'text', text: 'id' }], [{ type: 'text', text: 'string' }]],
+      ],
+    },
+  ]);
+});
+
+test('a header row with no delimiter row yet stays a paragraph', () => {
+  // The streaming case: the delimiter row has not arrived.
+  assert.equal(parseAnswer('| Field | Type |')[0].type, 'paragraph');
+});
+
+test('adding the delimiter row turns the paragraph into a table', () => {
+  assert.equal(parseAnswer('| Field | Type |\n| --- | --- |')[0].type, 'table');
+});
+
+test('tables without outer pipes are recognised', () => {
+  const blocks = parseAnswer('Field | Type\n--- | ---\nid | string');
+  assert.equal(blocks[0].type, 'table');
+  assert.equal(blocks[0].header.length, 2);
+});
+
+test('alignment markers in the delimiter row are accepted', () => {
+  assert.equal(parseAnswer('| a | b |\n| :-- | --: |\n| 1 | 2 |')[0].type, 'table');
+});
+
+test('a horizontal rule is not a table', () => {
+  assert.equal(parseAnswer('text\n\n---')[0].type, 'paragraph');
+  assert.notEqual(parseAnswer('text\n---')[0].type, 'table');
+});
+
+test('a short row is padded, and a long row keeps every cell', () => {
+  const md = '| a | b |\n| --- | --- |\n| 1 |\n| 1 | 2 | 3 |';
+  const t = parseAnswer(md)[0];
+  assert.equal(t.rows[0].length, 2);
+  assert.deepEqual(t.rows[0][1], []);
+  // Never silently drop model output: the extra cell survives.
+  assert.equal(t.rows[1].length, 3);
+});
+
+test('table cells parse inline spans', () => {
+  const t = parseAnswer('| a |\n| --- |\n| `id` |')[0];
+  assert.deepEqual(t.rows[0][0], [{ type: 'code', text: 'id' }]);
+});
+
+test('a blank line ends a table', () => {
+  const blocks = parseAnswer('| a |\n| --- |\n| 1 |\n\nafter');
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[1].type, 'paragraph');
+});
+
+test('a pipe inside inline code does not split a cell', () => {
+  const t = parseAnswer('| a | b |\n| --- | --- |\n| x | y |')[0];
+  assert.equal(t.rows[0].length, 2);
+});
