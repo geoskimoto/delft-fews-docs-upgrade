@@ -282,3 +282,22 @@ test('newId produces distinct ids', () => {
   for (let i = 0; i < 500; i++) ids.add(newId());
   assert.equal(ids.size, 500);
 });
+
+test('a namespace equal to the probe sentinel is not wiped on reopen', () => {
+  const shared = fakeStorage();
+  createStore('probe', shared, clock()).save('c1', [u('real conversation data')]);
+  // A second createStore is what every page load does.
+  const reopened = createStore('probe', shared, clock(9000));
+  assert.deepEqual(reopened.list().map((c) => c.id), ['c1']);
+});
+
+test('an answer larger than the byte budget keeps its question above it', () => {
+  const capped = capMessages([u('short q'), a('y'.repeat(MAX_BYTES * 2))]);
+  assert.equal(capped.length, 2);
+  assert.equal(capped[0].role, 'user');
+  assert.equal(capped[0].content, 'short q');
+});
+
+test('a lone assistant message with no question before it is dropped', () => {
+  assert.deepEqual(capMessages([a('y'.repeat(MAX_BYTES * 2))]), []);
+});

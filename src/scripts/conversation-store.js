@@ -32,10 +32,14 @@ function memoryStorage() {
 function usable(storage) {
   try {
     if (!storage) return false;
-    const probe = STORAGE_PREFIX + 'probe';
-    storage.setItem(probe, '1');
-    storage.removeItem(probe);
-    return true;
+    // Read-only on purpose. A destructive probe writing a sentinel key
+    // collides with the real key of a user whose namespace equals that
+    // sentinel, wiping their history on every page load. write() already
+    // catches a storage that refuses writes, so detecting that lazily costs
+    // nothing.
+    storage.getItem(STORAGE_PREFIX + 'probe');
+    return typeof storage.setItem === 'function'
+      && typeof storage.removeItem === 'function';
   } catch (e) {
     return false;
   }
@@ -70,9 +74,17 @@ export function capMessages(messages) {
     total += size;
     out.unshift(recent[i]);
   }
-  // Mirror chat/conversation.py: never begin with an assistant message, or a
-  // restored conversation opens mid-answer with no question above it.
+  // Never begin mid-answer. Drop leading assistant turns; if that would empty
+  // the list — one answer larger than the whole byte budget — pull its question
+  // back in instead, over budget, rather than storing a reply with no question
+  // above it or losing the exchange altogether.
   while (out.length > 1 && out[0].role !== 'user') out.shift();
+  if (out.length === 1 && out[0].role !== 'user') {
+    const idx = recent.lastIndexOf(out[0]);
+    const question = idx > 0 ? recent[idx - 1] : null;
+    if (question && question.role === 'user') out.unshift(question);
+    else out.shift();
+  }
   return out;
 }
 
