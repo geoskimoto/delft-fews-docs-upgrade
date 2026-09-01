@@ -132,6 +132,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
 <script>
   import { parseAnswer, DOC_ORIGIN } from '../scripts/answer-markdown.js';
+  import { createStore, newId } from '../scripts/conversation-store.js';
 
   const panel = document.getElementById('fews-chat');
   const toggle = document.getElementById('fews-chat-toggle');
@@ -144,6 +145,12 @@ const loginUrl = 'https://apps.streamflows.org/login';
   let signedIn = false;
   let inFlight = false;
 
+  /* Replaced once /api/chat/status supplies the per-user namespace. Until then
+     this is an in-memory store: the panel behaves exactly as it did before,
+     and nothing is ever written under a shared key. */
+  let store = createStore('', null);
+  let currentId = null;
+
   function addTurn(cls, text) {
     const el = document.createElement('div');
     el.className = 'turn ' + cls;
@@ -152,6 +159,59 @@ const loginUrl = 'https://apps.streamflows.org/login';
     log.scrollTop = log.scrollHeight;
     return el;
   }
+
+  /* Rebuild the log from a stored conversation. Titles and message text are
+     model-adjacent user input, so they go in through the same textContent and
+     block-builder paths as a live answer — never as markup. */
+  function renderConversation(messages) {
+    log.textContent = '';
+    for (const m of messages) {
+      if (m.role === 'user') {
+        addTurn('user', m.content);
+      } else {
+        const el = addTurn('assistant', '');
+        paintAnswer(el, m.content);
+      }
+    }
+    log.scrollTop = log.scrollHeight;
+  }
+
+  /* Best effort, always. A storage failure must never cost the user the answer
+     already on screen, so this swallows everything. */
+  function persist() {
+    if (!currentId || !messages.length) return;
+    try { store.save(currentId, messages); } catch (e) {}
+    renderHistory();
+  }
+
+  function startNewConversation() {
+    currentId = newId();
+    messages.length = 0;
+    log.textContent = '';
+    renderHistory();
+    if (signedIn) input.focus();
+  }
+
+  function openConversation(id) {
+    if (inFlight) return;
+    const record = store.load(id);
+    if (!record) { renderHistory(); return; }
+    currentId = record.id;
+    messages.length = 0;
+    for (const m of record.messages) messages.push({ role: m.role, content: m.content });
+    renderConversation(record.messages);
+    renderHistory();
+  }
+
+  /* Restore the most recent conversation, or start a fresh one. Called once the
+     namespace is known. */
+  function restore() {
+    const recent = store.list();
+    if (recent.length) openConversation(recent[0].id);
+    else startNewConversation();
+  }
+
+  function renderHistory() {}
 
   /* Answers are Markdown. The parser turns text into a block array; this
      builder turns that array into nodes. Every node is created with
@@ -365,10 +425,19 @@ const loginUrl = 'https://apps.streamflows.org/login';
       const data = await resp.json();
       signedIn = true;
       form.hidden = false;
+      /* A blank or missing key must leave the in-memory store in place. Falling
+         back to a constant would pool every user of a shared browser into one
+         history. */
+      if (typeof data.storage_key === 'string' && data.storage_key) {
+        let backing = null;
+        try { backing = window.localStorage; } catch (e) {}
+        store = createStore(data.storage_key, backing);
+      }
+      restore();
       if (!data.available) {
         addTurn('notice',
           'The assistant has reached its daily limit and is resting until tomorrow.');
-      } else {
+      } else if (!messages.length) {
         addTurn('notice', 'Ask anything about configuring Delft-FEWS.');
       }
     } catch (e) {
@@ -407,6 +476,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
          outlives the send, so leaving it would replay the failed question on
          the next successful turn as a second consecutive user message. */
       dropTurn();
+      persist();
       answerEl.remove();
       addTurn('notice', 'Could not reach the assistant. Check your connection.');
       return;
@@ -418,6 +488,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
       answerEl.className = 'turn notice';
       answerEl.textContent = msg;
       dropTurn();
+      persist();
       return;
     }
 
@@ -466,8 +537,13 @@ const loginUrl = 'https://apps.streamflows.org/login';
        transcript: the next request would otherwise present a truncated answer
        to the model as though it were complete. */
     if (answer) flushAnswer(answerEl);
-    if (answer && !errored) messages.push({ role: 'assistant', content: answer });
-    else if (errored) dropTurn();
+    if (answer && !errored) {
+      messages.push({ role: 'assistant', content: answer });
+      persist();
+    } else if (errored) {
+      dropTurn();
+      persist();
+    }
   }
 
   toggle.addEventListener('click', () => setOpen(panel.hidden));
@@ -479,6 +555,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
        log and burn budget on a question the user has already moved past; the
        input is disabled while a reply streams so it cannot happen. */
     if (!q || !signedIn || inFlight) return;
+    if (!currentId) currentId = newId();
     input.value = '';
     inFlight = true;
     input.disabled = true;
