@@ -78,6 +78,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
   #fews-chat-log .turn.assistant > :first-child { margin-top: 0; }
   #fews-chat-log .turn.assistant > :last-child { margin-bottom: 0; }
   #fews-chat-log .turn.assistant p { margin: 0 0 0.75rem; }
+  #fews-chat-log .turn.assistant h2,
   #fews-chat-log .turn.assistant h3,
   #fews-chat-log .turn.assistant h4,
   #fews-chat-log .turn.assistant h5,
@@ -130,7 +131,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
 </style>
 
 <script>
-  import { parseAnswer } from '../scripts/answer-markdown.js';
+  import { parseAnswer, DOC_ORIGIN } from '../scripts/answer-markdown.js';
 
   const panel = document.getElementById('fews-chat');
   const toggle = document.getElementById('fews-chat-toggle');
@@ -168,11 +169,24 @@ const loginUrl = 'https://apps.streamflows.org/login';
         strong.textContent = span.text;
         parent.appendChild(strong);
       } else if (span.type === 'link') {
-        /* href is already allowlisted to this site's origin by the parser. */
-        const a = document.createElement('a');
-        a.href = span.href;
-        a.textContent = span.text;
-        parent.appendChild(a);
+        /* href is already allowlisted to this site's origin by the parser.
+           This re-checks the same origin here, deliberately duplicating the
+           parser's check, so the builder stays safe on its own even if a
+           future parser change silently widens the allowlist. */
+        const href = span.href;
+        const isOnOrigin = typeof href === 'string' && (
+          href === DOC_ORIGIN ||
+          (href.startsWith(DOC_ORIGIN) &&
+            ['/', '?', '#'].includes(href[DOC_ORIGIN.length]))
+        );
+        if (isOnOrigin) {
+          const a = document.createElement('a');
+          a.href = href;
+          a.textContent = span.text;
+          parent.appendChild(a);
+        } else {
+          parent.appendChild(document.createTextNode(span.text));
+        }
       } else {
         parent.appendChild(document.createTextNode(span.text));
       }
@@ -297,13 +311,17 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
   /* Paint now, not next frame. requestAnimationFrame does not fire in a
      backgrounded tab, so without this a user who switches away mid-answer
-     comes back to a turn frozen at whatever streamed before they left. */
+     comes back to a turn frozen at whatever streamed before they left. Only
+     do this when a frame is actually pending: paintAnswer rebuilds the whole
+     subtree, which would otherwise destroy a text selection or reset a
+     "Copied" button label on every call, even when the element already shows
+     the latest text and there is nothing left to paint. */
   function flushAnswer(el) {
     if (el._rafId) {
       cancelAnimationFrame(el._rafId);
       el._rafId = 0;
+      if (typeof el._pendingText === 'string') paintAnswer(el, el._pendingText);
     }
-    if (typeof el._pendingText === 'string') paintAnswer(el, el._pendingText);
   }
 
   function setOpen(open) {

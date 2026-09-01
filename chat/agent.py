@@ -42,7 +42,8 @@ limited subset of Markdown. Use it, and stay inside it:
 - Tables are supported and are good for field references. Keep them to three
   or four narrow columns; the panel is narrow and wide tables must scroll.
 - Emphasis is bold only, written with two asterisks. Single asterisks and
-  underscores are not italics here; they reach the reader as punctuation.
+  underscores are not italics here, and `~~text~~` is not strikethrough
+  either; they reach the reader as punctuation.
 - Separate sections with a heading, never with a horizontal rule. A line of
   three hyphens renders as three hyphens.
 - Nested lists, blockquotes, images, task lists and raw HTML do NOT render
