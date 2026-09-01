@@ -261,3 +261,15 @@ test('growing an answer one character at a time never throws', () => {
     assert.doesNotThrow(() => parseAnswer(md.slice(0, i)), `prefix length ${i}`);
   }
 });
+
+test('a fence info string keeps text past the language token', () => {
+  const md = '```xml Config/RegionConfigFiles/Locations.xml\n<a/>\n```';
+  assert.deepEqual(parseAnswer(md), [
+    { type: 'code', lang: 'xml Config/RegionConfigFiles/Locations.xml', text: '<a/>' },
+  ]);
+});
+
+test('a bare fence still has a clean language token', () => {
+  assert.equal(parseAnswer('```xml\n<a/>\n```')[0].lang, 'xml');
+  assert.equal(parseAnswer('```\n<a/>\n```')[0].lang, '');
+});

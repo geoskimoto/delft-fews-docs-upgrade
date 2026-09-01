@@ -86,7 +86,10 @@ export function parseInline(text) {
   return spans;
 }
 
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})[ \t]*([^\s`~]*)/;
+// A fence's info string may carry more than just the language (e.g. filename,
+// version). Capture the whole line. Consumers needing only the language take
+// the first token. Dropping any part would violate the never-silently-drop rule.
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})[ \t]*(.*)$/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*)$/;
 const BULLET = /^ {0,3}[-*+][ \t]+(.*)$/;
 const ORDERED = /^ {0,3}\d{1,9}[.)][ \t]+(.*)$/;
@@ -134,7 +137,7 @@ export function parseAnswer(text) {
       // Past the closing fence, or past the end if it never arrived. Either
       // way the block is emitted, which is what makes the streaming case work.
       if (i < lines.length) i += 1;
-      blocks.push({ type: 'code', lang: fence[2] || '', text: body.join('\n') });
+      blocks.push({ type: 'code', lang: fence[2].trim(), text: body.join('\n') });
       continue;
     }
 
