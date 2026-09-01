@@ -16,6 +16,14 @@ const loginUrl = 'https://apps.streamflows.org/login';
     <h2>Ask the docs</h2>
     <button id="fews-chat-close" aria-label="Close">&times;</button>
   </header>
+  <div id="fews-chat-history" hidden>
+    <div class="history-bar">
+      <button id="fews-chat-recent" type="button" aria-expanded="false"
+        aria-controls="fews-chat-list">Recent</button>
+      <button id="fews-chat-new" type="button">New</button>
+    </div>
+    <ul id="fews-chat-list" hidden></ul>
+  </div>
   <div id="fews-chat-log" role="log" aria-live="polite"></div>
   <form id="fews-chat-form">
     <textarea id="fews-chat-input" rows="2"
@@ -128,6 +136,40 @@ const loginUrl = 'https://apps.streamflows.org/login';
     white-space: nowrap;
   }
   #fews-chat-log .table-block th { font-weight: 700; }
+
+  #fews-chat-history { border-bottom: 1px solid var(--sl-color-gray-5); }
+  #fews-chat-history .history-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.4rem 1rem;
+  }
+  #fews-chat-history .history-bar button {
+    background: none; border: 0; cursor: pointer; padding: 0.2rem 0.4rem;
+    color: var(--sl-color-text-accent); font-size: var(--sl-text-xs);
+  }
+  #fews-chat-list {
+    list-style: none; margin: 0; padding: 0 0 0.4rem;
+    max-height: 40vh; overflow-y: auto;
+  }
+  #fews-chat-list li {
+    display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem 0 1rem;
+  }
+  #fews-chat-list .open {
+    flex: 1; min-width: 0; text-align: left; cursor: pointer;
+    background: none; border: 0; padding: 0.3rem 0;
+    color: inherit; font-size: var(--sl-text-xs);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #fews-chat-list li.current .open { font-weight: 700; }
+  #fews-chat-list .when { color: var(--sl-color-gray-3); font-size: var(--sl-text-xs); }
+  #fews-chat-list .delete {
+    background: none; border: 0; cursor: pointer; padding: 0.2rem;
+    color: var(--sl-color-gray-3); font-size: var(--sl-text-xs);
+  }
+  #fews-chat-clear {
+    display: block; width: calc(100% - 2rem); margin: 0 1rem 0.5rem;
+    background: none; border: 0; cursor: pointer; padding: 0.3rem 0;
+    text-align: left; color: var(--sl-color-gray-3); font-size: var(--sl-text-xs);
+  }
 </style>
 
 <script>
@@ -185,6 +227,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
   }
 
   function startNewConversation() {
+    if (inFlight) return;
     currentId = newId();
     messages.length = 0;
     log.textContent = '';
@@ -211,7 +254,85 @@ const loginUrl = 'https://apps.streamflows.org/login';
     else startNewConversation();
   }
 
-  function renderHistory() {}
+  const historyPanel = document.getElementById('fews-chat-history');
+  const recentBtn = document.getElementById('fews-chat-recent');
+  const newBtn = document.getElementById('fews-chat-new');
+  const listEl = document.getElementById('fews-chat-list');
+
+  function relativeTime(ms) {
+    const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (seconds < 60) return 'just now';
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes + 'm';
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return hours + 'h';
+    return Math.round(hours / 24) + 'd';
+  }
+
+  /* Titles are the user's own words echoed back, so they go in through
+     textContent like everything else — never as markup. */
+  function renderHistory() {
+    const items = store.list();
+    historyPanel.hidden = !signedIn;
+    listEl.textContent = '';
+
+    for (const item of items) {
+      const li = document.createElement('li');
+      if (item.id === currentId) li.className = 'current';
+
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'open';
+      open.textContent = item.title;
+      open.title = item.title;
+      open.addEventListener('click', () => openConversation(item.id));
+
+      const when = document.createElement('span');
+      when.className = 'when';
+      when.textContent = relativeTime(item.updatedAt);
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'delete';
+      del.textContent = '×';
+      del.setAttribute('aria-label', 'Delete this conversation');
+      del.addEventListener('click', () => {
+        /* A delete mid-stream must not let storage and the on-screen turn
+           diverge: do nothing at all rather than clear under a live send. */
+        if (inFlight) return;
+        store.remove(item.id);
+        /* Deleting the open conversation must not leave its turns on screen
+           with nowhere to save them. */
+        if (item.id === currentId) startNewConversation();
+        else renderHistory();
+      });
+
+      li.appendChild(open);
+      li.appendChild(when);
+      li.appendChild(del);
+      listEl.appendChild(li);
+    }
+
+    if (items.length) {
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.id = 'fews-chat-clear';
+      clear.textContent = 'Clear all conversations';
+      clear.addEventListener('click', () => {
+        if (inFlight) return;
+        store.clearAll();
+        startNewConversation();
+      });
+      listEl.appendChild(clear);
+    }
+
+    recentBtn.textContent = items.length ? `Recent (${items.length})` : 'Recent';
+    recentBtn.disabled = !items.length;
+    if (!items.length) {
+      listEl.hidden = true;
+      recentBtn.setAttribute('aria-expanded', 'false');
+    }
+  }
 
   /* Answers are Markdown. The parser turns text into a block array; this
      builder turns that array into nodes. Every node is created with
@@ -548,6 +669,15 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
   toggle.addEventListener('click', () => setOpen(panel.hidden));
   closeBtn.addEventListener('click', () => setOpen(false));
+  recentBtn.addEventListener('click', () => {
+    const nowOpen = listEl.hidden;
+    listEl.hidden = !nowOpen;
+    recentBtn.setAttribute('aria-expanded', String(nowOpen));
+  });
+  newBtn.addEventListener('click', () => {
+    if (inFlight) return;
+    startNewConversation();
+  });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const q = input.value.trim();
