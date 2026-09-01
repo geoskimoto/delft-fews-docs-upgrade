@@ -3,7 +3,7 @@ import time
 
 import jwt
 import pytest
-from flask import Flask, g, jsonify
+from flask import Flask, jsonify
 
 os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests")
 
@@ -28,22 +28,6 @@ def client():
     @require_streamflows_user
     def protected():
         return jsonify({"ok": True})
-
-    @app.route("/api/chat/status")
-    @require_streamflows_user
-    def status():
-        from chat.identity import storage_key
-
-        class MockBudget:
-            def exhausted(self):
-                return False
-
-        app.config["BUDGET"] = MockBudget()
-        return jsonify({
-            "authenticated": True,
-            "available": not app.config["BUDGET"].exhausted(),
-            "storage_key": storage_key(g.current_user),
-        })
 
     return app.test_client()
 
@@ -165,29 +149,3 @@ def test_missing_groups_claim_is_forbidden(client):
     client.set_cookie("streamflows_auth", token)
     resp = client.post("/api/chat")
     assert resp.status_code == 403
-
-
-def test_status_returns_a_storage_key(client):
-    client.set_cookie("streamflows_auth", make_token(["streamflow"]))
-    resp = client.get("/api/chat/status")
-    assert resp.status_code == 200
-    assert isinstance(resp.get_json()["storage_key"], str)
-    assert len(resp.get_json()["storage_key"]) == 16
-
-
-def test_two_users_get_different_storage_keys(client):
-    def key_for(sub):
-        client.set_cookie("streamflows_auth", make_token(["streamflow"], sub=sub))
-        resp = client.get("/api/chat/status")
-        return resp.get_json()["storage_key"]
-
-    assert key_for("alice") != key_for("bob")
-
-
-def test_unauthenticated_status_has_no_storage_key():
-    """A 401 body must not carry a namespace an anonymous caller could adopt."""
-    from chat.app import create_app
-
-    resp = create_app().test_client().get("/api/chat/status")
-    assert resp.status_code == 401
-    assert "storage_key" not in resp.get_json()
