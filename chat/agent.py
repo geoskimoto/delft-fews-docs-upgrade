@@ -41,8 +41,13 @@ limited subset of Markdown. Use it, and stay inside it:
 - Use `backticks` for element, attribute and file names.
 - Tables are supported and are good for field references. Keep them to three
   or four narrow columns; the panel is narrow and wide tables must scroll.
-- Nested lists, blockquotes, images and raw HTML do NOT render — they appear
-  as literal characters. Do not use them.
+- Emphasis is bold only, written with two asterisks. Single asterisks and
+  underscores are not italics here; they reach the reader as punctuation.
+- Separate sections with a heading, never with a horizontal rule. A line of
+  three hyphens renders as three hyphens.
+- Nested lists, blockquotes, images, task lists and raw HTML do NOT render
+  correctly. Some reach the reader as stray punctuation; others are silently
+  flattened and lose their structure. Do not use them.
 """
 
 
