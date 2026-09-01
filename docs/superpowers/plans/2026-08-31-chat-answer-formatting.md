@@ -278,10 +278,17 @@ function safeHref(raw) {
 // to everything inside it. Links before bare URLs, so `[t](url)` is not eaten
 // by the bare-URL branch.
 //   1 inline code   2 link text   3 link href   4 bold   5 bare URL
+//
+// The {0,2000} bounds are load-bearing, not decoration. Unbounded, the link
+// label class consumes to end of input on a run of unmatched `[` and then
+// backtracks one character at a time looking for a `]` that never arrives —
+// measured at 15 seconds for 100,000 brackets, and parseInline runs on every
+// streaming delta. A label or href past the bound renders as literal text
+// instead of a link, which is the right trade: no real answer has one.
 const INLINE = new RegExp(
   '`([^`\\n]+)`' +
-    '|\\[([^\\]\\n]*)\\]\\(([^)\\s]*)\\)' +
-    '|\\*\\*([^\\n]+?)\\*\\*' +
+    '|\\[([^\\]\\n]{0,2000})\\]\\(([^)\\s]{0,2000})\\)' +
+    '|\\*\\*([^\\n]{1,2000}?)\\*\\*' +
     '|(https?://[^\\s<>()\\[\\]]+)',
   'g',
 );
@@ -334,7 +341,7 @@ export function parseInline(text) {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `npm run test:js`
-Expected: PASS, 16 tests.
+Expected: PASS, 16 tests. (A 17th, added during review, guards against quadratic backtracking.)
 
 - [ ] **Step 6: Commit**
 
@@ -535,7 +542,11 @@ Expected: FAIL — `parseAnswer` is not exported.
 Append to `src/scripts/answer-markdown.js`:
 
 ```js
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})[ \t]*([^\s`~]*)/;
+// The capture is the whole rest of the line, not just the language token. A
+// fence's info string may carry more than the language (a filename, say), and
+// discarding the remainder would violate the never-silently-drop rule.
+// Consumers that want only the language take the first token.
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})[ \t]*(.*)$/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*)$/;
 const BULLET = /^ {0,3}[-*+][ \t]+(.*)$/;
 const ORDERED = /^ {0,3}\d{1,9}[.)][ \t]+(.*)$/;
@@ -583,7 +594,7 @@ export function parseAnswer(text) {
       // Past the closing fence, or past the end if it never arrived. Either
       // way the block is emitted, which is what makes the streaming case work.
       if (i < lines.length) i += 1;
-      blocks.push({ type: 'code', lang: fence[2] || '', text: body.join('\n') });
+      blocks.push({ type: 'code', lang: fence[2].trim(), text: body.join('\n') });
       continue;
     }
 
@@ -648,7 +659,7 @@ export function parseAnswer(text) {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npm run test:js`
-Expected: PASS, 35 tests. The pipe rows inside the growing-prefix test only assert no throw, so they pass before Task 4 exists.
+Expected: PASS, 36 tests. The pipe rows inside the growing-prefix test only assert no throw, so they pass before Task 4 exists.
 
 - [ ] **Step 5: Commit**
 
@@ -777,7 +788,15 @@ function isDelimiterRow(line) {
 Then, inside `parseAnswer`'s `while` loop, insert this branch **immediately before** the `const bullet = BULLET.exec(line);` line:
 
 ```js
-    if (line.includes('|') && isDelimiterRow(lines[i + 1])) {
+    // List markers are excluded because this branch runs before the list
+    // branch; without the guard, a bullet containing a pipe becomes a header
+    // row with the marker embedded in the cell.
+    if (
+      line.includes('|') &&
+      !BULLET.test(line) &&
+      !ORDERED.test(line) &&
+      isDelimiterRow(lines[i + 1])
+    ) {
       flushPara();
       const header = splitRow(line).map(parseInline);
       i += 2;
@@ -1129,8 +1148,13 @@ limited subset of Markdown. Use it, and stay inside it:
 - Use `backticks` for element, attribute and file names.
 - Tables are supported and are good for field references. Keep them to three
   or four narrow columns; the panel is narrow and wide tables must scroll.
-- Nested lists, blockquotes, images and raw HTML do NOT render — they appear
-  as literal characters. Do not use them.
+- Emphasis is bold only, written with two asterisks. Single asterisks and
+  underscores are not italics here; they reach the reader as punctuation.
+- Separate sections with a heading, never with a horizontal rule. A line of
+  three hyphens renders as three hyphens.
+- Nested lists, blockquotes, images, task lists and raw HTML do NOT render
+  correctly. Some reach the reader as stray punctuation; others are silently
+  flattened and lose their structure. Do not use them.
 ```
 
 - [ ] **Step 2: Confirm the Python tests still pass**
