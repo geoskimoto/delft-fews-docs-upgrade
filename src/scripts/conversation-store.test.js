@@ -301,3 +301,22 @@ test('an answer larger than the byte budget keeps its question above it', () => 
 test('a lone assistant message with no question before it is dropped', () => {
   assert.deepEqual(capMessages([a('y'.repeat(MAX_BYTES * 2))]), []);
 });
+
+test('the title survives after its message is truncated out of the window', () => {
+  // Mutation guard: recomputing the title on every save passes every other
+  // test, because they all re-save while the titling message is still inside
+  // the 12-message window.
+  const s = createStore('ns', fakeStorage(), clock());
+  s.save('c1', [u('question number 1')]);
+  const many = [];
+  for (let i = 1; i <= 20; i++) {
+    many.push(u('question number ' + i));
+    many.push(a('answer ' + i));
+  }
+  s.save('c1', many);
+  assert.equal(s.list()[0].title, 'question number 1');
+  assert.ok(
+    !s.load('c1').messages.some((m) => m.content === 'question number 1'),
+    'the titling message must be gone, or the test proves nothing',
+  );
+});

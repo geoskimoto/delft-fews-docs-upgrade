@@ -169,7 +169,10 @@ export function createStore(namespace, storage, now = () => Date.now()) {
       };
       const next = sorted([record, ...list.filter((c) => c.id !== id)])
         .slice(0, MAX_CONVERSATIONS);
-      write(next);
+      // A caller must be able to tell a persisted save from a dropped one —
+      // returning the record here even when write() failed would let a
+      // future server-backed store report success on data that never landed.
+      if (!write(next)) return null;
       return record;
     },
 
