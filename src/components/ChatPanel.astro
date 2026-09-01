@@ -46,10 +46,6 @@ const loginUrl = 'https://apps.streamflows.org/login';
     color: var(--sl-color-gray-2); }
   #fews-chat-log { flex: 1; overflow-y: auto; padding: 1rem;
     font-size: var(--sl-text-sm); }
-  #fews-chat-log .turn { margin-bottom: 1rem; white-space: pre-wrap; }
-  #fews-chat-log .turn.user { color: var(--sl-color-white); font-weight: 600; }
-  #fews-chat-log .turn.notice { color: var(--sl-color-orange-high); }
-  #fews-chat-log .turn a { color: var(--sl-color-text-accent); }
   #fews-chat-form { display: flex; gap: 0.5rem; padding: 0.75rem;
     border-top: 1px solid var(--sl-color-gray-5); }
   #fews-chat-form textarea { flex: 1; resize: vertical;
@@ -63,7 +59,80 @@ const loginUrl = 'https://apps.streamflows.org/login';
   }
 </style>
 
+<!-- Turn elements are created by the script below, so they never carry Astro's
+     scoping class and scoped rules cannot reach them. Every selector here is
+     rooted at #fews-chat, so going global leaks nothing to the rest of the
+     site. -->
+<style is:global>
+  #fews-chat-log .turn { margin-bottom: 1rem; }
+  /* pre-wrap only where the text is inserted verbatim. Assistant answers are
+     built from block elements, which carry their own spacing. */
+  #fews-chat-log .turn.user,
+  #fews-chat-log .turn.notice { white-space: pre-wrap; }
+  #fews-chat-log .turn.user { color: var(--sl-color-white); font-weight: 600; }
+  #fews-chat-log .turn.notice { color: var(--sl-color-orange-high); }
+  #fews-chat-log .turn a { color: var(--sl-color-text-accent); }
+
+  /* Block spacing. Assistant answers are built from real elements, so they
+     need margins rather than pre-wrap. */
+  #fews-chat-log .turn.assistant > :first-child { margin-top: 0; }
+  #fews-chat-log .turn.assistant > :last-child { margin-bottom: 0; }
+  #fews-chat-log .turn.assistant p { margin: 0 0 0.75rem; }
+  #fews-chat-log .turn.assistant h2,
+  #fews-chat-log .turn.assistant h3,
+  #fews-chat-log .turn.assistant h4,
+  #fews-chat-log .turn.assistant h5,
+  #fews-chat-log .turn.assistant h6 {
+    margin: 1rem 0 0.4rem; font-size: var(--sl-text-sm); font-weight: 700;
+  }
+  #fews-chat-log .turn.assistant ul,
+  #fews-chat-log .turn.assistant ol { margin: 0 0 0.75rem; padding-left: 1.25rem; }
+  #fews-chat-log .turn.assistant li { margin: 0.2rem 0; }
+  #fews-chat-log .turn.assistant code {
+    font-family: var(--sl-font-mono, ui-monospace, monospace);
+    font-size: 0.9em; background: var(--sl-color-gray-6);
+    padding: 0.1em 0.3em; border-radius: 3px;
+  }
+
+  /* Code blocks: the reason this feature exists. Monospace, own background,
+     and horizontal scroll so a wide XML line never widens the panel. */
+  #fews-chat-log .code-block {
+    position: relative; margin: 0 0 0.75rem;
+    border: 1px solid var(--sl-color-gray-5); border-radius: 4px;
+    background: var(--sl-color-black);
+  }
+  #fews-chat-log .code-block pre {
+    margin: 0; padding: 0.6rem 0.7rem; overflow-x: auto;
+  }
+  #fews-chat-log .code-block code {
+    background: none; padding: 0; white-space: pre;
+    font-family: var(--sl-font-mono, ui-monospace, monospace);
+    font-size: var(--sl-text-xs);
+  }
+  #fews-chat-log .code-block .copy {
+    position: absolute; top: 0.25rem; right: 0.25rem; z-index: 1;
+    padding: 0.15rem 0.45rem; cursor: pointer;
+    font-size: var(--sl-text-xs);
+    background: var(--sl-color-gray-6); color: var(--sl-color-white);
+    border: 1px solid var(--sl-color-gray-5); border-radius: 3px;
+  }
+
+  #fews-chat-log .table-block { overflow-x: auto; margin: 0 0 0.75rem; }
+  #fews-chat-log .table-block table {
+    border-collapse: collapse; font-size: var(--sl-text-xs);
+  }
+  #fews-chat-log .table-block th,
+  #fews-chat-log .table-block td {
+    border: 1px solid var(--sl-color-gray-5);
+    padding: 0.25rem 0.45rem; text-align: left; vertical-align: top;
+    white-space: nowrap;
+  }
+  #fews-chat-log .table-block th { font-weight: 700; }
+</style>
+
 <script>
+  import { parseAnswer, DOC_ORIGIN } from '../scripts/answer-markdown.js';
+
   const panel = document.getElementById('fews-chat');
   const toggle = document.getElementById('fews-chat-toggle');
   const closeBtn = document.getElementById('fews-chat-close');
@@ -75,8 +144,6 @@ const loginUrl = 'https://apps.streamflows.org/login';
   let signedIn = false;
   let inFlight = false;
 
-  const DOC_LINK = /https:\/\/df-docs\.streamflows\.org\/[^\s)]*/g;
-
   function addTurn(cls, text) {
     const el = document.createElement('div');
     el.className = 'turn ' + cls;
@@ -86,26 +153,175 @@ const loginUrl = 'https://apps.streamflows.org/login';
     return el;
   }
 
-  /* Render an answer as text plus real links to this site's own pages.
-     Everything goes through textContent and createElement, so nothing the
-     model emits is ever parsed as HTML. Only same-site doc URLs become
-     anchors — an arbitrary URL stays inert text. */
-  function renderAnswer(el, text) {
-    el.textContent = '';
-    let last = 0;
-    for (const match of text.matchAll(DOC_LINK)) {
-      /* Prose ends sentences with the URL, so strip trailing punctuation the
-         URL almost certainly does not own — otherwise every cited link that
-         closes a sentence points at a 404. */
-      const url = match[0].replace(/[.,;:!?]+$/, '');
-      el.appendChild(document.createTextNode(text.slice(last, match.index)));
-      const a = document.createElement('a');
-      a.href = url;
-      a.textContent = url;
-      el.appendChild(a);
-      last = match.index + url.length;
+  /* Answers are Markdown. The parser turns text into a block array; this
+     builder turns that array into nodes. Every node is created with
+     createElement/createTextNode and every string goes in through textContent
+     — nothing the model emits is ever parsed as HTML, so an XML example
+     displays its angle brackets instead of becoming markup. */
+  function buildSpans(parent, spans) {
+    for (const span of spans) {
+      if (span.type === 'code') {
+        const code = document.createElement('code');
+        code.textContent = span.text;
+        parent.appendChild(code);
+      } else if (span.type === 'strong') {
+        const strong = document.createElement('strong');
+        strong.textContent = span.text;
+        parent.appendChild(strong);
+      } else if (span.type === 'link') {
+        /* href is already allowlisted to this site's origin by the parser.
+           This re-checks the same origin here, deliberately duplicating the
+           parser's check, so the builder stays safe on its own even if a
+           future parser change silently widens the allowlist. */
+        const href = span.href;
+        const isOnOrigin = typeof href === 'string' && (
+          href === DOC_ORIGIN ||
+          (href.startsWith(DOC_ORIGIN) &&
+            ['/', '?', '#'].includes(href[DOC_ORIGIN.length]))
+        );
+        if (isOnOrigin) {
+          const a = document.createElement('a');
+          a.href = href;
+          a.textContent = span.text;
+          parent.appendChild(a);
+        } else {
+          parent.appendChild(document.createTextNode(span.text));
+        }
+      } else {
+        parent.appendChild(document.createTextNode(span.text));
+      }
     }
-    el.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  function copyCode(btn, pre, text) {
+    /* Clipboard access can be refused, and the API is absent on insecure
+       origins. Select the block and say so rather than appearing to copy and
+       doing nothing. */
+    const fallback = () => {
+      btn.textContent = 'Press Ctrl+C to copy';
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (e) {}
+    };
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+      fallback();
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    }, fallback);
+  }
+
+  function buildCode(block) {
+    const wrap = document.createElement('div');
+    wrap.className = 'code-block';
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.textContent = block.text;
+    pre.appendChild(code);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy';
+    btn.textContent = 'Copy';
+    /* The subtree is rebuilt on each frame while streaming, so this button is
+       replaced repeatedly and its "Copied" label would not survive. That is
+       fine: copying happens after the answer has finished. */
+    btn.addEventListener('click', () => copyCode(btn, pre, block.text));
+    wrap.appendChild(btn);
+    wrap.appendChild(pre);
+    return wrap;
+  }
+
+  function buildTable(block) {
+    const wrap = document.createElement('div');
+    wrap.className = 'table-block';
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const hrow = document.createElement('tr');
+    for (const cell of block.header) {
+      const th = document.createElement('th');
+      buildSpans(th, cell);
+      hrow.appendChild(th);
+    }
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (const row of block.rows) {
+      const tr = document.createElement('tr');
+      for (const cell of row) {
+        const td = document.createElement('td');
+        buildSpans(td, cell);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  function buildBlock(block) {
+    if (block.type === 'heading') {
+      /* Shift down one level so an answer's headings never outrank the page's
+         own <h2> in the document outline. */
+      const h = document.createElement('h' + Math.min(block.level + 1, 6));
+      buildSpans(h, block.spans);
+      return h;
+    }
+    if (block.type === 'paragraph') {
+      const p = document.createElement('p');
+      buildSpans(p, block.spans);
+      return p;
+    }
+    if (block.type === 'code') return buildCode(block);
+    if (block.type === 'table') return buildTable(block);
+    if (block.type === 'list') {
+      const list = document.createElement(block.ordered ? 'ol' : 'ul');
+      for (const item of block.items) {
+        const li = document.createElement('li');
+        buildSpans(li, item);
+        list.appendChild(li);
+      }
+      return list;
+    }
+    return document.createTextNode('');
+  }
+
+  function paintAnswer(el, text) {
+    el.textContent = '';
+    for (const block of parseAnswer(text)) el.appendChild(buildBlock(block));
+  }
+
+  /* Re-parsing the whole answer on each of ~2000 deltas is O(n^2). Coalesce to
+     one paint per animation frame; the frame always paints the latest text, so
+     no delta is lost, only superseded intermediate states. */
+  function renderAnswer(el, text) {
+    el._pendingText = text;
+    if (el._rafId) return;
+    el._rafId = requestAnimationFrame(() => {
+      el._rafId = 0;
+      paintAnswer(el, el._pendingText);
+    });
+  }
+
+  /* Paint now, not next frame. requestAnimationFrame does not fire in a
+     backgrounded tab, so without this a user who switches away mid-answer
+     comes back to a turn frozen at whatever streamed before they left. Only
+     do this when a frame is actually pending: paintAnswer rebuilds the whole
+     subtree, which would otherwise destroy a text selection or reset a
+     "Copied" button label on every call, even when the element already shows
+     the latest text and there is nothing left to paint. */
+  function flushAnswer(el) {
+    if (el._rafId) {
+      cancelAnimationFrame(el._rafId);
+      el._rafId = 0;
+      if (typeof el._pendingText === 'string') paintAnswer(el, el._pendingText);
+    }
   }
 
   function setOpen(open) {
@@ -249,6 +465,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
     /* A partial or failed turn stays on screen but does NOT go into the
        transcript: the next request would otherwise present a truncated answer
        to the model as though it were complete. */
+    if (answer) flushAnswer(answerEl);
     if (answer && !errored) messages.push({ role: 'assistant', content: answer });
     else if (errored) dropTurn();
   }
