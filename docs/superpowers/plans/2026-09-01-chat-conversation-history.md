@@ -589,11 +589,12 @@ def test_storage_key_is_short_lowercase_hex():
     assert all(c in "0123456789abcdef" for c in key)
 ```
 
-Append to `chat/tests/test_auth.py`:
+Append to the END of `chat/tests/test_routes.py` — NOT `test_auth.py`. `test_auth.py`'s `client` fixture builds a deliberately minimal Flask app to exercise the auth decorator in isolation and does not mount the real blueprint; asserting against it would test a copy of the endpoint rather than the endpoint. `test_routes.py` already has an `app` fixture calling `create_app({...})`, a `client` fixture, and a `token(groups=..., sub=...)` helper — use those:
 
 ```python
 def test_status_returns_a_storage_key(client):
-    resp = client.get("/api/chat/status", headers={"Cookie": f"streamflows_auth={token()}"})
+    client.set_cookie("streamflows_auth", token())
+    resp = client.get("/api/chat/status")
     assert resp.status_code == 200
     assert isinstance(resp.get_json()["storage_key"], str)
     assert len(resp.get_json()["storage_key"]) == 16

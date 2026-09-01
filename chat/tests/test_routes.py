@@ -211,3 +211,26 @@ def test_startup_fails_loudly_when_schema_data_is_missing(tmp_path, anthropic):
             "STATE_DIR": tmp_path,
             "SCHEMA_DIR": empty,
         })
+
+
+def test_status_returns_a_storage_key(client):
+    client.set_cookie("streamflows_auth", token())
+    resp = client.get("/api/chat/status")
+    assert resp.status_code == 200
+    assert isinstance(resp.get_json()["storage_key"], str)
+    assert len(resp.get_json()["storage_key"]) == 16
+
+
+def test_two_users_get_different_storage_keys(client):
+    def key_for(sub):
+        client.set_cookie("streamflows_auth", token(sub=sub))
+        return client.get("/api/chat/status").get_json()["storage_key"]
+
+    assert key_for("alice") != key_for("bob")
+
+
+def test_unauthenticated_status_has_no_storage_key(client):
+    """A 401 body must not carry a namespace an anonymous caller could adopt."""
+    resp = client.get("/api/chat/status")
+    assert resp.status_code == 401
+    assert "storage_key" not in resp.get_json()

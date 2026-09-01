@@ -7,6 +7,7 @@ from flask import stream_with_context
 from chat.agent import Agent, sse
 from chat.auth import require_streamflows_user
 from chat.conversation import InvalidHistory, normalise
+from chat.identity import storage_key
 from chat.security import origin_allowed
 
 log = logging.getLogger(__name__)
@@ -22,7 +23,14 @@ def health():
 @require_streamflows_user
 def status():
     budget = current_app.config["BUDGET"]
-    return jsonify({"authenticated": True, "available": not budget.exhausted()})
+    return jsonify({
+        "authenticated": True,
+        "available": not budget.exhausted(),
+        # Opaque per-user namespace for the browser's conversation store. Never
+        # the subject itself — that is an email address and would land in
+        # localStorage.
+        "storage_key": storage_key(g.current_user),
+    })
 
 
 @chat_bp.route("/api/chat", methods=["POST"])

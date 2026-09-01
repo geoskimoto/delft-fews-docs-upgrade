@@ -123,8 +123,10 @@ a resumed conversation never appears to contain context the assistant has
 actually lost.
 
 **Overall: 25 conversations**, evicting the least recently updated when a 26th
-is saved. Worst case is roughly 600 KB against a per-origin budget of about
-5 MB, so this can never crowd out anything else the site stores.
+is saved. Worst case is roughly 1 MB — the 24 KB per-conversation budget plus
+the allowance for one over-budget exchange when a single answer exceeds it,
+around 40 KB per conversation — against a per-origin budget of about 5 MB, so
+this can never crowd out anything else the site stores.
 
 ## Concurrency
 
