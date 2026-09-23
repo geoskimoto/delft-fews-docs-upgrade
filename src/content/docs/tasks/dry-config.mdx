@@ -51,10 +51,40 @@ is the condensed toolbelt view.
 
 ### `locationLoop` — generate a display *tree branch* per location (Generate)
 
-Nests under `displayGroup`. FEWS reads the `display`/`displayGroup` children
-once and stamps out one full copy of that subtree per member of a location set
-— it's a config-time expansion, not a runtime `for` loop with an index or
-conditional logic.
+`locationLoop` is a "loop" in the sense of **config-time expansion**, not a
+runtime `for` loop with iteration logic. It's a template macro: FEWS reads the
+`display`/`displayGroup` element(s) nested under it once, then generates one
+copy of that subtree per location in a location set when it loads/builds the
+Explorer tree. There's no index variable, no conditional branching, no
+per-iteration logic — it's closer to "stamp out N copies" than to a
+programming loop. (Compare that with [`loopLocationSetId`](#workflow-level-loops--the-closest-thing-to-an-actual-for-loop)
+further down this page, which *is* a genuine runtime loop.)
+
+It nests as an optional child of `displayGroup`, sitting alongside the
+`display`/`displayGroup`/`displayGroupId` choice block in
+[`displayGroups.xsd`](https://fews.wldelft.nl/schemas/version1.0/displayGroups.xsd)
+— so a `displayGroup` can either be hand-authored per location, or driven by
+`locationLoop`, using the same child elements either way.
+
+**Why it condenses `DisplayGroups` files.** Without `locationLoop`, if you have
+a `plot` (e.g. `DischargePlot`) you want shown for 50 gauges, you'd hand-write
+50 `<display>` blocks, each with its own `<name>` and `<locationId>`:
+
+```xml
+<displayGroup name="Discharge gauges">
+  <display name="River Gauge 01">
+    <locationId>Gauge01</locationId>
+    <plotId>DischargePlot</plotId>
+  </display>
+  <display name="River Gauge 02">
+    <locationId>Gauge02</locationId>
+    <plotId>DischargePlot</plotId>
+  </display>
+  <!-- ...48 more, one per gauge -->
+</displayGroup>
+```
+
+With `locationLoop`, you replace all of that with one loop over a location set:
 
 ```xml
 <displayGroup name="Discharge gauges">
@@ -67,10 +97,31 @@ conditional logic.
 </displayGroup>
 ```
 
-`locationLoop` also takes `includeChildren` (pull in child locations of each
-loop location) and `locationRelationId` (pull in related locations via a named
-[location relation](/tasks/locations/)) — both repeatable/optional, both since
-2015.01. See [`displayGroups.xsd`](https://fews.wldelft.nl/schemas/version1.0/displayGroups.xsd).
+FEWS then generates one `display` node (named after each location) for every
+member of `AllDischargeGauges` at config-load time — the file stays fixed-size
+no matter how many gauges are in the location set.
+
+**The `LocationLoopComplexType` fields:**
+
+| Element | Meaning |
+| --- | --- |
+| `locationSetId` (required) | The location set to iterate over. |
+| `includeChildren` (optional, default `false`) | Also loop over child locations of each looped location. |
+| `locationRelationId` (optional, repeatable) | Also pull in locations related to the loop location via one of the named [location relations](/tasks/locations/). |
+
+Available since build 2015.01 — don't rely on it against older FEWS builds.
+
+<Aside type="tip" title="Practical notes">
+- It's additive to a location set you'd normally reference with `locationSetId`
+  on a `display` — the loop is what turns "one display covering many
+  locations" into "one display *tree branch* per location," which is what
+  gives you a separate Explorer node per gauge instead of one shared
+  multi-location plot.
+- Because expansion happens once when FEWS builds its config, adding a new
+  location to the referenced location set and reloading config regenerates
+  the tree automatically — no XML edit needed. That's the main win over
+  hand-listing displays.
+</Aside>
 
 ### `singleLocationDisplays` / `singleParentLocationDisplays` — one flat display per location (Generate)
 
