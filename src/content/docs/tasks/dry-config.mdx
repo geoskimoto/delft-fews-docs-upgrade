@@ -1,0 +1,486 @@
+---
+title: Condense large config files (DRY patterns)
+description: A single reference for every FEWS mechanism that avoids hand-repeating the same block for every location, module instance, or file — loops, wildcards, reusable sets, templated modules, and file splitting.
+sidebar:
+  order: 11
+---
+
+import { Steps, Aside, Card, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A default FEWS configuration for a system with hundreds of gauges can drift into
+`DisplayGroups` or `IdMap` files thousands of lines long — one hand-copied block
+per station, with the only difference between blocks being an id. That's not a
+consequence of the schema; it's what happens when you reach for the *explicit
+list* form (`display`, `location`, `moduleInstance`) everywhere, instead of the
+*generating* forms sitting next to it in the same schema.
+
+This page collects those generating forms in one place — the answer to "is there
+a tool for this?" the next time you're about to paste a block for the fiftieth
+time. Every mechanism here is sourced from the shipped `.xsd` schemas in this
+repo; none of it is a workaround, it's built-in.
+
+<Aside type="note" title="Prerequisites">
+This page assumes you already know the individual pieces it's condensing:
+[locations & location sets](/tasks/locations/), [ID mapping](/tasks/id-mapping/),
+[filters & display groups](/tasks/filters-displays/), [thresholds](/tasks/thresholds/),
+[General Adapter](/tasks/general-adapter/), and [workflows](/tasks/workflows/).
+This guide doesn't re-teach those files — it's the cross-cutting index of *how
+to avoid repeating yourself* inside them.
+</Aside>
+
+## Four kinds of "don't repeat yourself"
+
+FEWS config doesn't have one DRY mechanism — it has four different *kinds*, and
+picking the wrong kind for the problem is why people give up and paste. Keep
+these categories straight; every tool below is one of them.
+
+| Kind | What it does | Ask yourself |
+| --- | --- | --- |
+| **Reference** | Define a group once (a location set, a module instance set), then point many config blocks at its `id` instead of relisting members. | "Am I listing the same ids in more than one file?" |
+| **Generate** | Author *one* block; FEWS expands it into many at config-load time (or run time) — one per member of a set. | "Is every block here structurally identical except for one id?" |
+| **Externalize** | Move the repeating data out of XML entirely — a CSV, shapefile, or database table supplies it. | "Is this data (not structure) — hundreds of rows of similar-shaped facts?" |
+| **Split** | Physically break one file into several smaller ones by topic; FEWS merges them back into one logical config. | "Is this file just *long*, not repetitive?" |
+
+The rest of this page is organized by config area, but every entry is tagged
+with which kind it is.
+
+## Display groups & filters
+
+Covered in depth in [Filters & display groups](/tasks/filters-displays/); this
+is the condensed toolbelt view.
+
+### `locationLoop` — generate a display *tree branch* per location (Generate)
+
+Nests under `displayGroup`. FEWS reads the `display`/`displayGroup` children
+once and stamps out one full copy of that subtree per member of a location set
+— it's a config-time expansion, not a runtime `for` loop with an index or
+conditional logic.
+
+```xml
+<displayGroup name="Discharge gauges">
+  <locationLoop>
+    <locationSetId>AllDischargeGauges</locationSetId>
+  </locationLoop>
+  <display name="%LOCATION%">
+    <plotId>DischargePlot</plotId>
+  </display>
+</displayGroup>
+```
+
+`locationLoop` also takes `includeChildren` (pull in child locations of each
+loop location) and `locationRelationId` (pull in related locations via a named
+[location relation](/tasks/locations/)) — both repeatable/optional, both since
+2015.01. See [`displayGroups.xsd`](https://fews.wldelft.nl/schemas/version1.0/displayGroups.xsd).
+
+### `singleLocationDisplays` / `singleParentLocationDisplays` — one flat display per location (Generate)
+
+These sit in the same `choice` as `display` itself (they're the same
+`DisplayComplexType`), so they accept every field a normal `display` does —
+`plotId`, `locationSetId`, styling, the lot. The difference is purely in how
+many `display` nodes come out the other end:
+
+<Tabs>
+<TabItem label="Plain display + locationSetId">
+
+```xml
+<displayGroup name="Discharge gauges">
+  <display name="All discharge gauges">
+    <locationSetId>AllDischargeGauges</locationSetId>
+    <plotId>DischargePlot</plotId>
+  </display>
+</displayGroup>
+```
+
+**One** display node. Every gauge in `AllDischargeGauges` is available inside
+it (pick a station from the map/location panel to see its series) — a single
+multi-location chart.
+
+</TabItem>
+<TabItem label="singleLocationDisplays + locationSetId">
+
+```xml
+<displayGroup name="Discharge gauges">
+  <singleLocationDisplays name="%LOCATION%">
+    <locationSetId>AllDischargeGauges</locationSetId>
+    <plotId>DischargePlot</plotId>
+  </singleLocationDisplays>
+</displayGroup>
+```
+
+Same two fields, but FEWS emits **one separate display per location** in the
+set — each fixed to a single station. Use this when you want each gauge to be
+its own addressable node (e.g. for `explorerLocationId` click-through, or a
+flat picklist of stations) rather than one shared multi-station chart.
+
+</TabItem>
+</Tabs>
+
+`singleParentLocationDisplays` is the same idea one level up the location
+hierarchy: for each **parent** location, it generates a display showing that
+parent plus its children (a reservoir and its inflow gauges, a basin and its
+sub-catchments) — provided the parent/child relationship is declared on the
+[location set](/tasks/locations/). Reach for it instead of `locationLoop` when
+you want flat, individually-addressable displays rather than a nested
+`displayGroup` tree.
+
+### `displayGroupId` — reference a display group defined elsewhere (Reference)
+
+Since 2023.01. Include a `displayGroup` that's already defined — in this file
+or another `DisplayGroups*.xml` — by id, instead of copy-pasting it into a
+second location in the tree:
+
+```xml
+<displayGroup name="By basin">
+  <displayGroup name="Basin A">
+    <displayGroupId>DischargeGauges</displayGroupId>
+  </displayGroup>
+</displayGroup>
+```
+
+Root-level display groups referenced this way are placed only where
+referenced, not also kept as a separate top-level tree.
+
+### Reusable `plot` + `plotId` (Reference)
+
+The most basic reuse: define subplot/line/axis styling once under `<plot
+id="…">`, then every `display` that wants that look points at it with
+`plotId` and supplies only its own location constraint. This is what makes
+`locationLoop` and `singleLocationDisplays` worth using at all — the plot
+definition itself never repeats.
+
+### `groupBy` — auto-split a filter node by attribute (Generate)
+
+In `Filters`, not `DisplayGroups`. Instead of hand-listing a `child` filter per
+basin, let FEWS split a leaf filter's locations by an attribute on the fly:
+
+```xml
+<filter id="Discharge" name="Discharge">
+  <timeSeriesSet>…</timeSeriesSet>
+  <groupBy>
+    <locationAttributeId>BASIN</locationAttributeId>
+  </groupBy>
+</filter>
+```
+
+Full detail (and the `child`/`foreignKey` alternative for hand-labelled
+branches) is in [Filters & display groups](/tasks/filters-displays/#how-filters-nest-into-a-tree).
+
+## Reusable sets as reference targets
+
+A `locationSetId` or `moduleInstanceSetId` is only as good as the set it
+points at. Two set types carry the weight:
+
+### Location sets (Reference + Generate + Externalize, depending on the form)
+
+Already covered fully in [Define locations & location
+sets](/tasks/locations/#part-2--grouping-with-location-sets) — the summary:
+
+| Form | Kind | When |
+| --- | --- | --- |
+| Explicit `locationId` list | — | A small, fixed group. |
+| Compose from sets (`locationSetId` inside a `locationSet`) | Reference | Build broad sets from narrow ones without re-listing (`AllGauges` = `DischargeGauges` + `LevelGauges`). |
+| `csvFile` / `esriShapeFile` / `geoJsonFile` / `geoPackageFile` / `table` | Externalize | Hundreds of locations — maintain data, not XML. |
+| `constraints` (`idStartsWith`, `attributeTextEquals`, `allValid`/`anyValid`/`not`, …) | Generate | Membership should follow a *rule* (a basin, a station type), not a maintained list. |
+
+### Module instance sets — the same idea for module instances (Reference + Generate)
+
+Far less known, and currently the single most under-used tool in the belt.
+[`moduleInstanceSets.xsd`](https://fews.wldelft.nl/schemas/version1.0/moduleInstanceSets.xsd)
+lets you name a group of module instances once:
+
+```xml title="Config/RegionConfigFiles/ModuleInstanceSets 1.00 default.xml"
+<moduleInstanceSets xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <moduleInstanceSet id="AllRainfallForecasts" name="All rainfall forecast imports">
+    <moduleInstanceIdPattern>*_Rainfall_Forecast</moduleInstanceIdPattern>
+  </moduleInstanceSet>
+</moduleInstanceSets>
+```
+
+`moduleInstanceIdPattern` accepts `*` and `?` wildcards (since 2015.01) — so one
+line can match every module instance following a naming convention, no list at
+all. Members can also be listed explicitly with `moduleInstanceId` if there's
+no convention to exploit.
+
+Once declared, any `timeSeriesSet`-shaped block — in a filter, a display, an
+import, an export, a threshold value set — can reference it instead of listing
+module instances inline:
+
+| Field (in `TimeSeriesSet`/`TimeSeriesFilter`) | Meaning |
+| --- | --- |
+| `moduleInstanceId` (repeatable) | Explicit list — the thing you're trying to stop writing. |
+| `moduleInstanceIdPattern` (repeatable, `*`/`?`) | Same wildcard matching, inline, without a named set. |
+| `moduleInstanceSetId` | Query **one** module instance available from the named set. |
+| `filterModuleInstanceSetId` | Query **all** module instances in the named set that are available for this series. |
+
+See [`sharedTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/sharedTypes.xsd)
+(`ModuleInstanceIdPatternSequence`, `ModuleInstanceIdsChoice`,
+`TimeSeriesSetComplexType`) for the exact choice structure — it differs
+slightly between a plain `timeSeriesSet` and a criteria-based `timeSeries`
+filter.
+
+## ID mapping at scale
+
+Full detail in [Map external IDs](/tasks/id-mapping/#bulk-mapping-with-patterns).
+Two Generate-kind tools stop `IdMap` files from becoming one `<location>` line
+per gauge:
+
+```xml
+<locationIdPattern
+    internalLocationSet="AllDischargeGauges"
+    internalLocationPattern="RiverGauge_*"
+    externalLocationPattern="GAUGE-*"/>
+```
+
+`*` maps the whole set by transformation (`RiverGauge_01` ⇆ `GAUGE-01`, …), and
+`parameterIdFunction` / `locationIdFunction` / `qualifierIdFunction` go further
+— they derive the external id from an **attribute** on the internal object
+(e.g. `@EXTERNAL_ID@`, pulled from that location's own attribute value) instead
+of a shared naming pattern.
+
+## Threshold values driven by location attributes
+
+Full detail in [Thresholds & warnings](/tasks/thresholds/#common-patterns).
+`ThresholdValueSets` supports a `*Function` sibling for nearly every field that
+would otherwise need to differ per location:
+
+| Instead of | Use | Effect |
+| --- | --- | --- |
+| `value` | `valueFunction` | e.g. `@FLOOD_WATCH@` — the number comes from that gauge's own location attribute. |
+| `description` | `descriptionFunction` | Per-location wording, same substitution. |
+| `levelThresholdId` | `levelThresholdIdFunction` | Which threshold definition applies, per location. |
+
+One `thresholdValueSet` scoped to a `locationSetId` then produces a *different*
+number at every location — sourced from the location's own attribute row, not
+from a per-gauge XML block. If the attribute is missing for a location, that
+field is silently skipped for that location (not an error) — validate your
+attribute coverage before relying on this.
+
+## Templating module config files
+
+This is the highest-leverage tool on this page and the least documented one:
+**multiple module instances can share a single module config file.**
+
+From [`workflow.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflow.xsd)'s
+own annotation on `moduleConfigFileName`:
+
+> By default the config file name equals the module instance id. Multiple
+> module instances can share the same config file by using properties. The
+> config file is used as template and the `$key$` are replaced by the property
+> values.
+
+In practice: instead of fifty near-identical `RainfallRunoffModel_<gauge>.xml`
+[General Adapter](/tasks/general-adapter/) files, write **one** template with
+`$`-delimited placeholders, and give each `activity` its own tiny property
+block:
+
+```xml title="Config/ModuleConfigFiles/RainfallRunoffModel 1.00 template.xml"
+<generalAdapterRun xmlns="http://www.wldelft.nl/fews">
+  <general>
+    <rootDir>%REGION_HOME%/Modules/rrmodel/$LOC_ID$</rootDir>
+    <workDir>%ROOT_DIR%/work</workDir>
+    <exportDir>%ROOT_DIR%/input</exportDir>
+    <importDir>%ROOT_DIR%/output</importDir>
+    <missVal>-999</missVal>
+  </general>
+  <activities>
+    <exportActivities>
+      <exportTimeSeriesActivity>
+        <exportFile>discharge_in.xml</exportFile>
+        <timeSeriesSets>
+          <timeSeriesSet>
+            <moduleInstanceId>ImportObservations</moduleInstanceId>
+            <valueType>scalar</valueType>
+            <parameterId>Q.obs</parameterId>
+            <locationId>$LOC_ID$</locationId>
+            <timeSeriesType>external historical</timeSeriesType>
+            <timeStep unit="hour" multiplier="1"/>
+            <readWriteMode>read only</readWriteMode>
+          </timeSeriesSet>
+        </timeSeriesSets>
+      </exportTimeSeriesActivity>
+    </exportActivities>
+    <!-- executeActivities / importActivities, also keyed on $LOC_ID$ -->
+  </activities>
+</generalAdapterRun>
+```
+
+```xml title="Config/WorkflowFiles/RunAllGauges 1.00 default.xml"
+<workflow xmlns="http://www.wldelft.nl/fews" version="1.1">
+  <activity>
+    <moduleInstanceId>RainfallRunoffModel_RiverGauge_01</moduleInstanceId>
+    <moduleConfigFileName>RainfallRunoffModel</moduleConfigFileName>
+    <properties>
+      <string key="LOC_ID" value="RiverGauge_01"/>
+    </properties>
+  </activity>
+  <activity>
+    <moduleInstanceId>RainfallRunoffModel_RiverGauge_02</moduleInstanceId>
+    <moduleConfigFileName>RainfallRunoffModel</moduleConfigFileName>
+    <properties>
+      <string key="LOC_ID" value="RiverGauge_02"/>
+    </properties>
+  </activity>
+</workflow>
+```
+
+One module config file, no matter how many gauges you add — only the
+workflow's property blocks grow, and each is two lines. This composes with
+everything above: the `timeSeriesSet` inside the template can use
+`moduleInstanceSetId`/`filterModuleInstanceSetId` too.
+
+<Aside type="tip" title="%VAR% vs $VAR$ — two substitution systems, both real">
+[General Adapter](/tasks/general-adapter/) has its own `%ROOT_DIR%`/`%REGION_HOME%`-style
+substitution local to the `<general>` block's directory chain. Workflow
+`properties` and [global properties](/tasks/export/#point-at-the-destination-and-pick-the-writer)
+(`global.properties`) use `$KEY$`. Both are plain text substitution before the
+file is parsed as XML, so either can appear inside any element or attribute
+value — including a `locationId` field, as above. Don't mix up which
+delimiter a given value expects; the wrong one is left in the string
+unresolved rather than erroring, which reads exactly like a mapping bug.
+</Aside>
+
+## Workflow-level loops — the closest thing to an actual `for` loop
+
+`locationLoop` and `singleLocationDisplays` above are **config-time**
+expansion: FEWS reads one block and multiplies it while loading the config.
+A workflow `activity`'s `loopLocationSetId` is different — it's evaluated
+**at run time**, once per forecast run:
+
+```xml
+<activity>
+  <moduleInstanceId>RainfallRunoffModel</moduleInstanceId>
+  <loopLocationSetId>AllDischargeGauges</loopLocationSetId>
+  <skipNonExistingLoopLocationSet>true</skipNonExistingLoopLocationSet>
+</activity>
+```
+
+Inside that activity's (templated) module config, refer to the current
+iteration's location with `$LOOP_LOCATION_ID$`. Pair it with a
+`loopLocationAttribute` workflow property to pull an *attribute* of the
+current loop location into another `$key$` — e.g. exposing that location's
+`MODEL_NAME` attribute as `$MODEL_NAME$` for the templated config to use.
+Since 2015.01; not supported combined with an ensemble loop on the same
+activity.
+
+The `ensemble` block on an `activity` is the same run-time-loop idea for
+ensemble members: `runInLoop` (default `true`) runs each member as a separate
+pass, and `ensembleMemberIdRegularExpression` (e.g. `^Q.*`) selects which
+members to loop over by pattern instead of listing them. See [Workflows &
+scheduling](/tasks/workflows/#key-fields-at-a-glance).
+
+<Aside type="caution" title="So — is locationLoop really a 'loop'?">
+Only `loopLocationSetId` behaves like a programming `for` loop: it re-runs the
+same activity once per iteration, at run time, with a substitutable loop
+variable. `locationLoop`, `singleLocationDisplays`,
+`singleParentLocationDisplays`, `groupBy`, and `moduleInstanceIdPattern` are
+all **expansion at config-load time** — closer to a templating macro than a
+loop with iteration logic. Both save you from hand-repeating blocks; only one
+of them is a loop in the runtime sense.
+</Aside>
+
+## Externalize: CSV and other data files instead of hand-written XML
+
+The same shape repeats across several `RegionConfigFiles`: a `csvFile` (or
+sibling `esriShapeFile`/`geoJsonFile`/`table`) element that supplies rows of
+data instead of one XML element per row. Reach for these once a hand-written
+list is really *data*, not structure.
+
+| File | Element | Feeds |
+| --- | --- | --- |
+| `LocationSets` | `csvFile` / `esriShapeFile` / `geoJsonFile` / `geoPackageFile` / `table` | Location membership + attributes ([detail](/tasks/locations/#part-2--grouping-with-location-sets)) |
+| `Parameters` | `parametersCsvFile` | Bulk parameter definitions ([detail](/tasks/parameters/)) |
+| `Qualifiers` | `csvFile` | Bulk qualifier definitions |
+| `ModuleInstanceDescriptors` | `moduleInstanceDescriptorsCsvFile` | Bulk module instance metadata |
+| `Grids` | `csvFile` | Grid definitions |
+
+This is an **Externalize**-kind tool, not a Generate one: the CSV rows still
+have to exist somewhere, but a spreadsheet of 500 rows is a much smaller
+maintenance burden than 500 near-identical XML blocks, and it's editable by
+someone who doesn't know the schema.
+
+## Split: many small files instead of one giant one
+
+Not every long file is *repetitive* — sometimes it's just organized wrong.
+FEWS's [file discovery convention](/concepts/config-directory/#how-fews-finds-a-file)
+(`<TypeName> <version> <description>.xml`) exists specifically so you can give
+several files the **same type and version but a different description**, and
+FEWS loads and merges all of them into one logical config — it does not force
+one physical file per config type:
+
+```text
+Config/RegionConfigFiles/
+├── Filters 1.00 discharge.xml
+├── Filters 1.00 levels.xml
+└── Filters 1.00 rainfall.xml
+```
+
+All three load and merge into one `filters` tree (their `<filter>` nodes are
+siblings). This is the direct answer to "how do I stop this one file from
+being 10,000 lines": split by topic (river basin, module, display purpose),
+not by inventing new XML structure. It composes with everything else on this
+page — a `Filters 1.00 discharge.xml` full of `groupBy` and `locationSetId`
+references is both shorter *and* fewer lines than a hand-listed one.
+
+<Aside type="caution" title="Don't confuse this with the version-suffix trap">
+Splitting by **description** (the third token) is safe and additive — all
+matching files load. Two files with the same description but *different
+version numbers* is the other, hazardous case: FEWS reads only the
+highest-versioned one and silently ignores the rest. See [how FEWS finds a
+file](/concepts/config-directory/#how-fews-finds-a-file).
+</Aside>
+
+## Which tool, for which file
+
+| Problem | Reach for |
+| --- | --- |
+| One `DisplayGroups` file, one node per gauge | `locationLoop` (tree) or `singleLocationDisplays` (flat) |
+| One `Filters` file, one branch per basin/type | `groupBy` |
+| One `IdMap` file, one `<location>` per gauge | `locationIdPattern`, then `*IdFunction` |
+| One `ThresholdValueSets` file, one set per gauge | `valueFunction` on a set scoped to a `locationSetId` |
+| Fifty near-identical `ModuleConfigFiles` | `moduleConfigFileName` + workflow `properties` (`$key$` template) |
+| A workflow that must run the same activity per gauge | `loopLocationSetId` + `$LOOP_LOCATION_ID$` |
+| A `timeSeriesSet` naming ten module instances by convention | `moduleInstanceSetId` / `filterModuleInstanceSetId` / `moduleInstanceIdPattern` |
+| Hundreds of locations/parameters/qualifiers as *data* | `csvFile` (or shapefile/GeoJSON/table) |
+| A file that's long but not repetitive | Split by description suffix, same version |
+
+## Gotchas
+
+- **Config-time expansion vs. run-time loop, mixed up.** `locationLoop` and
+  `singleLocationDisplays` happen once, when FEWS loads config — adding a
+  location to the set and reloading regenerates the tree, but nothing re-runs
+  per location during a forecast. `loopLocationSetId` is the only mechanism
+  here that re-executes at run time.
+- **Wildcards and patterns fail silently.** A `moduleInstanceIdPattern`,
+  `locationIdPattern`, or `*Function` that matches nothing behaves exactly
+  like the explicit-list mismatches covered in [Filters &
+  display groups](/tasks/filters-displays/#gotchas) and [ID
+  mapping](/tasks/id-mapping/#bulk-mapping-with-patterns) — an empty result,
+  no error. Test bulk tools against one known-good id before trusting them
+  across a whole set.
+- **`$KEY$` vs `%KEY%` confusion.** A property referenced with the wrong
+  delimiter for its context isn't substituted — it's left in the config as a
+  literal string (a location id that's literally `$LOC_ID$`, say), which then
+  fails to resolve downstream and looks like an unrelated bug.
+- **`loopLocationSetId` and ensemble loops don't combine** on the same
+  `activity` — split them into separate activities (or a nested workflow) if
+  you need both.
+- **A missing attribute silently drops that location.** `valueFunction`,
+  `*IdFunction`, and `loopLocationAttribute` all depend on the referenced
+  attribute existing on every location they touch; when it's absent for one
+  location, that location is skipped for that field, not flagged.
+- **Splitting files doesn't fix a version conflict.** Same type, same
+  description, different version → highest wins, others ignored. Same type,
+  *different* description → all load and merge. Know which situation you're in.
+
+## See also
+
+<Card title="Related pieces" icon="right-arrow">
+- [Filters & display groups](/tasks/filters-displays/) — `locationLoop`, `groupBy`, reusable plots in full
+- [Define locations & location sets](/tasks/locations/) — the sets everything above references
+- [Map external IDs](/tasks/id-mapping/) — `locationIdPattern` and the `*IdFunction` family
+- [Thresholds & warnings](/tasks/thresholds/) — `valueFunction` and attribute-driven values
+- [Run a model (General Adapter)](/tasks/general-adapter/) — the `%ROOT_DIR%` substitution chain
+- [Workflows & scheduling](/tasks/workflows/) — `loopLocationSetId`, ensemble loops, `properties`
+- Concept: [The configuration directory](/concepts/config-directory/) — file discovery and the version-suffix trap
+- Schemas: [`displayGroups.xsd`](https://fews.wldelft.nl/schemas/version1.0/displayGroups.xsd), [`filters.xsd`](https://fews.wldelft.nl/schemas/version1.0/filters.xsd), [`idMap.xsd`](https://fews.wldelft.nl/schemas/version1.0/idMap.xsd), [`moduleInstanceSets.xsd`](https://fews.wldelft.nl/schemas/version1.0/moduleInstanceSets.xsd), [`workflow.xsd`](https://fews.wldelft.nl/schemas/version1.0/workflow.xsd), [`sharedTypes.xsd`](https://fews.wldelft.nl/schemas/version1.0/sharedTypes.xsd)
+</Card>

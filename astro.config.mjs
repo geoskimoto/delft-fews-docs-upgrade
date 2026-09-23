@@ -47,6 +47,7 @@ export default defineConfig({
             { label: 'Run a model (General Adapter)', slug: 'tasks/general-adapter' },
             { label: 'Workflows & scheduling', slug: 'tasks/workflows' },
             { label: 'Export data', slug: 'tasks/export' },
+            { label: 'Condense large config files (DRY patterns)', slug: 'tasks/dry-config' },
           ],
         },
         {
