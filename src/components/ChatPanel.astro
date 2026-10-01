@@ -197,11 +197,6 @@ const loginUrl = 'https://apps.streamflows.org/login';
     background: none; border: 0; cursor: pointer; padding: 0.2rem;
     color: var(--sl-color-gray-3); font-size: var(--sl-text-xs);
   }
-  #fews-chat-clear {
-    display: block; width: calc(100% - 2rem); margin: 0 1rem 0.5rem;
-    background: none; border: 0; cursor: pointer; padding: 0.3rem 0;
-    text-align: left; color: var(--sl-color-gray-3); font-size: var(--sl-text-xs);
-  }
 </style>
 
 <script>
@@ -360,19 +355,6 @@ const loginUrl = 'https://apps.streamflows.org/login';
       li.appendChild(when);
       li.appendChild(del);
       listEl.appendChild(li);
-    }
-
-    if (items.length) {
-      const clear = document.createElement('button');
-      clear.type = 'button';
-      clear.id = 'fews-chat-clear';
-      clear.textContent = 'Clear all conversations';
-      clear.addEventListener('click', async () => {
-        if (inFlight) return;
-        await store.clearAll();
-        startNewConversation();
-      });
-      listEl.appendChild(clear);
     }
 
     recentBtn.textContent = items.length ? `Recent (${items.length})` : 'Recent';
