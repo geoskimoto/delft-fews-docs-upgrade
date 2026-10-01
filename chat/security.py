@@ -47,7 +47,7 @@ class RateLimiter:
     for a single gunicorn worker. clock is injectable for testing."""
 
     def __init__(self, max_calls: int, window_seconds: float, clock=time.monotonic):
-        self.max_calls = max_calls
+        self._max_calls = max_calls
         self.window = window_seconds
         self.clock = clock
         self._hits: dict[str, deque] = defaultdict(deque)
@@ -55,13 +55,22 @@ class RateLimiter:
         # read-modify-write is still not atomic.
         self._lock = threading.Lock()
 
+    @property
+    def max_calls(self) -> int:
+        return self._max_calls() if callable(self._max_calls) else self._max_calls
+
+    @max_calls.setter
+    def max_calls(self, value) -> None:
+        self._max_calls = value
+
     def allow(self, key: str) -> bool:
         with self._lock:
+            max_calls = self.max_calls
             now = self.clock()
             hits = self._hits[key]
             while hits and now - hits[0] > self.window:
                 hits.popleft()
-            if len(hits) >= self.max_calls:
+            if len(hits) >= max_calls:
                 return False
             hits.append(now)
             return True
@@ -82,11 +91,19 @@ class DailyBudget:
 
     def __init__(self, path: Path, limit_usd: float, clock=_today):
         self.path = Path(path)
-        self.limit = limit_usd
+        self._limit = limit_usd
         self.clock = clock
         # One gunicorn worker, but 8 threads. Without this, two threads
         # interleave load -> compute -> save and most of the spend is lost.
         self._lock = threading.Lock()
+
+    @property
+    def limit(self) -> float:
+        return self._limit() if callable(self._limit) else self._limit
+
+    @limit.setter
+    def limit(self, value) -> None:
+        self._limit = value
 
     def cost_of(self, usage) -> float:
         return (

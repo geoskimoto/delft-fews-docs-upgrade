@@ -7,6 +7,7 @@ from flask import Flask
 
 from chat import config
 from chat.corpus import build_corpus
+from chat.limits import LimitsStore
 from chat.routes import chat_bp
 from chat.schema_tool import schema_names
 from chat.security import DailyBudget, RateLimiter
@@ -22,16 +23,27 @@ def create_app(overrides: dict | None = None) -> Flask:
     state_dir = overrides.get("STATE_DIR", config.STATE_DIR)
     budget_limit = overrides.get("DAILY_BUDGET_USD", config.DAILY_BUDGET_USD)
 
+    limits = LimitsStore(
+        state_dir / "limits.json",
+        {"daily_budget_usd": budget_limit,
+         "rate_limit_calls": config.RATE_LIMIT_CALLS},
+    )
+
     app.config.update(
         # Flask leaves this unset, meaning an unbounded request body. Werkzeug
         # rejects anything larger with a 413 before we parse a byte of it.
         MAX_CONTENT_LENGTH=config.MAX_REQUEST_BYTES,
         SCHEMA_DIR=overrides.get("SCHEMA_DIR", config.SCHEMA_DIR),
         ALLOWED_ORIGIN=overrides.get("ALLOWED_ORIGIN", config.ALLOWED_ORIGIN),
+        LIMITS=limits,
         RATE_LIMITER=RateLimiter(
-            config.RATE_LIMIT_CALLS, config.RATE_LIMIT_WINDOW_SECONDS
+            lambda: limits.current()["rate_limit_calls"],
+            config.RATE_LIMIT_WINDOW_SECONDS,
         ),
-        BUDGET=DailyBudget(state_dir / "budget.json", budget_limit),
+        BUDGET=DailyBudget(
+            state_dir / "budget.json",
+            lambda: limits.current()["daily_budget_usd"],
+        ),
     )
 
     # Corpus is read once, at startup. The service must be restarted after a

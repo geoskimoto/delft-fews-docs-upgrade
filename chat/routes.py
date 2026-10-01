@@ -5,13 +5,15 @@ from flask import Blueprint, Response, current_app, g, jsonify, request
 from flask import stream_with_context
 
 from chat.agent import Agent, sse
-from chat.auth import require_streamflows_user
+from chat.auth import require_admin, require_streamflows_user
 from chat.conversation import InvalidHistory, normalise
 from chat.identity import storage_key
+from chat.limits import BOUNDS, InvalidLimits
 from chat.security import origin_allowed
 
 log = logging.getLogger(__name__)
 chat_bp = Blueprint("chat", __name__)
+audit = logging.getLogger("chat.audit")
 
 
 @chat_bp.route("/health")
@@ -26,11 +28,62 @@ def status():
     return jsonify({
         "authenticated": True,
         "available": not budget.exhausted(),
+        "is_admin": g.is_admin,
         # Opaque per-user namespace for the browser's conversation store. Never
         # the subject itself — that is an email address and would land in
         # localStorage.
         "storage_key": storage_key(g.current_user),
     })
+
+
+def _limits_payload():
+    limits = current_app.config["LIMITS"].current()
+    budget = current_app.config["BUDGET"]
+    return {
+        "limits": limits,
+        "bounds": {k: list(v) for k, v in BOUNDS.items()},
+        "spent_usd": budget.limit - budget.remaining(),
+        "remaining_usd": budget.remaining(),
+    }
+
+
+@chat_bp.route("/api/chat/admin/limits", methods=["GET"])
+@require_admin
+def get_limits():
+    return jsonify(_limits_payload())
+
+
+@chat_bp.route("/api/chat/admin/limits", methods=["PUT"])
+@require_admin
+def put_limits():
+    actor = storage_key(g.current_user)
+    if not origin_allowed(
+        request.headers.get("Origin"), current_app.config["ALLOWED_ORIGIN"]
+    ):
+        audit.warning("limits change refused: bad origin actor=%s", actor)
+        return jsonify({"error": "bad_origin",
+                        "message": "This request did not come from the guide."}), 403
+
+    body = request.get_json(silent=True)
+    store = current_app.config["LIMITS"]
+    try:
+        if not isinstance(body, dict):
+            raise InvalidLimits("Body must be a JSON object.")
+        missing = [k for k in BOUNDS if k not in body]
+        if missing:
+            raise InvalidLimits("Missing: " + ", ".join(missing))
+        old = store.current()
+        new = store.save(body["daily_budget_usd"], body["rate_limit_calls"])
+    except InvalidLimits as exc:
+        audit.warning("limits change rejected actor=%s reason=%s", actor, exc)
+        return jsonify({"error": "invalid_limits", "message": str(exc)}), 400
+
+    audit.info(
+        "limits changed actor=%s daily_budget_usd %s -> %s, rate_limit_calls %s -> %s",
+        actor, old["daily_budget_usd"], new["daily_budget_usd"],
+        old["rate_limit_calls"], new["rate_limit_calls"],
+    )
+    return jsonify(_limits_payload())
 
 
 @chat_bp.route("/api/chat", methods=["POST"])
