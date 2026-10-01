@@ -178,6 +178,10 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
   const panel = document.getElementById('fews-chat');
   const toggle = document.getElementById('fews-chat-toggle');
+  // Starlight's .main-pane is `isolation: isolate`, which traps our z-index in
+  // that stacking context so the TOC sidebar and page text paint over the panel.
+  // Reparenting to <body> lets the fixed z-index compete at the root.
+  document.body.append(toggle, panel);
   const closeBtn = document.getElementById('fews-chat-close');
   const log = document.getElementById('fews-chat-log');
   const form = document.getElementById('fews-chat-form');
