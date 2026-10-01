@@ -22,6 +22,8 @@ const loginUrl = 'https://apps.streamflows.org/login';
         aria-controls="fews-chat-list">Recent</button>
       <button id="fews-chat-new" type="button">New</button>
     </div>
+    <p id="fews-chat-degraded" hidden>Saved on this device only — the server is
+      unavailable right now.</p>
     <ul id="fews-chat-list" hidden></ul>
   </div>
   <details id="fews-chat-admin" hidden>
@@ -174,6 +176,8 @@ const loginUrl = 'https://apps.streamflows.org/login';
     background: none; border: 0; cursor: pointer; padding: 0.2rem 0.4rem;
     color: var(--sl-color-text-accent); font-size: var(--sl-text-xs);
   }
+  #fews-chat-degraded { margin: 0; padding: 0.2rem 1rem 0.4rem;
+    font-size: var(--sl-text-xs); color: var(--sl-color-gray-3); }
   #fews-chat-list {
     list-style: none; margin: 0; padding: 0 0 0.4rem;
     max-height: 40vh; overflow-y: auto;
@@ -203,6 +207,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
 <script>
   import { parseAnswer, DOC_ORIGIN } from '../scripts/answer-markdown.js';
   import { createStore, newId } from '../scripts/conversation-store.js';
+  import { createRemoteStore } from '../scripts/remote-store.js';
 
   const panel = document.getElementById('fews-chat');
   const toggle = document.getElementById('fews-chat-toggle');
@@ -221,7 +226,10 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
   /* Replaced once /api/chat/status supplies the per-user namespace. Until then
      this is an in-memory store: the panel behaves exactly as it did before,
-     and nothing is ever written under a shared key. */
+     and nothing is ever written under a shared key. Once signed in it becomes
+     the server-backed store (saved with the account, any device), with this
+     browser's own storage as the fallback. Every method is awaited, so the
+     in-memory sync store and the async server store are interchangeable. */
   let store = createStore('', null);
   let currentId = null;
 
@@ -252,9 +260,9 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
   /* Best effort, always. A storage failure must never cost the user the answer
      already on screen, so this swallows everything. */
-  function persist() {
+  async function persist() {
     if (!currentId || !messages.length) return;
-    try { store.save(currentId, messages); } catch (e) {}
+    try { await store.save(currentId, messages); } catch (e) {}
     renderHistory();
   }
 
@@ -267,9 +275,11 @@ const loginUrl = 'https://apps.streamflows.org/login';
     if (signedIn) input.focus();
   }
 
-  function openConversation(id) {
+  async function openConversation(id) {
     if (inFlight) return;
-    const record = store.load(id);
+    const record = await store.load(id);
+    /* A send may have started while the load was in flight. */
+    if (inFlight) return;
     if (!record) { renderHistory(); return; }
     currentId = record.id;
     messages.length = 0;
@@ -280,8 +290,8 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
   /* Restore the most recent conversation, or start a fresh one. Called once the
      namespace is known. */
-  function restore() {
-    const recent = store.list();
+  async function restore() {
+    const recent = await store.list();
     if (recent.length) openConversation(recent[0].id);
     else startNewConversation();
   }
@@ -303,9 +313,16 @@ const loginUrl = 'https://apps.streamflows.org/login';
 
   /* Titles are the user's own words echoed back, so they go in through
      textContent like everything else — never as markup. */
-  function renderHistory() {
-    const items = store.list();
+  let historySeq = 0;
+  const degradedEl = document.getElementById('fews-chat-degraded');
+
+  async function renderHistory() {
+    /* Overlapping renders can resolve out of order; only the latest may paint. */
+    const seq = ++historySeq;
+    const items = await store.list();
+    if (seq !== historySeq) return;
     historyPanel.hidden = !signedIn;
+    degradedEl.hidden = !store.degraded;
     listEl.textContent = '';
 
     for (const item of items) {
@@ -328,11 +345,11 @@ const loginUrl = 'https://apps.streamflows.org/login';
       del.className = 'delete';
       del.textContent = '×';
       del.setAttribute('aria-label', 'Delete this conversation');
-      del.addEventListener('click', () => {
+      del.addEventListener('click', async () => {
         /* A delete mid-stream must not let storage and the on-screen turn
            diverge: do nothing at all rather than clear under a live send. */
         if (inFlight) return;
-        store.remove(item.id);
+        await store.remove(item.id);
         /* Deleting the open conversation must not leave its turns on screen
            with nowhere to save them. */
         if (item.id === currentId) startNewConversation();
@@ -350,9 +367,9 @@ const loginUrl = 'https://apps.streamflows.org/login';
       clear.type = 'button';
       clear.id = 'fews-chat-clear';
       clear.textContent = 'Clear all conversations';
-      clear.addEventListener('click', () => {
+      clear.addEventListener('click', async () => {
         if (inFlight) return;
-        store.clearAll();
+        await store.clearAll();
         startNewConversation();
       });
       listEl.appendChild(clear);
@@ -671,9 +688,13 @@ const loginUrl = 'https://apps.streamflows.org/login';
       if (typeof data.storage_key === 'string' && data.storage_key) {
         let backing = null;
         try { backing = window.localStorage; } catch (e) {}
-        store = createStore(data.storage_key, backing);
+        const local = createStore(data.storage_key, backing);
+        store = createRemoteStore((url, init) => fetch(url, init), local);
+        /* One-time move of whatever this browser already holds; a failure
+           leaves it in place to retry on a later visit. */
+        await store.importLocal();
       }
-      restore();
+      await restore();
       if (!data.available) {
         addTurn('notice',
           'The assistant has reached its daily limit and is resting until tomorrow.');
