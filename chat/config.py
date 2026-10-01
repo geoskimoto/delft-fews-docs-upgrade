@@ -22,6 +22,18 @@ RATE_OUTPUT = 15.0 / 1_000_000
 RATE_CACHE_WRITE = RATE_INPUT * 2.0   # 1-hour TTL costs 2x base input
 RATE_CACHE_READ = RATE_INPUT * 0.1
 
+# Admin-selectable models, keyed by the short name stored in model.json. Rates
+# are USD per token; cache write (1h TTL) is 2x input and cache read 0.1x input.
+# Haiku 4.5 rejects output_config.effort, so supports_effort gates that kwarg.
+MODELS = {
+    "sonnet": {"id": MODEL, "label": "Sonnet", "rate_input": RATE_INPUT,
+               "rate_output": RATE_OUTPUT, "supports_effort": True},
+    "haiku": {"id": "claude-haiku-4-5", "label": "Haiku",
+              "rate_input": 1.0 / 1_000_000, "rate_output": 5.0 / 1_000_000,
+              "supports_effort": False},
+}
+DEFAULT_MODEL = "sonnet"
+
 DAILY_BUDGET_USD = float(os.environ.get("CHAT_DAILY_BUDGET_USD", "2.00"))
 RATE_LIMIT_CALLS = 20
 RATE_LIMIT_WINDOW_SECONDS = 300

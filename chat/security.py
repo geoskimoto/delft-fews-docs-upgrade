@@ -105,14 +105,16 @@ class DailyBudget:
     def limit(self, value) -> None:
         self._limit = value
 
-    def cost_of(self, usage) -> float:
+    def cost_of(self, usage, model_key=None) -> float:
+        # An unknown key raises KeyError rather than falling back: a silent
+        # fallback to cheaper rates would under-count spend.
+        model = config.MODELS[model_key or config.DEFAULT_MODEL]
+        rate_in = model["rate_input"]
         return (
-            _num(getattr(usage, "input_tokens", 0)) * config.RATE_INPUT
-            + _num(getattr(usage, "output_tokens", 0)) * config.RATE_OUTPUT
-            + _num(getattr(usage, "cache_creation_input_tokens", 0))
-            * config.RATE_CACHE_WRITE
-            + _num(getattr(usage, "cache_read_input_tokens", 0))
-            * config.RATE_CACHE_READ
+            _num(getattr(usage, "input_tokens", 0)) * rate_in
+            + _num(getattr(usage, "output_tokens", 0)) * model["rate_output"]
+            + _num(getattr(usage, "cache_creation_input_tokens", 0)) * rate_in * 2.0
+            + _num(getattr(usage, "cache_read_input_tokens", 0)) * rate_in * 0.1
         )
 
     def _load(self) -> float:
@@ -166,10 +168,10 @@ class DailyBudget:
             self._write(spent + amount_usd)
             return True
 
-    def settle(self, reserved_usd: float, usage) -> float:
+    def settle(self, reserved_usd: float, usage, model_key=None) -> float:
         """Swap a reservation for the real cost once the call has finished."""
         with self._lock:
-            spent = max(0.0, self._load() - reserved_usd + self.cost_of(usage))
+            spent = max(0.0, self._load() - reserved_usd + self.cost_of(usage, model_key))
             self._write(spent)
             return spent
 

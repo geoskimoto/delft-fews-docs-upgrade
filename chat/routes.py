@@ -8,7 +8,9 @@ from chat.agent import Agent, sse
 from chat.auth import require_admin, require_streamflows_user
 from chat.conversation import InvalidHistory, normalise
 from chat.identity import storage_key
+from chat import config
 from chat.limits import BOUNDS, InvalidLimits
+from chat.model_choice import InvalidModel
 from chat.security import origin_allowed
 
 log = logging.getLogger(__name__)
@@ -86,6 +88,45 @@ def put_limits():
     return jsonify(_limits_payload())
 
 
+def _model_payload():
+    return {
+        "model": current_app.config["MODEL_STORE"].current(),
+        "models": [{"key": k, "label": v["label"]} for k, v in config.MODELS.items()],
+    }
+
+
+@chat_bp.route("/api/chat/admin/model", methods=["GET"])
+@require_admin
+def get_model():
+    return jsonify(_model_payload())
+
+
+@chat_bp.route("/api/chat/admin/model", methods=["PUT"])
+@require_admin
+def put_model():
+    actor = storage_key(g.current_user)
+    if not origin_allowed(
+        request.headers.get("Origin"), current_app.config["ALLOWED_ORIGIN"]
+    ):
+        audit.warning("model change refused: bad origin actor=%s", actor)
+        return jsonify({"error": "bad_origin",
+                        "message": "This request did not come from the guide."}), 403
+
+    body = request.get_json(silent=True)
+    store = current_app.config["MODEL_STORE"]
+    try:
+        if not isinstance(body, dict) or "model" not in body:
+            raise InvalidModel("Body must be a JSON object with a model key.")
+        old = store.current()
+        new = store.save(body["model"])
+    except InvalidModel as exc:
+        audit.warning("model change rejected actor=%s reason=%s", actor, exc)
+        return jsonify({"error": "invalid_model", "message": str(exc)}), 400
+
+    audit.info("model changed actor=%s model %s -> %s", actor, old, new)
+    return jsonify(_model_payload())
+
+
 @chat_bp.route("/api/chat", methods=["POST"])
 @require_streamflows_user
 def chat():
@@ -116,10 +157,14 @@ def chat():
                        "until tomorrow. The documentation is still all here.",
         }), 429
 
+    # Read once: a mid-stream admin switch must not change the model or the
+    # rates a turn already in flight is priced at.
+    model_key = current_app.config["MODEL_STORE"].current()
     agent = Agent(
         corpus=current_app.config["CORPUS"],
         schema_dir=current_app.config["SCHEMA_DIR"],
         client=current_app.config["ANTHROPIC_CLIENT"],
+        model_key=model_key,
     )
 
     # Reserve the worst case for each call BEFORE it is dispatched, then settle
@@ -137,7 +182,7 @@ def chat():
         for frame in agent.run(
             messages,
             on_reserve=lambda: budget.try_reserve(estimate),
-            on_usage=lambda usage: budget.settle(estimate, usage),
+            on_usage=lambda usage: budget.settle(estimate, usage, model_key),
         ):
             yield frame
         # No usernames, no message content — counts only.

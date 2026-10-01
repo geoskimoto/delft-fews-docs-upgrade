@@ -8,6 +8,7 @@ from flask import Flask
 from chat import config
 from chat.corpus import build_corpus
 from chat.limits import LimitsStore
+from chat.model_choice import ModelStore
 from chat.routes import chat_bp
 from chat.schema_tool import schema_names
 from chat.security import DailyBudget, RateLimiter
@@ -36,6 +37,7 @@ def create_app(overrides: dict | None = None) -> Flask:
         SCHEMA_DIR=overrides.get("SCHEMA_DIR", config.SCHEMA_DIR),
         ALLOWED_ORIGIN=overrides.get("ALLOWED_ORIGIN", config.ALLOWED_ORIGIN),
         LIMITS=limits,
+        MODEL_STORE=ModelStore(state_dir / "model.json", config.DEFAULT_MODEL),
         RATE_LIMITER=RateLimiter(
             lambda: limits.current()["rate_limit_calls"],
             config.RATE_LIMIT_WINDOW_SECONDS,

@@ -58,7 +58,10 @@ def sse(event: str, data: dict) -> str:
 
 
 class Agent:
-    def __init__(self, corpus: str, schema_dir: Path, client):
+    def __init__(self, corpus: str, schema_dir: Path, client, model_key: str = config.DEFAULT_MODEL):
+        # KeyError on an unknown key: fail at construction, not mid-request.
+        self.model = config.MODELS[model_key]
+        self.model_key = model_key
         self.corpus = corpus
         self.schema_dir = Path(schema_dir)
         self.client = client
@@ -119,7 +122,8 @@ class Agent:
                 output_tokens=config.MAX_TOKENS,
                 cache_creation_input_tokens=self._corpus_tokens,
                 cache_read_input_tokens=0,
-            )
+            ),
+            self.model_key,
         )
 
     def run(self, messages: list[dict], on_usage=None, on_reserve=None) -> Iterator[str]:
@@ -161,13 +165,19 @@ class Agent:
                     return
 
                 dispatched += 1
+                # Haiku 4.5 rejects output_config.effort outright, so the key
+                # must be absent for models that don't support it.
+                extra = (
+                    {"output_config": {"effort": config.EFFORT}}
+                    if self.model["supports_effort"] else {}
+                )
                 with self.client.messages.stream(
-                    model=config.MODEL,
+                    model=self.model["id"],
                     max_tokens=config.MAX_TOKENS,
-                    output_config={"effort": config.EFFORT},
                     system=self.system_blocks(),
                     tools=self.tools(),
                     messages=convo,
+                    **extra,
                 ) as stream:
                     for text in stream.text_stream:
                         if text:
