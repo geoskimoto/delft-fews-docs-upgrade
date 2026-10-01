@@ -49,3 +49,10 @@ MAX_QUESTION_BYTES = 8 * 1024
 # anything larger with a 413 before we parse it.
 MAX_REQUEST_BYTES = 256 * 1024
 MAX_TOOL_CALLS = 3
+
+# Saved conversations (server-side, per user). These mirror the browser store's
+# caps so a conversation round-trips between the two unchanged.
+MAX_SAVED_CONVERSATIONS = 15
+MAX_SAVED_MESSAGES = 12
+MAX_SAVED_BYTES = 24 * 1024
+MAX_TITLE_CHARS = 60

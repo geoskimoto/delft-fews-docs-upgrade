@@ -10,6 +10,7 @@ from chat.corpus import build_corpus
 from chat.limits import LimitsStore
 from chat.model_choice import ModelStore
 from chat.routes import chat_bp
+from chat.saved_conversations import ConversationDB
 from chat.schema_tool import schema_names
 from chat.security import DailyBudget, RateLimiter
 
@@ -37,6 +38,7 @@ def create_app(overrides: dict | None = None) -> Flask:
         SCHEMA_DIR=overrides.get("SCHEMA_DIR", config.SCHEMA_DIR),
         ALLOWED_ORIGIN=overrides.get("ALLOWED_ORIGIN", config.ALLOWED_ORIGIN),
         LIMITS=limits,
+        CONVERSATIONS=ConversationDB(state_dir / "conversations.db"),
         MODEL_STORE=ModelStore(state_dir / "model.json", config.DEFAULT_MODEL),
         RATE_LIMITER=RateLimiter(
             lambda: limits.current()["rate_limit_calls"],

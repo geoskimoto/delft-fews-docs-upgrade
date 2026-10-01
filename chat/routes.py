@@ -1,5 +1,7 @@
 """HTTP surface: POST /api/chat, GET /api/chat/status, GET /health."""
 import logging
+import sqlite3
+from functools import wraps
 
 from flask import Blueprint, Response, current_app, g, jsonify, request
 from flask import stream_with_context
@@ -11,6 +13,7 @@ from chat.identity import storage_key
 from chat import config
 from chat.limits import BOUNDS, InvalidLimits
 from chat.model_choice import InvalidModel
+from chat.saved_conversations import InvalidConversation
 from chat.security import origin_allowed
 
 log = logging.getLogger(__name__)
@@ -125,6 +128,109 @@ def put_model():
 
     audit.info("model changed actor=%s model %s -> %s", actor, old, new)
     return jsonify(_model_payload())
+
+
+def _storage_guarded(view):
+    """A storage failure becomes a friendly 503, never a 500 or a stack trace;
+    the browser then falls back to its own store and chat keeps working."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except sqlite3.Error:
+            log.exception("saved conversation storage failed")
+            return jsonify({
+                "error": "storage_unavailable",
+                "message": "Saved conversations are unavailable right now. "
+                           "Your chat still works.",
+            }), 503
+    return wrapped
+
+
+def _origin_refused():
+    if origin_allowed(
+        request.headers.get("Origin"), current_app.config["ALLOWED_ORIGIN"]
+    ):
+        return None
+    return jsonify({"error": "bad_origin",
+                    "message": "This request did not come from the guide."}), 403
+
+
+def _invalid_conversation(message):
+    return jsonify({"error": "invalid_conversation", "message": message}), 400
+
+
+@chat_bp.route("/api/chat/conversations", methods=["GET"])
+@require_streamflows_user
+@_storage_guarded
+def list_conversations():
+    owner = storage_key(g.current_user)
+    return jsonify({"conversations": current_app.config["CONVERSATIONS"].list(owner)})
+
+
+@chat_bp.route("/api/chat/conversations/<conv_id>", methods=["GET"])
+@require_streamflows_user
+@_storage_guarded
+def get_conversation(conv_id):
+    owner = storage_key(g.current_user)
+    found = current_app.config["CONVERSATIONS"].get(owner, conv_id)
+    if found is None:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"conversation": found})
+
+
+@chat_bp.route("/api/chat/conversations/<conv_id>", methods=["PUT"])
+@require_streamflows_user
+@_storage_guarded
+def put_conversation(conv_id):
+    if (refused := _origin_refused()):
+        return refused
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return _invalid_conversation("Body must be a JSON object.")
+    owner = storage_key(g.current_user)
+    try:
+        saved = current_app.config["CONVERSATIONS"].save(
+            owner, conv_id, body.get("messages")
+        )
+    except InvalidConversation as exc:
+        return _invalid_conversation(str(exc))
+    return jsonify({"conversation": saved})
+
+
+@chat_bp.route("/api/chat/conversations/<conv_id>", methods=["DELETE"])
+@require_streamflows_user
+@_storage_guarded
+def delete_conversation(conv_id):
+    if (refused := _origin_refused()):
+        return refused
+    current_app.config["CONVERSATIONS"].delete(storage_key(g.current_user), conv_id)
+    return jsonify({"ok": True})
+
+
+@chat_bp.route("/api/chat/conversations", methods=["DELETE"])
+@require_streamflows_user
+@_storage_guarded
+def clear_conversations():
+    if (refused := _origin_refused()):
+        return refused
+    current_app.config["CONVERSATIONS"].clear(storage_key(g.current_user))
+    return jsonify({"ok": True})
+
+
+@chat_bp.route("/api/chat/conversations/import", methods=["POST"])
+@require_streamflows_user
+@_storage_guarded
+def import_conversations():
+    if (refused := _origin_refused()):
+        return refused
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or not isinstance(body.get("conversations"), list):
+        return _invalid_conversation("Body must be an object with a conversations array.")
+    result = current_app.config["CONVERSATIONS"].import_many(
+        storage_key(g.current_user), body["conversations"]
+    )
+    return jsonify(result)
 
 
 @chat_bp.route("/api/chat", methods=["POST"])
