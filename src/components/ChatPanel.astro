@@ -34,6 +34,9 @@ const loginUrl = 'https://apps.streamflows.org/login';
       <label>Questions per user per 5 minutes
         <input id="fews-limit-calls" type="number" step="1" required />
       </label>
+      <label>Model
+        <select id="fews-limit-model"></select>
+      </label>
       <button type="submit">Save limits</button>
       <p id="fews-chat-limits-msg" role="status"></p>
     </form>
@@ -156,7 +159,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
   #fews-chat-admin summary { cursor: pointer; color: var(--sl-color-text-accent); }
   #fews-chat-limits { display: grid; gap: 0.5rem; padding-top: 0.5rem; }
   #fews-chat-limits label { display: grid; gap: 0.2rem; }
-  #fews-chat-limits input { background: var(--sl-color-black); color: inherit;
+  #fews-chat-limits input, #fews-chat-limits select { background: var(--sl-color-black); color: inherit;
     border: 1px solid var(--sl-color-gray-5); border-radius: 4px; padding: 0.3rem; }
   #fews-chat-limits button { justify-self: start; padding: 0.3rem 0.8rem;
     cursor: pointer; background: var(--sl-color-accent);
@@ -561,7 +564,20 @@ const loginUrl = 'https://apps.streamflows.org/login';
   const callsInput = document.getElementById('fews-limit-calls');
   const spendEl = document.getElementById('fews-chat-spend');
   const limitsMsg = document.getElementById('fews-chat-limits-msg');
+  const modelSelect = document.getElementById('fews-limit-model');
   const LIMITS_URL = '/api/chat/admin/limits';
+  const MODEL_URL = '/api/chat/admin/model';
+
+  function showModel(data) {
+    modelSelect.textContent = '';
+    for (const m of data.models) {
+      const opt = document.createElement('option');
+      opt.value = m.key;
+      opt.textContent = m.label;
+      modelSelect.appendChild(opt);
+    }
+    modelSelect.value = data.model;
+  }
 
   function showLimits(data) {
     budgetInput.value = data.limits.daily_budget_usd;
@@ -578,9 +594,13 @@ const loginUrl = 'https://apps.streamflows.org/login';
   async function loadLimits() {
     limitsMsg.textContent = '';
     try {
-      const resp = await fetch(LIMITS_URL, { credentials: 'same-origin' });
-      if (!resp.ok) throw new Error(String(resp.status));
+      const [resp, modelResp] = await Promise.all([
+        fetch(LIMITS_URL, { credentials: 'same-origin' }),
+        fetch(MODEL_URL, { credentials: 'same-origin' }),
+      ]);
+      if (!resp.ok || !modelResp.ok) throw new Error(String(resp.status));
       showLimits(await resp.json());
+      showModel(await modelResp.json());
       adminBox.hidden = false;
     } catch (e) {
       adminBox.hidden = true;
@@ -591,14 +611,15 @@ const loginUrl = 'https://apps.streamflows.org/login';
     e.preventDefault();
     limitsMsg.textContent = 'Saving…';
     try {
-      const resp = await fetch(LIMITS_URL, {
+      const put = (url, body) => fetch(url, {
         method: 'PUT',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          daily_budget_usd: Number(budgetInput.value),
-          rate_limit_calls: Number(callsInput.value),
-        }),
+        body: JSON.stringify(body),
+      });
+      const resp = await put(LIMITS_URL, {
+        daily_budget_usd: Number(budgetInput.value),
+        rate_limit_calls: Number(callsInput.value),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
@@ -607,6 +628,14 @@ const loginUrl = 'https://apps.streamflows.org/login';
         return;
       }
       showLimits(data);
+      const modelResp = await put(MODEL_URL, { model: modelSelect.value });
+      const modelData = await modelResp.json().catch(() => ({}));
+      if (!modelResp.ok) {
+        limitsMsg.textContent = 'Limits saved, but the model was not changed. ' +
+          (modelData.message || 'Please try again.');
+        return;
+      }
+      showModel(modelData);
       limitsMsg.textContent = 'Saved. Applies to the next question.';
     } catch (err) {
       limitsMsg.textContent = 'Could not reach the server. Nothing was changed.';
