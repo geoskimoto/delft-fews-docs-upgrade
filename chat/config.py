@@ -16,9 +16,9 @@ EFFORT = "medium"
 MAX_TOKENS = 8000
 
 # USD per token. Must be updated together with MODEL.
-# claude-sonnet-5 standing rate: $3/MTok input, $15/MTok output.
-RATE_INPUT = 3.0 / 1_000_000
-RATE_OUTPUT = 15.0 / 1_000_000
+# claude-sonnet-5 standing rate: $2/MTok input, $10/MTok output.
+RATE_INPUT = 2.0 / 1_000_000
+RATE_OUTPUT = 10.0 / 1_000_000
 RATE_CACHE_WRITE = RATE_INPUT * 2.0   # 1-hour TTL costs 2x base input
 RATE_CACHE_READ = RATE_INPUT * 0.1
 

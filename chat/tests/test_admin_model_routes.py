@@ -449,7 +449,7 @@ def test_sonnet_turn_is_charged_at_sonnet_rates(client, anthropic, tmp_path):
         lambda *a, **k: FakeStream(["x"], done_message(**BIG_USAGE)))
     assert chat(client).status_code == 200
     assert spent(tmp_path) == pytest.approx(
-        _expected_cost(100_000, 10_000, 50_000, 200_000, 3e-6, 15e-6))
+        _expected_cost(100_000, 10_000, 50_000, 200_000, 2e-6, 10e-6))
 
 
 def test_haiku_turn_is_charged_at_haiku_rates(client, anthropic, tmp_path):
@@ -471,7 +471,7 @@ def test_identical_usage_costs_less_on_haiku_than_sonnet(client, anthropic, tmp_
     store.save("haiku")
     chat(client)
     haiku_cost = spent(tmp_path) - sonnet_cost
-    assert haiku_cost == pytest.approx(sonnet_cost / 3)  # every rate is exactly 1/3
+    assert haiku_cost == pytest.approx(sonnet_cost / 2)  # every rate is exactly 1/2 ($1/$5 vs $2/$10)
 
 
 def test_model_read_once_per_request_for_agent_and_settle(client, anthropic, tmp_path):
@@ -497,7 +497,7 @@ def test_haiku_reservation_is_smaller_so_it_fits_where_sonnet_would_not(client, 
     (tmp_path / "budget.json").write_text(json.dumps(
         {"date": date.today().isoformat(), "spent_usd": 0.0}))
     corpus_tokens = len("TEST CORPUS") // 2
-    sonnet_est = config.MAX_TOKENS * 15e-6 + corpus_tokens * 6e-6
+    sonnet_est = config.MAX_TOKENS * 10e-6 + corpus_tokens * 4e-6
     haiku_est = config.MAX_TOKENS * 5e-6 + corpus_tokens * 2e-6
     limit = (sonnet_est + haiku_est) / 2
     client.application.config["LIMITS"].save(limit, 20)

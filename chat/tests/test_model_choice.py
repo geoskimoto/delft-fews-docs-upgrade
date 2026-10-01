@@ -31,8 +31,8 @@ def test_sonnet_entry_matches_legacy_constants():
     s = config.MODELS["sonnet"]
     assert s["id"] == "claude-sonnet-5" == config.MODEL
     assert s["label"] == "Sonnet"
-    assert s["rate_input"] == pytest.approx(3.0 / 1e6) == pytest.approx(config.RATE_INPUT)
-    assert s["rate_output"] == pytest.approx(15.0 / 1e6) == pytest.approx(config.RATE_OUTPUT)
+    assert s["rate_input"] == pytest.approx(2.0 / 1e6) == pytest.approx(config.RATE_INPUT)
+    assert s["rate_output"] == pytest.approx(10.0 / 1e6) == pytest.approx(config.RATE_OUTPUT)
     assert s["supports_effort"] is True
 
 
@@ -233,7 +233,7 @@ def U(i=0, o=0, cw=0, cr=0):
 
 def test_cost_of_without_model_key_is_sonnet_rates(budget):
     u = U(1000, 2000, 3000, 4000)
-    expected = 1000 * 3e-6 + 2000 * 15e-6 + 3000 * 6e-6 + 4000 * 0.3e-6
+    expected = 1000 * 2e-6 + 2000 * 10e-6 + 3000 * 4e-6 + 4000 * 0.2e-6
     assert budget.cost_of(u) == pytest.approx(expected)
     assert budget.cost_of(u, None) == pytest.approx(expected)
     assert budget.cost_of(u, "sonnet") == pytest.approx(expected)
@@ -251,10 +251,10 @@ def test_cost_of_haiku_prices_each_token_class(budget, usage, expected):
 
 
 @pytest.mark.parametrize("usage,expected", [
-    (U(i=1_000_000), 3.0),
-    (U(o=1_000_000), 15.0),
-    (U(cw=1_000_000), 6.0),
-    (U(cr=1_000_000), 0.3),
+    (U(i=1_000_000), 2.0),
+    (U(o=1_000_000), 10.0),
+    (U(cw=1_000_000), 4.0),
+    (U(cr=1_000_000), 0.2),
 ])
 def test_cost_of_sonnet_prices_each_token_class(budget, usage, expected):
     assert budget.cost_of(usage, "sonnet") == pytest.approx(expected)
@@ -305,8 +305,8 @@ def ledger(tmp_path):
 def test_settle_default_prices_at_sonnet(tmp_path, budget):
     assert budget.try_reserve(1.0)
     spent = budget.settle(1.0, U(1_000_000))
-    assert spent == pytest.approx(3.0)
-    assert ledger(tmp_path) == pytest.approx(3.0)
+    assert spent == pytest.approx(2.0)
+    assert ledger(tmp_path) == pytest.approx(2.0)
 
 
 def test_settle_with_haiku_prices_at_haiku(tmp_path, budget):

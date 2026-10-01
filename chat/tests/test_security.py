@@ -89,19 +89,19 @@ def test_budget_prices_each_token_class_differently(tmp_path):
 
 def test_budget_cache_write_is_double_base_input(tmp_path):
     b = DailyBudget(tmp_path / "b.json", 2.00)
-    assert b.cost_of(usage(write=1_000_000)) == pytest.approx(6.00, rel=1e-6)
+    assert b.cost_of(usage(write=1_000_000)) == pytest.approx(4.00, rel=1e-6)  # 2 x $2/MTok
 
 
 def test_budget_output_is_priced_at_output_rate(tmp_path):
     b = DailyBudget(tmp_path / "b.json", 2.00)
-    assert b.cost_of(usage(out=1_000_000)) == pytest.approx(15.00, rel=1e-6)
+    assert b.cost_of(usage(out=1_000_000)) == pytest.approx(10.00, rel=1e-6)  # $10/MTok
 
 
 def test_budget_accumulates_across_records(tmp_path):
     b = DailyBudget(tmp_path / "b.json", 2.00)
     b.record(usage(out=100_000))
     b.record(usage(out=100_000))
-    assert b.remaining() == pytest.approx(2.00 - 3.00, rel=1e-6)
+    assert b.remaining() == pytest.approx(2.00 - 2.00, rel=1e-6)  # 200k out x $10/MTok = $2.00
 
 
 def test_budget_becomes_exhausted(tmp_path):
@@ -113,16 +113,16 @@ def test_budget_becomes_exhausted(tmp_path):
 
 def test_budget_survives_restart(tmp_path):
     path = tmp_path / "b.json"
-    DailyBudget(path, 2.00).record(usage(out=100_000))
-    assert DailyBudget(path, 2.00).remaining() == pytest.approx(0.50, rel=1e-6)
+    DailyBudget(path, 2.00).record(usage(out=100_000))  # 100k x $10/MTok = $1.00
+    assert DailyBudget(path, 2.00).remaining() == pytest.approx(1.00, rel=1e-6)
 
 
 def test_budget_resets_on_a_new_day(tmp_path):
     day = ["2026-08-24"]
     path = tmp_path / "b.json"
     b = DailyBudget(path, 2.00, clock=lambda: day[0])
-    b.record(usage(out=100_000))
-    assert b.remaining() == pytest.approx(0.50, rel=1e-6)
+    b.record(usage(out=100_000))  # 100k x $10/MTok = $1.00
+    assert b.remaining() == pytest.approx(1.00, rel=1e-6)
     day[0] = "2026-08-25"
     assert DailyBudget(path, 2.00, clock=lambda: day[0]).remaining() == pytest.approx(
         2.00, rel=1e-6
@@ -149,7 +149,7 @@ def test_cost_of_handles_none_valued_cache_fields(tmp_path):
     )
     cost = b.cost_of(real_shape)
     assert cost == pytest.approx(
-        10 * 3e-6 + 5 * 15e-6 + 80_000 * 0.3e-6, rel=1e-6
+        10 * 2e-6 + 5 * 10e-6 + 80_000 * 0.2e-6, rel=1e-6
     )
 
 
@@ -218,8 +218,8 @@ def test_concurrent_reservations_cannot_exceed_the_ceiling(tmp_path):
 def test_settle_replaces_the_reservation_with_the_real_cost(tmp_path):
     b = DailyBudget(tmp_path / "b.json", 2.00)
     assert b.try_reserve(0.50) is True
-    b.settle(0.50, SimpleNamespace(output_tokens=1_000))  # actually $0.015
-    assert b.remaining() == pytest.approx(2.00 - 0.015, rel=1e-6)
+    b.settle(0.50, SimpleNamespace(output_tokens=1_000))  # actually $0.010
+    assert b.remaining() == pytest.approx(2.00 - 0.010, rel=1e-6)
 
 
 def test_reserve_refuses_once_the_ceiling_is_reached(tmp_path):
@@ -268,5 +268,5 @@ def test_concurrent_records_neither_raise_nor_lose_spend(tmp_path):
         t.join()
 
     assert errors == []
-    expected = 8 * 25 * 1_000 * 15e-6
+    expected = 8 * 25 * 1_000 * 10e-6
     assert b.remaining() == pytest.approx(100.0 - expected, rel=1e-6)

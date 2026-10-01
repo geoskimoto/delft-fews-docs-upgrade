@@ -111,8 +111,8 @@ def test_settle_and_record_still_work_with_callable(tmp_path, day):
     usage = SimpleNamespace(input_tokens=1_000_000, output_tokens=0,
                             cache_creation_input_tokens=0, cache_read_input_tokens=0)
     spent = b.settle(1.0, usage)
-    assert spent == pytest.approx(3.0)
-    assert b.remaining() == pytest.approx(2.0)
+    assert spent == pytest.approx(2.0)  # 1M input x $2/MTok
+    assert b.remaining() == pytest.approx(3.0)  # $5.00 limit - $2.00
 
 
 # -------------------------------------------------------------- RateLimiter
