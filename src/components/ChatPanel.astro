@@ -24,6 +24,20 @@ const loginUrl = 'https://apps.streamflows.org/login';
     </div>
     <ul id="fews-chat-list" hidden></ul>
   </div>
+  <details id="fews-chat-admin" hidden>
+    <summary>Limits (admin)</summary>
+    <form id="fews-chat-limits">
+      <p id="fews-chat-spend"></p>
+      <label>Daily budget (USD)
+        <input id="fews-limit-budget" type="number" step="0.01" required />
+      </label>
+      <label>Questions per user per 5 minutes
+        <input id="fews-limit-calls" type="number" step="1" required />
+      </label>
+      <button type="submit">Save limits</button>
+      <p id="fews-chat-limits-msg" role="status"></p>
+    </form>
+  </details>
   <div id="fews-chat-log" role="log" aria-live="polite"></div>
   <form id="fews-chat-form">
     <textarea id="fews-chat-input" rows="2"
@@ -137,6 +151,17 @@ const loginUrl = 'https://apps.streamflows.org/login';
   }
   #fews-chat-log .table-block th { font-weight: 700; }
 
+  #fews-chat-admin { border-bottom: 1px solid var(--sl-color-gray-5);
+    padding: 0.4rem 1rem; font-size: var(--sl-text-xs); }
+  #fews-chat-admin summary { cursor: pointer; color: var(--sl-color-text-accent); }
+  #fews-chat-limits { display: grid; gap: 0.5rem; padding-top: 0.5rem; }
+  #fews-chat-limits label { display: grid; gap: 0.2rem; }
+  #fews-chat-limits input { background: var(--sl-color-black); color: inherit;
+    border: 1px solid var(--sl-color-gray-5); border-radius: 4px; padding: 0.3rem; }
+  #fews-chat-limits button { justify-self: start; padding: 0.3rem 0.8rem;
+    cursor: pointer; background: var(--sl-color-accent);
+    color: var(--sl-color-white); border: 0; border-radius: 4px; }
+  #fews-chat-limits p { margin: 0; }
   #fews-chat-history { border-bottom: 1px solid var(--sl-color-gray-5); }
   #fews-chat-history .history-bar {
     display: flex; align-items: center; justify-content: space-between;
@@ -528,6 +553,66 @@ const loginUrl = 'https://apps.streamflows.org/login';
     if (e.key === 'Escape' && !panel.hidden) setOpen(false);
   });
 
+  /* ---- Admin limits. Only wired up when /api/chat/status says is_admin; the
+     server enforces it regardless, this just hides the controls. ---- */
+  const adminBox = document.getElementById('fews-chat-admin');
+  const limitsForm = document.getElementById('fews-chat-limits');
+  const budgetInput = document.getElementById('fews-limit-budget');
+  const callsInput = document.getElementById('fews-limit-calls');
+  const spendEl = document.getElementById('fews-chat-spend');
+  const limitsMsg = document.getElementById('fews-chat-limits-msg');
+  const LIMITS_URL = '/api/chat/admin/limits';
+
+  function showLimits(data) {
+    budgetInput.value = data.limits.daily_budget_usd;
+    callsInput.value = data.limits.rate_limit_calls;
+    const [bLo, bHi] = data.bounds.daily_budget_usd;
+    const [cLo, cHi] = data.bounds.rate_limit_calls;
+    budgetInput.min = bLo; budgetInput.max = bHi;
+    callsInput.min = cLo; callsInput.max = cHi;
+    spendEl.textContent = 'Spent today: $' + data.spent_usd.toFixed(2) +
+      ' of $' + data.limits.daily_budget_usd.toFixed(2) +
+      ' ($' + Math.max(0, data.remaining_usd).toFixed(2) + ' left)';
+  }
+
+  async function loadLimits() {
+    limitsMsg.textContent = '';
+    try {
+      const resp = await fetch(LIMITS_URL, { credentials: 'same-origin' });
+      if (!resp.ok) throw new Error(String(resp.status));
+      showLimits(await resp.json());
+      adminBox.hidden = false;
+    } catch (e) {
+      adminBox.hidden = true;
+    }
+  }
+
+  limitsForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    limitsMsg.textContent = 'Saving…';
+    try {
+      const resp = await fetch(LIMITS_URL, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          daily_budget_usd: Number(budgetInput.value),
+          rate_limit_calls: Number(callsInput.value),
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        limitsMsg.textContent = data.message ||
+          'Could not save the limits. Please try again.';
+        return;
+      }
+      showLimits(data);
+      limitsMsg.textContent = 'Saved. Applies to the next question.';
+    } catch (err) {
+      limitsMsg.textContent = 'Could not reach the server. Nothing was changed.';
+    }
+  });
+
   async function checkStatus() {
     try {
       const resp = await fetch('/api/chat/status', { credentials: 'same-origin' });
@@ -550,6 +635,7 @@ const loginUrl = 'https://apps.streamflows.org/login';
       const data = await resp.json();
       signedIn = true;
       form.hidden = false;
+      if (data.is_admin === true) loadLimits();
       /* A blank or missing key must leave the in-memory store in place. Falling
          back to a constant would pool every user of a shared browser into one
          history. */
